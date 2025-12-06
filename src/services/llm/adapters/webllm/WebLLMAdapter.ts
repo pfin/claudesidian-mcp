@@ -255,25 +255,6 @@ export class WebLLMAdapter extends BaseAdapter {
 
     // Check for pre-built conversation history (tool continuations)
     let messages: ChatMessage[];
-    const isToolContinuation = !!(options?.conversationHistory?.length);
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // TOOL CONTINUATION BLOCKED - See file header for full investigation notes
-    // WebLLM crashes during prefill on second generation (Apple Silicon WebGPU bug)
-    // ═══════════════════════════════════════════════════════════════════════
-    if (isToolContinuation) {
-      console.warn('[WebLLMAdapter] ⚠️ Tool continuation blocked - WebGPU crash workaround');
-      console.warn('[WebLLMAdapter] Use Ollama or LM Studio for multi-turn tool calling');
-
-      // Yield an error message explaining the limitation
-      yield {
-        content: '\n\n⚠️ **Nexus Limitation**: Tool continuations are temporarily disabled due to a WebGPU stability issue. The tool was executed successfully, but Nexus cannot generate a follow-up response.\n\n**Workarounds:**\n1. Switch to **Ollama** or **LM Studio** for multi-turn tool calling\n2. Start a new conversation to continue with Nexus\n\n*This is a known WebLLM/WebGPU issue being tracked for future fixes.*',
-        complete: true,
-        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-      };
-      return;
-    }
-
     if (options?.conversationHistory && options.conversationHistory.length > 0) {
       messages = options.conversationHistory;
     } else {
@@ -289,7 +270,7 @@ export class WebLLMAdapter extends BaseAdapter {
     }
 
     const previousStatus = this.state.status;
-    // Note: isToolContinuation already checked and blocked above
+    const isToolContinuation = !!(options?.conversationHistory?.length);
     console.log(`[NEXUS_DEBUG] Generation start instance=#${this.instanceId}`, {
       statusChange: `${previousStatus} -> generating`,
       messageCount: messages.length,
