@@ -215,15 +215,34 @@ export class AdapterRegistry implements IAdapterRegistry {
       }
     }
 
-    // WebLLM/Nexus - Native local LLM via WebGPU
-    // Requires Vault for model storage, no API key needed
-    console.log('[AdapterRegistry] Nexus check:', {
-      webllmEnabled: providers.webllm?.enabled,
-      hasVault: !!this.vault,
-      vaultName: this.vault?.getName?.() || 'N/A'
-    });
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NEXUS/WEBLLM DISABLED (Dec 6, 2025)
+    // ═══════════════════════════════════════════════════════════════════════════
+    // WebLLM causes hard Electron renderer crashes during multi-turn conversations.
+    // The crash happens during the prefill phase of the second generation.
+    // This is a WebGPU resource management bug in WebLLM on Apple Silicon.
+    //
+    // TO RE-ENABLE FOR TESTING:
+    // 1. Set NEXUS_ENABLED = true below
+    // 2. Rebuild the plugin
+    // 3. Test thoroughly before shipping
+    //
+    // Full investigation notes in:
+    // - WebLLMAdapter.ts (header comment)
+    // - WebLLMEngine.ts (header comment)
+    // - CLAUDE.md (Known Issues section)
+    //
+    // Related: https://github.com/mlc-ai/web-llm/issues/647
+    // ═══════════════════════════════════════════════════════════════════════════
+    const NEXUS_ENABLED = false; // Set to true to re-enable for testing
 
-    if (providers.webllm?.enabled && this.vault) {
+    if (NEXUS_ENABLED && providers.webllm?.enabled && this.vault) {
+      console.log('[AdapterRegistry] Nexus check:', {
+        webllmEnabled: providers.webllm?.enabled,
+        hasVault: !!this.vault,
+        vaultName: this.vault?.getName?.() || 'N/A'
+      });
+
       try {
         console.log('[AdapterRegistry] Creating Nexus adapter...');
         this.webllmAdapter = new WebLLMAdapter(this.vault, this.mcpConnector);
@@ -247,6 +266,8 @@ export class AdapterRegistry implements IAdapterRegistry {
         console.error('[AdapterRegistry] Failed to create Nexus adapter:', error);
         this.logError('webllm', error);
       }
+    } else if (!NEXUS_ENABLED) {
+      console.log('[AdapterRegistry] Nexus is disabled (NEXUS_ENABLED = false)');
     } else if (providers.webllm?.enabled && !this.vault) {
       console.warn('[AdapterRegistry] Nexus is enabled but vault is not available - adapter will not be created');
     }

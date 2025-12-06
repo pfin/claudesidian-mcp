@@ -13,6 +13,42 @@
  * Note: Uses main-thread execution instead of Web Workers because
  * Obsidian's sandboxed Electron environment blocks CDN imports in workers.
  * WebGPU handles GPU compute, so main thread execution doesn't block UI.
+ *
+ * ╔═══════════════════════════════════════════════════════════════════════════╗
+ * ║  ⚠️ KNOWN LIMITATION: TOOL CONTINUATIONS DISABLED (Dec 2025)              ║
+ * ╠═══════════════════════════════════════════════════════════════════════════╣
+ * ║  Tool calling works for the FIRST generation only. Multi-turn tool        ║
+ * ║  continuations (ping-pong pattern) cause a hard Electron/WebGPU crash.    ║
+ * ║                                                                            ║
+ * ║  SYMPTOMS:                                                                 ║
+ * ║  - First generation completes successfully with tool call                 ║
+ * ║  - Tool execution works fine                                              ║
+ * ║  - Second generation (continuation) crashes Obsidian renderer process    ║
+ * ║  - Crash happens during prefill phase of stream iteration                ║
+ * ║  - No JavaScript error is caught - it's a hard renderer crash            ║
+ * ║                                                                            ║
+ * ║  INVESTIGATION DONE (Dec 6, 2025):                                         ║
+ * ║  1. Generation lock mechanism - prevents concurrent GPU ops               ║
+ * ║  2. KV cache reset timing - before/after/skip - all crash                 ║
+ * ║  3. Non-streaming API for continuations - also crashes                    ║
+ * ║  4. Longer delays (1s+) between generations - still crashes              ║
+ * ║  5. Skipping ALL resets - crashes during prefill                          ║
+ * ║                                                                            ║
+ * ║  LIKELY CAUSE:                                                             ║
+ * ║  WebGPU resource management issue in WebLLM on Apple Silicon.             ║
+ * ║  The second prefill operation corrupts GPU memory or hits an             ║
+ * ║  unhandled edge case in the WebGPU -> Metal translation layer.           ║
+ * ║  See: https://github.com/mlc-ai/web-llm/issues/647                        ║
+ * ║                                                                            ║
+ * ║  WORKAROUND:                                                               ║
+ * ║  Tool continuations are blocked with a user-friendly error message.       ║
+ * ║  Users should use Ollama or LM Studio for tool-calling workflows.         ║
+ * ║                                                                            ║
+ * ║  TO RE-ENABLE:                                                             ║
+ * ║  1. Update to newer WebLLM version when available                         ║
+ * ║  2. Remove the isToolContinuation check in generateStreamAsync()          ║
+ * ║  3. Test thoroughly on multiple macOS/GPU configurations                  ║
+ * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
 import { Vault } from 'obsidian';
@@ -40,6 +76,9 @@ import {
 } from './types';
 import { WEBLLM_MODELS, getWebLLMModel, getModelsForVRAM } from './WebLLMModels';
 
+// Unique instance counter for debugging adapter recreation issues
+let webllmAdapterInstanceCount = 0;
+
 export class WebLLMAdapter extends BaseAdapter {
   readonly name = 'webllm';
   readonly baseUrl = ''; // Local model - no external URL
@@ -48,6 +87,7 @@ export class WebLLMAdapter extends BaseAdapter {
   private modelManager: WebLLMModelManager;
   private state: WebLLMState;
   private vault: Vault;
+  private instanceId: number;
 
   mcpConnector?: any; // For tool execution support
 
@@ -55,9 +95,18 @@ export class WebLLMAdapter extends BaseAdapter {
     // WebLLM doesn't need an API key
     super('', '', '', false);
 
+    this.instanceId = ++webllmAdapterInstanceCount;
+    console.log(`[NEXUS_DEBUG] Adapter created, instance #${this.instanceId}`);
+    // Log stack trace to see where adapters are being created from
+    if (this.instanceId > 1) {
+      console.warn(`[NEXUS_DEBUG] ⚠️ Multiple adapter instances (using shared engine)`);
+    }
+
     this.vault = vault;
     this.mcpConnector = mcpConnector;
-    this.engine = new WebLLMEngine();
+    // Use shared singleton engine - critical for multiple adapter instances
+    // This ensures the GPU-loaded model is shared across all adapters
+    this.engine = WebLLMEngine.getSharedInstance();
     this.modelManager = new WebLLMModelManager(vault);
 
     this.state = {
@@ -212,10 +261,26 @@ export class WebLLMAdapter extends BaseAdapter {
       messages = this.buildMessages(prompt, options?.systemPrompt);
     }
 
+    // CRITICAL: Reset adapter state to 'ready' before starting new generation
+    // This ensures clean state regardless of previous generation's outcome
+    // The engine handles the actual locking via generationLock
+    if (this.state.status === 'generating') {
+      console.log(`[NEXUS_DEBUG] Resetting stale 'generating' status before new generation`);
+      this.state.status = 'ready';
+    }
+
+    const previousStatus = this.state.status;
+    const isToolContinuation = !!(options?.conversationHistory?.length);
+    console.log(`[NEXUS_DEBUG] Generation start instance=#${this.instanceId}`, {
+      statusChange: `${previousStatus} -> generating`,
+      messageCount: messages.length,
+      isToolContinuation,
+    });
+
+    // Set status AFTER logging for clearer debug output
+    this.state.status = 'generating';
+
     try {
-      this.state.status = 'generating';
-      console.log('[WebLLMAdapter] Starting generation with messages:', messages.length);
-      console.log('[WebLLMAdapter] Options:', { temp: options?.temperature, maxTokens: options?.maxTokens });
 
       let accumulatedContent = '';
       let hasToolCallsFormat = false;
@@ -227,6 +292,7 @@ export class WebLLMAdapter extends BaseAdapter {
         maxTokens: options?.maxTokens,
         topP: options?.topP,
         stopSequences: options?.stopSequences,
+        isToolContinuation, // Pass flag to skip resetChat on continuations
       })) {
         // Check if this is a chunk or final result
         if ('tokenCount' in response && !('usage' in response)) {
@@ -292,9 +358,9 @@ export class WebLLMAdapter extends BaseAdapter {
         }
       }
 
-      this.state.status = 'ready';
+      console.log(`[NEXUS_DEBUG] Generation complete instance=#${this.instanceId}, status -> ready`);
     } catch (error) {
-      this.state.status = 'ready';
+      console.log(`[NEXUS_DEBUG] Generation error instance=#${this.instanceId}:`, error);
 
       if (error instanceof WebLLMError) {
         throw error;
@@ -305,6 +371,11 @@ export class WebLLMAdapter extends BaseAdapter {
         'webllm',
         'GENERATION_FAILED'
       );
+    } finally {
+      // CRITICAL: Always reset adapter status in finally block
+      // This ensures clean state even if the generator is abandoned (not fully consumed)
+      console.log(`[NEXUS_DEBUG] Adapter cleanup instance=#${this.instanceId}, status -> ready`);
+      this.state.status = 'ready';
     }
   }
 
@@ -348,7 +419,7 @@ export class WebLLMAdapter extends BaseAdapter {
       supportsImages: false,
       supportsFunctions: true, // Via [TOOL_CALLS] format
       supportsThinking: false,
-      maxContextWindow: 32768,
+      maxContextWindow: 4096, // Must match WASM library (ctx4k)
       supportedFeatures: ['streaming', 'function_calling', 'local', 'privacy', 'offline'],
     };
   }
@@ -433,6 +504,15 @@ export class WebLLMAdapter extends BaseAdapter {
    * Will auto-load the default model if not already loaded
    */
   private async ensureModelLoadedAsync(): Promise<void> {
+    const engineLoaded = this.engine?.isModelLoaded();
+
+    // DIAGNOSTIC: Log current state on every call with instance ID
+    console.log(`[NEXUS_DEBUG] ensureModelLoaded instance=#${this.instanceId}`, {
+      status: this.state.status,
+      loadedModel: this.state.loadedModel,
+      engineLoaded,
+    });
+
     if (this.state.status === 'unavailable') {
       throw new LLMProviderError(
         'WebGPU not available',
@@ -441,10 +521,32 @@ export class WebLLMAdapter extends BaseAdapter {
       );
     }
 
-    // If model is already loaded, we're good
-    if (this.state.loadedModel && this.state.status === 'ready') {
+    // If engine has model loaded, we're good - trust the shared engine state
+    // This handles: tool continuation, multiple adapter instances, etc.
+    if (engineLoaded) {
+      // Sync adapter state with engine state
+      const engineModelId = this.engine.getCurrentModelId();
+      if (engineModelId && !this.state.loadedModel) {
+        console.log(`[NEXUS_DEBUG] Syncing adapter state with engine, model=${engineModelId}`);
+        this.state.loadedModel = engineModelId;
+        this.state.status = 'ready';
+      }
+      console.log(`[NEXUS_DEBUG] Engine has model, skipping reload instance=#${this.instanceId}`);
       return;
     }
+
+    // Also check if status is ready (normal case)
+    if (this.state.loadedModel && this.state.status === 'ready') {
+      console.log(`[NEXUS_DEBUG] Model ready, skipping reload instance=#${this.instanceId}`);
+      return;
+    }
+
+    // DIAGNOSTIC: Log why we're continuing (model NOT loaded)
+    console.warn(`[NEXUS_DEBUG] ⚠️ RELOAD TRIGGERED instance=#${this.instanceId}`, {
+      hasLoadedModel: !!this.state.loadedModel,
+      status: this.state.status,
+      engineLoaded,
+    });
 
     // If currently loading, wait
     if (this.state.status === 'loading') {
