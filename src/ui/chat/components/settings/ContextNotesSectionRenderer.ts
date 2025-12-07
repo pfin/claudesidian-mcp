@@ -2,12 +2,12 @@
  * ContextNotesSectionRenderer - Renders context notes section
  *
  * Handles the list of context notes and the "Add Context Note" button.
- * Opens NotePickerModal when user wants to add a note.
+ * Uses FilePickerRenderer.openModal() for file selection (same as workspace key files).
  */
 
 import { Setting } from 'obsidian';
 import { ISectionRenderer, ChatSettingsState, ChatSettingsDependencies } from './types';
-import { NotePickerModal } from './NotePickerModal';
+import { FilePickerRenderer } from '../../../../components/workspace/FilePickerRenderer';
 
 export class ContextNotesSectionRenderer implements ISectionRenderer {
   private notesListEl: HTMLElement | null = null;
@@ -71,11 +71,13 @@ export class ContextNotesSectionRenderer implements ISectionRenderer {
   }
 
   private async openNotePicker(): Promise<void> {
-    const picker = new NotePickerModal(this.deps.app, this.state.contextNotes);
-    const result = await picker.open();
+    const selectedPaths = await FilePickerRenderer.openModal(this.deps.app, {
+      title: 'Select Context Notes',
+      excludePaths: this.state.contextNotes
+    });
 
-    if (result.selected && result.notePath) {
-      this.state.contextNotes.push(result.notePath);
+    if (selectedPaths.length > 0) {
+      this.state.contextNotes.push(...selectedPaths);
       this.deps.onContextNotesChange?.(this.state.contextNotes);
       this.renderNotesList();
     }

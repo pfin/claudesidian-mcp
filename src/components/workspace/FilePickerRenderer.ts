@@ -1,4 +1,4 @@
-import { App, TFile, TFolder, setIcon, ButtonComponent, TextComponent } from 'obsidian';
+import { App, TFile, TFolder, setIcon, ButtonComponent, TextComponent, Modal } from 'obsidian';
 
 const DEBOUNCE_MS = 150;
 
@@ -19,13 +19,15 @@ export class FilePickerRenderer {
   private searchQuery: string = '';
   private searchTimeout?: ReturnType<typeof setTimeout>;
   private rootPath: string;
+  private title: string;
 
   constructor(
     private app: App,
     private onSelect: (filePath: string) => void,
     private onCancel: () => void,
     initialSelection?: string,
-    workspaceRootFolder?: string
+    workspaceRootFolder?: string,
+    title?: string
   ) {
     // Support single or multiple initial selection
     this.selectedFiles = new Set(initialSelection ? [initialSelection] : []);
@@ -34,6 +36,8 @@ export class FilePickerRenderer {
     this.rootPath = workspaceRootFolder && workspaceRootFolder !== '/'
       ? workspaceRootFolder
       : '/';
+
+    this.title = title || 'Select Files';
   }
 
   /**
@@ -49,7 +53,7 @@ export class FilePickerRenderer {
     new ButtonComponent(leftSection)
       .setButtonText('← Back')
       .onClick(() => this.onCancel());
-    leftSection.createEl('h3', { text: 'Select Key Files' });
+    leftSection.createEl('h3', { text: this.title });
 
     const actions = header.createDiv('nexus-file-picker-actions');
     new ButtonComponent(actions)
@@ -338,5 +342,52 @@ export class FilePickerRenderer {
   getSelectedPath(): string {
     const paths = this.getSelectedPaths();
     return paths.length > 0 ? paths[0] : '';
+  }
+
+  /**
+   * Open file picker in a modal - reusable anywhere
+   * @param app Obsidian App instance
+   * @param options Configuration options
+   * @returns Promise with selected file paths (empty array if cancelled)
+   */
+  static openModal(
+    app: App,
+    options: {
+      title?: string;
+      rootFolder?: string;
+      initialSelection?: string[];
+      excludePaths?: string[];
+    } = {}
+  ): Promise<string[]> {
+    return new Promise((resolve) => {
+      const modal = new Modal(app);
+      modal.titleEl.setText(options.title || 'Select Files');
+      modal.modalEl.addClass('file-picker-modal');
+
+      let pickerInstance: FilePickerRenderer;
+
+      pickerInstance = new FilePickerRenderer(
+        app,
+        () => {
+          // Done callback - return all selected paths
+          const paths = pickerInstance.getSelectedPaths();
+          const filtered = options.excludePaths
+            ? paths.filter(p => !options.excludePaths!.includes(p))
+            : paths;
+          resolve(filtered);
+          modal.close();
+        },
+        () => {
+          // Cancel callback
+          resolve([]);
+          modal.close();
+        },
+        options.initialSelection?.join(','),
+        options.rootFolder || '/'
+      );
+
+      pickerInstance.render(modal.contentEl);
+      modal.open();
+    });
   }
 }

@@ -7,12 +7,12 @@
 // Types
 export * from './types';
 
-// Modals
-export * from './NotePickerModal';
-
 // Section Renderers
 export * from './WorkspaceSectionRenderer';
-export * from './ModelSectionRenderer';
+export * from './LLMSectionRenderer';
 export * from './AgentSectionRenderer';
 export * from './ContextNotesSectionRenderer';
+
+// Legacy renderers (kept for backward compatibility)
+export * from './ModelSectionRenderer';
 export * from './ThinkingSectionRenderer';

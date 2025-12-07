@@ -1,36 +1,22 @@
 /**
- * ChatSettingsModal - Modal for configuring chat settings
+ * ChatSettingsModal - Modal for configuring chat session settings
  *
- * Orchestrates section renderers for workspace, model, agent, and context notes.
- * Refactored from 702 lines to ~200 lines following SOLID principles.
+ * Uses ChatSettingsRenderer for identical UI to DefaultsTab.
+ * Saves to conversation metadata (this session only).
  */
 
 import { App, Modal, ButtonComponent } from 'obsidian';
 import { WorkspaceService } from '../../../services/WorkspaceService';
 import { ModelAgentManager } from '../services/ModelAgentManager';
-import { ModelOption } from './ModelSelector';
-import { AgentOption } from './AgentSelector';
-import {
-  ChatSettingsState,
-  ChatSettingsDependencies,
-  ISectionRenderer,
-  WorkspaceSectionRenderer,
-  ModelSectionRenderer,
-  AgentSectionRenderer,
-  ContextNotesSectionRenderer,
-  ThinkingSectionRenderer
-} from './settings';
+import { ChatSettingsRenderer, ChatSettings } from '../../../components/shared/ChatSettingsRenderer';
+import { getNexusPlugin } from '../../../utils/pluginLocator';
 
 export class ChatSettingsModal extends Modal {
   private workspaceService: WorkspaceService;
   private modelAgentManager: ModelAgentManager;
   private conversationId: string | null;
-
-  // Shared state for section renderers
-  private state: ChatSettingsState;
-
-  // Section renderers
-  private renderers: ISectionRenderer[] = [];
+  private renderer: ChatSettingsRenderer | null = null;
+  private pendingSettings: ChatSettings | null = null;
 
   constructor(
     app: App,
@@ -42,140 +28,18 @@ export class ChatSettingsModal extends Modal {
     this.conversationId = conversationId;
     this.workspaceService = workspaceService;
     this.modelAgentManager = modelAgentManager;
-
-    // Initialize shared state
-    this.state = {
-      selectedWorkspaceId: modelAgentManager.getSelectedWorkspaceId(),
-      selectedModel: modelAgentManager.getSelectedModel(),
-      selectedAgent: modelAgentManager.getSelectedAgent(),
-      contextNotes: [...modelAgentManager.getContextNotes()],
-      availableWorkspaces: [],
-      availableModels: [],
-      availableAgents: [],
-      thinking: modelAgentManager.getThinkingSettings()
-    };
   }
 
   async onOpen() {
-    await this.loadAvailableOptions();
-    this.render();
-  }
-
-  onClose() {
-    // Destroy all renderers
-    this.renderers.forEach(r => r.destroy?.());
-    this.renderers = [];
-
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-
-  /**
-   * Load available workspaces, models, and agents
-   */
-  private async loadAvailableOptions(): Promise<void> {
-    try {
-      this.state.availableWorkspaces = await this.workspaceService.listWorkspaces();
-      this.state.availableModels = await this.modelAgentManager.getAvailableModels();
-      this.state.availableAgents = await this.modelAgentManager.getAvailableAgents();
-    } catch (error) {
-      // Error loading options - state will have empty arrays
-    }
-  }
-
-  /**
-   * Create dependencies for section renderers
-   */
-  private createDependencies(): ChatSettingsDependencies {
-    return {
-      app: this.app,
-      workspaceService: this.workspaceService,
-      modelAgentManager: this.modelAgentManager,
-      conversationId: this.conversationId,
-      onWorkspaceChange: async (workspaceId) => {
-        this.state.selectedWorkspaceId = workspaceId;
-        await this.handleWorkspaceAgentSync(workspaceId);
-      },
-      onModelChange: (model) => {
-        this.state.selectedModel = model;
-        // Update thinking section when model changes (to show/hide based on capability)
-        const thinkingRenderer = this.renderers.find(r => r instanceof ThinkingSectionRenderer);
-        thinkingRenderer?.update?.();
-      },
-      onAgentChange: (agent) => {
-        this.state.selectedAgent = agent;
-      },
-      onContextNotesChange: (notes) => {
-        this.state.contextNotes = notes;
-      },
-      onThinkingChange: (settings) => {
-        this.state.thinking = settings;
-      }
-    };
-  }
-
-  /**
-   * Sync agent selection when workspace changes
-   */
-  private async handleWorkspaceAgentSync(workspaceId: string | null): Promise<void> {
-    if (!workspaceId) return;
-
-    try {
-      const workspace = await this.workspaceService.getWorkspace(workspaceId);
-      if (workspace?.context?.dedicatedAgent) {
-        const agentId = workspace.context.dedicatedAgent.agentId;
-        const agent = this.state.availableAgents.find(a => a.id === agentId);
-        if (agent) {
-          this.state.selectedAgent = agent;
-          // Update agent renderer
-          const agentRenderer = this.renderers.find(r => r instanceof AgentSectionRenderer);
-          agentRenderer?.update?.();
-        }
-      }
-    } catch (error) {
-      // Error syncing agent
-    }
-  }
-
-  /**
-   * Render the modal
-   */
-  private render(): void {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass('chat-settings-modal');
 
-    // Header
+    // Header with buttons
     const header = contentEl.createDiv('chat-settings-header');
     header.createEl('h2', { text: 'Chat Settings' });
-    this.renderActionButtons(header);
 
-    // Create dependencies and renderers
-    const deps = this.createDependencies();
-
-    // Section container
-    const sectionsContainer = contentEl.createDiv('chat-settings-sections');
-
-    // Create and render section renderers
-    this.renderers = [
-      new WorkspaceSectionRenderer(this.state, deps),
-      new ModelSectionRenderer(this.state, deps),
-      new ThinkingSectionRenderer(this.state, deps),
-      new AgentSectionRenderer(this.state, deps),
-      new ContextNotesSectionRenderer(this.state, deps)
-    ];
-
-    this.renderers.forEach(renderer => {
-      renderer.render(sectionsContainer);
-    });
-  }
-
-  /**
-   * Render action buttons
-   */
-  private renderActionButtons(container: HTMLElement): void {
-    const buttonContainer = container.createDiv('chat-settings-button-container');
-
+    const buttonContainer = header.createDiv('chat-settings-buttons');
     new ButtonComponent(buttonContainer)
       .setButtonText('Cancel')
       .onClick(() => this.close());
@@ -184,47 +48,149 @@ export class ChatSettingsModal extends Modal {
       .setButtonText('Save')
       .setCta()
       .onClick(() => this.handleSave());
+
+    // Load data and render
+    await this.loadAndRender(contentEl);
   }
 
-  /**
-   * Handle save button click
-   */
-  private async handleSave(): Promise<void> {
+  private async loadAndRender(contentEl: HTMLElement): Promise<void> {
+    const plugin = getNexusPlugin(this.app) as any;
+    const llmProviderSettings = plugin?.settings?.settings?.llmProviders;
+
+    if (!llmProviderSettings) {
+      contentEl.createEl('p', { text: 'Settings not available' });
+      return;
+    }
+
+    // Load workspaces and agents
+    const workspaces = await this.loadWorkspaces();
+    const agents = await this.loadAgents();
+
+    // Get current settings from ModelAgentManager
+    const initialSettings = this.getCurrentSettings();
+
+    // Create renderer
+    const rendererContainer = contentEl.createDiv('chat-settings-renderer');
+
+    this.renderer = new ChatSettingsRenderer(rendererContainer, {
+      app: this.app,
+      llmProviderSettings,
+      initialSettings,
+      options: { workspaces, agents },
+      callbacks: {
+        onSettingsChange: (settings) => {
+          this.pendingSettings = settings;
+        }
+      }
+    });
+
+    this.renderer.render();
+  }
+
+  private async loadWorkspaces(): Promise<Array<{ id: string; name: string }>> {
     try {
-      // Update model selection
-      if (this.state.selectedModel) {
-        this.modelAgentManager.handleModelChange(this.state.selectedModel);
+      const workspaces = await this.workspaceService.listWorkspaces();
+      return workspaces.map(w => ({ id: w.id, name: w.name }));
+    } catch {
+      return [];
+    }
+  }
+
+  private async loadAgents(): Promise<Array<{ id: string; name: string }>> {
+    try {
+      const agents = await this.modelAgentManager.getAvailableAgents();
+      return agents.map(a => ({ id: a.id || a.name, name: a.name }));
+    } catch {
+      return [];
+    }
+  }
+
+  private getCurrentSettings(): ChatSettings {
+    const model = this.modelAgentManager.getSelectedModel();
+    const agent = this.modelAgentManager.getSelectedAgent();
+    const thinking = this.modelAgentManager.getThinkingSettings();
+    const contextNotes = this.modelAgentManager.getContextNotes();
+
+    // Get plugin defaults for image settings
+    const plugin = getNexusPlugin(this.app) as any;
+    const llmSettings = plugin?.settings?.settings?.llmProviders;
+
+    return {
+      provider: model?.providerId || llmSettings?.defaultModel?.provider || '',
+      model: model?.modelId || llmSettings?.defaultModel?.model || '',
+      thinking: {
+        enabled: thinking?.enabled ?? false,
+        effort: thinking?.effort ?? 'medium'
+      },
+      imageProvider: llmSettings?.defaultImageModel?.provider || 'google',
+      imageModel: llmSettings?.defaultImageModel?.model || 'gemini-2.5-flash-image',
+      workspaceId: this.modelAgentManager.getSelectedWorkspaceId(),
+      agentId: agent?.id || agent?.name || null,
+      contextNotes: [...contextNotes]
+    };
+  }
+
+  private async handleSave(): Promise<void> {
+    if (!this.pendingSettings) {
+      this.pendingSettings = this.renderer?.getSettings() || null;
+    }
+
+    if (!this.pendingSettings) {
+      this.close();
+      return;
+    }
+
+    try {
+      const settings = this.pendingSettings;
+
+      // Update model
+      const availableModels = await this.modelAgentManager.getAvailableModels();
+      const model = availableModels.find(
+        m => m.providerId === settings.provider && m.modelId === settings.model
+      );
+      if (model) {
+        this.modelAgentManager.handleModelChange(model);
       }
 
-      // Update agent selection
-      await this.modelAgentManager.handleAgentChange(this.state.selectedAgent);
+      // Update agent
+      if (settings.agentId) {
+        const availableAgents = await this.modelAgentManager.getAvailableAgents();
+        const agent = availableAgents.find(a => a.id === settings.agentId || a.name === settings.agentId);
+        await this.modelAgentManager.handleAgentChange(agent || null);
+      } else {
+        await this.modelAgentManager.handleAgentChange(null);
+      }
 
-      // Update workspace context
-      if (this.state.selectedWorkspaceId) {
-        const workspace = await this.workspaceService.getWorkspace(this.state.selectedWorkspaceId);
+      // Update workspace
+      if (settings.workspaceId) {
+        const workspace = await this.workspaceService.getWorkspace(settings.workspaceId);
         if (workspace?.context) {
-          await this.modelAgentManager.setWorkspaceContext(this.state.selectedWorkspaceId, workspace.context);
-        } else {
-          await this.modelAgentManager.clearWorkspaceContext();
+          await this.modelAgentManager.setWorkspaceContext(settings.workspaceId, workspace.context);
         }
       } else {
         await this.modelAgentManager.clearWorkspaceContext();
       }
 
+      // Update thinking
+      this.modelAgentManager.setThinkingSettings(settings.thinking);
+
       // Update context notes
-      await this.modelAgentManager.setContextNotes(this.state.contextNotes);
+      await this.modelAgentManager.setContextNotes(settings.contextNotes);
 
-      // Update thinking settings
-      this.modelAgentManager.setThinkingSettings(this.state.thinking);
-
-      // Persist to conversation metadata
+      // Save to conversation metadata
       if (this.conversationId) {
         await this.modelAgentManager.saveToConversation(this.conversationId);
       }
 
       this.close();
     } catch (error) {
-      // Error saving settings
+      console.error('[ChatSettingsModal] Error saving settings:', error);
     }
+  }
+
+  onClose() {
+    this.renderer = null;
+    this.pendingSettings = null;
+    this.contentEl.empty();
   }
 }

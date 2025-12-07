@@ -53,6 +53,14 @@ export class ModelAgentManager {
   }
 
   /**
+   * Initialize with plugin defaults (model, workspace, agent)
+   * Call this when no conversation exists (e.g., welcome state)
+   */
+  async initializeDefaults(): Promise<void> {
+    await this.initializeDefaultModel();
+  }
+
+  /**
    * Initialize from conversation metadata (if available), otherwise use plugin default
    */
   async initializeFromConversation(conversationId: string): Promise<void> {
@@ -60,14 +68,23 @@ export class ModelAgentManager {
       // Try to load from conversation metadata first
       if (this.conversationService) {
         const conversation = await this.conversationService.getConversation(conversationId);
+        const chatSettings = conversation?.metadata?.chatSettings;
 
-        if (conversation?.metadata?.chatSettings) {
-          await this.restoreFromConversationMetadata(conversation.metadata.chatSettings);
+        // Check if chatSettings has meaningful content (not just empty object)
+        const hasMeaningfulSettings = chatSettings && (
+          chatSettings.providerId ||
+          chatSettings.modelId ||
+          chatSettings.agentId ||
+          chatSettings.workspaceId
+        );
+
+        if (hasMeaningfulSettings) {
+          await this.restoreFromConversationMetadata(chatSettings);
           return; // Successfully loaded from metadata
         }
       }
 
-      // Fall back to plugin default if no metadata
+      // Fall back to plugin default if no meaningful metadata
       await this.initializeDefaultModel();
     } catch (error) {
       await this.initializeDefaultModel();
@@ -151,7 +168,7 @@ export class ModelAgentManager {
   }
 
   /**
-   * Initialize from plugin settings defaults (model, workspace, agent)
+   * Initialize from plugin settings defaults (model, workspace, agent, thinking)
    */
   private async initializeDefaultModel(): Promise<void> {
     try {
@@ -177,12 +194,21 @@ export class ModelAgentManager {
       const plugin = getNexusPlugin(this.app) as any;
       const settings = plugin?.settings?.settings;
 
+      // Load default thinking settings
+      const llmProviders = settings?.llmProviders;
+      if (llmProviders?.defaultThinking) {
+        this.thinkingSettings = {
+          enabled: llmProviders.defaultThinking.enabled ?? false,
+          effort: llmProviders.defaultThinking.effort ?? 'medium'
+        };
+      }
+
       // Load default workspace if set
       if (settings?.defaultWorkspaceId) {
         try {
           await this.restoreWorkspace(settings.defaultWorkspaceId, undefined);
         } catch (error) {
-          console.warn('[ModelAgentManager] Failed to load default workspace:', error);
+          // Failed to load default workspace
         }
       }
 
@@ -199,7 +225,7 @@ export class ModelAgentManager {
             return; // Agent was set, don't reset
           }
         } catch (error) {
-          console.warn('[ModelAgentManager] Failed to load default agent:', error);
+          // Failed to load default agent
         }
       }
 

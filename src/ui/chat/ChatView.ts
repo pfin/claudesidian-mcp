@@ -384,6 +384,9 @@ export class ChatView extends ItemView {
 
     const conversations = this.conversationManager.getConversations();
     if (conversations.length === 0) {
+      // Initialize with defaults (model, workspace, agent) for new chats
+      await this.modelAgentManager.initializeDefaults();
+
       this.uiStateController.showWelcomeState();
       if (this.chatInput) {
         this.chatInput.setConversationState(false);
@@ -437,6 +440,9 @@ export class ChatView extends ItemView {
     const currentConversation = this.conversationManager.getCurrentConversation();
 
     if (conversations.length === 0) {
+      // Re-initialize with defaults when returning to welcome state
+      await this.modelAgentManager.initializeDefaults();
+
       this.uiStateController.showWelcomeState();
       if (this.chatInput) {
         this.chatInput.setConversationState(false);

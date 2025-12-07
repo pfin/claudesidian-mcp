@@ -50,6 +50,7 @@ export interface MCPSettings {
   // Default selections for chat
   defaultWorkspaceId?: string;
   defaultAgentId?: string;
+  defaultContextNotes?: string[];
   // Update tracking
   lastUpdateVersion?: string;
   lastUpdateDate?: string;
