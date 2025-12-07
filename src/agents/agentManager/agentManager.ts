@@ -18,8 +18,10 @@ import { sanitizeVaultName } from '../../utils/vaultUtils';
 import { LLMProviderManager } from '../../services/llm/providers/ProviderManager';
 import { AgentManager } from '../../services/AgentManager';
 import { UsageTracker } from '../../services/UsageTracker';
-import { Vault } from 'obsidian';
+import { Vault, EventRef } from 'obsidian';
 import { isModeHidden } from '../../config/toolVisibility';
+import { LLMSettingsNotifier } from '../../services/llm/LLMSettingsNotifier';
+import { LLMProviderSettings } from '../../types';
 
 /**
  * AgentManager Agent for custom prompt operations
@@ -59,6 +61,11 @@ export class AgentManagerAgent extends BaseAgent {
    * Vault instance for image generation
    */
   private readonly vault: Vault;
+
+  /**
+   * EventRef for settings change listener (Obsidian Events API)
+   */
+  private settingsEventRef: EventRef | null = null;
 
   /**
    * Create a new AgentManagerAgent with dependency injection
@@ -119,12 +126,65 @@ export class AgentManagerAgent extends BaseAgent {
       this.storageService
     ));
 
-    // Register image generation mode with vault and settings
+    // Register image generation mode only if Google or OpenRouter API keys are configured
     const pluginSettings = (settings as any)?.settings;
-    this.registerMode(new GenerateImageMode({
-      vault: this.vault,
-      llmSettings: pluginSettings?.llmProviders
-    }));
+    const llmProviders = pluginSettings?.llmProviders;
+    const hasGoogleKey = llmProviders?.providers?.google?.apiKey && llmProviders?.providers?.google?.enabled;
+    const hasOpenRouterKey = llmProviders?.providers?.openrouter?.apiKey && llmProviders?.providers?.openrouter?.enabled;
+
+    if (hasGoogleKey || hasOpenRouterKey) {
+      this.registerMode(new GenerateImageMode({
+        vault: this.vault,
+        llmSettings: llmProviders
+      }));
+    }
+
+    // Subscribe to settings changes to dynamically register/unregister modes (Obsidian Events API)
+    this.settingsEventRef = LLMSettingsNotifier.onSettingsChanged((newSettings) => {
+      this.handleSettingsChange(newSettings);
+    });
+  }
+
+  /**
+   * Handle LLM provider settings changes
+   * Dynamically registers/unregisters GenerateImageMode based on API key availability
+   */
+  private handleSettingsChange(settings: LLMProviderSettings): void {
+    const hasGoogleKey = settings.providers?.google?.apiKey && settings.providers?.google?.enabled;
+    const hasOpenRouterKey = settings.providers?.openrouter?.apiKey && settings.providers?.openrouter?.enabled;
+    const shouldHaveGenerateImage = hasGoogleKey || hasOpenRouterKey;
+    const hasGenerateImage = this.hasMode('generateImage');
+
+    if (shouldHaveGenerateImage && !hasGenerateImage) {
+      // Register the mode - API key now available
+      console.log('[AgentManagerAgent] Registering generateImage mode - API key now configured');
+      this.registerMode(new GenerateImageMode({
+        vault: this.vault,
+        llmSettings: settings
+      }));
+    } else if (!shouldHaveGenerateImage && hasGenerateImage) {
+      // Unregister the mode - API key removed
+      console.log('[AgentManagerAgent] Unregistering generateImage mode - API key removed');
+      this.unregisterMode('generateImage');
+    } else if (shouldHaveGenerateImage && hasGenerateImage) {
+      // Update the existing mode with new settings
+      this.unregisterMode('generateImage');
+      this.registerMode(new GenerateImageMode({
+        vault: this.vault,
+        llmSettings: settings
+      }));
+    }
+  }
+
+  /**
+   * Clean up resources when the agent is unloaded
+   */
+  onunload(): void {
+    // Unsubscribe from settings changes (Obsidian Events API)
+    if (this.settingsEventRef) {
+      LLMSettingsNotifier.unsubscribe(this.settingsEventRef);
+      this.settingsEventRef = null;
+    }
   }
 
   /**

@@ -3,7 +3,7 @@
  * Provides unified interface to all LLM providers with Obsidian integration
  */
 
-import { Vault } from 'obsidian';
+import { Vault, EventRef } from 'obsidian';
 import { BaseAdapter } from '../adapters/BaseAdapter';
 import { GenerateOptions, LLMResponse, ModelInfo } from '../adapters/types';
 import { LLMProviderSettings, LLMProviderConfig } from '../../../types';
@@ -18,6 +18,7 @@ import { VaultOperations } from '../../../core/VaultOperations';
 import { CacheManager } from '../utils/CacheManager';
 import { Logger } from '../utils/Logger';
 import { ConfigManager } from '../utils/ConfigManager';
+import { LLMSettingsNotifier } from '../LLMSettingsNotifier';
 
 export interface LLMExecutionOptions extends GenerateOptions {
   provider?: string;
@@ -55,6 +56,7 @@ export class LLMService {
   private fileContentService?: FileContentService;
   private settings: LLMProviderSettings;
   private vault?: Vault;
+  private settingsEventRef: EventRef | null = null;
 
   constructor(settings: LLMProviderSettings, mcpConnector?: any, vault?: Vault) {
     this.settings = settings;
@@ -69,6 +71,12 @@ export class LLMService {
     this.adapterRegistry = new AdapterRegistry(settings, mcpConnector, vault);
     this.adapterRegistry.initialize(settings, mcpConnector, vault);
     this.modelDiscovery = new ModelDiscoveryService(this.adapterRegistry, settings);
+
+    // Subscribe to settings changes for automatic adapter refresh (Obsidian Events API)
+    this.settingsEventRef = LLMSettingsNotifier.onSettingsChanged((newSettings) => {
+      console.log('[LLMService] Settings changed, updating adapters');
+      this.updateSettings(newSettings);
+    });
   }
 
 
@@ -249,6 +257,15 @@ export class LLMService {
   /** Get a specific adapter instance for direct access */
   getAdapter(providerId: string): BaseAdapter | undefined {
     return this.adapterRegistry.getAdapter(providerId);
+  }
+
+  /** Clean up resources and unsubscribe from settings changes */
+  dispose(): void {
+    if (this.settingsEventRef) {
+      LLMSettingsNotifier.unsubscribe(this.settingsEventRef);
+      this.settingsEventRef = null;
+    }
+    this.adapterRegistry.clear();
   }
 
 }

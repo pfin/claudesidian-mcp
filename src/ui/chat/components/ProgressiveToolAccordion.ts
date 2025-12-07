@@ -426,10 +426,10 @@ export class ProgressiveToolAccordion {
     if (tool.status === 'completed' && tool.result) {
       const resultSection = item.querySelector(`[data-result-section="${tool.id}"]`) as HTMLElement;
       resultSection.style.display = 'block';
-      
+
       const resultHeader = resultSection.createDiv('tool-section-header');
       resultHeader.textContent = 'Result:';
-      
+
       const resultContent = resultSection.createEl('pre', { cls: 'tool-code' });
       if (typeof tool.result === 'string') {
         resultContent.textContent = tool.result;

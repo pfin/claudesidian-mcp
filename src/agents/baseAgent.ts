@@ -71,6 +71,23 @@ export abstract class BaseAgent implements IAgent {
   registerMode(mode: IMode): void {
     this.modes.set(mode.slug, mode);
   }
+
+  /**
+   * Unregister a mode from this agent
+   * @param modeSlug Slug of the mode to unregister
+   * @returns true if mode was removed, false if it didn't exist
+   */
+  unregisterMode(modeSlug: string): boolean {
+    return this.modes.delete(modeSlug);
+  }
+
+  /**
+   * Check if a mode is registered
+   * @param modeSlug Slug of the mode to check
+   */
+  hasMode(modeSlug: string): boolean {
+    return this.modes.has(modeSlug);
+  }
   
   /**
    * Initialize the agent

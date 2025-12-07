@@ -17,6 +17,7 @@ import { LLMProviderModal, LLMProviderModalConfig } from '../../components/LLMPr
 import { LLMProviderManager } from '../../services/llm/providers/ProviderManager';
 import { Settings } from '../../settings';
 import { Card, CardConfig } from '../../components/Card';
+import { LLMSettingsNotifier } from '../../services/llm/LLMSettingsNotifier';
 
 /**
  * Provider display configuration
@@ -150,12 +151,15 @@ export class ProvidersTab {
     }
 
     /**
-     * Save settings
+     * Save settings and notify subscribers
      */
     private async saveSettings(): Promise<void> {
         if (this.services.settings && this.services.llmProviderSettings) {
             this.services.settings.settings.llmProviders = this.services.llmProviderSettings;
             await this.services.settings.saveSettings();
+
+            // Notify all subscribers of the settings change
+            LLMSettingsNotifier.notify(this.services.llmProviderSettings);
         }
     }
 

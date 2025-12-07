@@ -365,6 +365,57 @@
     max-width: none;
 }
 
+.message-container.message-image {
+    align-self: stretch;
+    width: 100%;
+    max-width: none;
+}
+
+/* Generated Image Bubble */
+.image-bubble {
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    padding: 0.75rem;
+}
+
+.generated-image-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 0.75rem;
+}
+
+.generated-image {
+    max-width: 100%;
+    max-height: 400px;
+    border-radius: 8px;
+    object-fit: contain;
+}
+
+.generated-image-open-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--interactive-normal);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    color: var(--text-normal);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color 0.15s;
+    justify-content: center;
+}
+
+.generated-image-open-btn:hover {
+    background: var(--interactive-hover);
+}
+
+.generated-image-open-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
 /* Message Bubbles */
 .message-bubble {
     width: 100%;

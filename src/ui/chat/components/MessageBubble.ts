@@ -29,6 +29,7 @@ export class MessageBubble extends Component {
   private messageBranchNavigator: MessageBranchNavigator | null = null;
   private toolBubbleElement: HTMLElement | null = null;
   private textBubbleElement: HTMLElement | null = null;
+  private imageBubbleElement: HTMLElement | null = null;
 
   constructor(
     private message: ConversationMessage,
@@ -70,6 +71,18 @@ export class MessageBubble extends Component {
         progressiveToolAccordions: this.progressiveToolAccordions
       });
       wrapper.appendChild(this.toolBubbleElement);
+
+      // Check for image results in completed tool calls (for loaded messages)
+      if (activeToolCalls) {
+        for (const toolCall of activeToolCalls) {
+          if (toolCall.result && toolCall.success !== false) {
+            const imageData = this.extractImageFromResult(toolCall.result);
+            if (imageData) {
+              this.createImageBubbleStatic(wrapper, imageData);
+            }
+          }
+        }
+      }
 
       // Create text bubble if there's content
       if (activeContent && activeContent.trim()) {
@@ -422,6 +435,11 @@ export class MessageBubble extends Component {
           data.success,
           data.error
         );
+
+        // Check if this is an image generation result
+        if (data.success && data.result) {
+          this.checkAndRenderImageResult(data.result);
+        }
         break;
     }
   }
@@ -433,6 +451,103 @@ export class MessageBubble extends Component {
     if (this.toolBubbleElement) return;
 
     this.toolBubbleElement = ToolBubbleFactory.createToolBubbleOnDemand(this.message, this.element);
+  }
+
+  /**
+   * Check if a tool result contains an image path and render it
+   */
+  private checkAndRenderImageResult(result: any): void {
+    const imageData = this.extractImageFromResult(result);
+    if (!imageData) return;
+
+    this.createImageBubble(imageData);
+  }
+
+  /**
+   * Extract image data from a tool result (supports generateImage tool format)
+   */
+  private extractImageFromResult(result: any): { imagePath: string; prompt?: string; dimensions?: { width: number; height: number }; model?: string } | null {
+    if (!result) return null;
+
+    // Handle both direct result and nested data structure
+    const data = result.data || result;
+
+    // Check for imagePath which indicates an image generation result
+    if (data && typeof data.imagePath === 'string') {
+      return {
+        imagePath: data.imagePath,
+        prompt: data.prompt || data.revisedPrompt,
+        dimensions: data.dimensions,
+        model: data.model
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Create an image bubble to display generated images prominently in the chat
+   */
+  private createImageBubble(imageData: { imagePath: string; prompt?: string; dimensions?: { width: number; height: number }; model?: string }): void {
+    if (!this.element) return;
+
+    const imageBubble = this.buildImageBubbleElement(imageData);
+
+    // Insert image bubble after tool bubble, before text bubble
+    if (this.toolBubbleElement && this.textBubbleElement) {
+      this.element.insertBefore(imageBubble, this.textBubbleElement);
+    } else if (this.toolBubbleElement) {
+      this.element.appendChild(imageBubble);
+    } else {
+      // No tool bubble, append to wrapper
+      this.element.appendChild(imageBubble);
+    }
+
+    this.imageBubbleElement = imageBubble;
+  }
+
+  /**
+   * Create an image bubble for static content (during createElement)
+   */
+  private createImageBubbleStatic(parent: HTMLElement, imageData: { imagePath: string; prompt?: string; dimensions?: { width: number; height: number }; model?: string }): void {
+    const imageBubble = this.buildImageBubbleElement(imageData);
+    parent.appendChild(imageBubble);
+    this.imageBubbleElement = imageBubble;
+  }
+
+  /**
+   * Build the image bubble element
+   */
+  private buildImageBubbleElement(imageData: { imagePath: string; prompt?: string; dimensions?: { width: number; height: number }; model?: string }): HTMLElement {
+    // Create image bubble container
+    const imageBubble = document.createElement('div');
+    imageBubble.addClass('message-container');
+    imageBubble.addClass('message-image');
+    imageBubble.setAttribute('data-message-id', `${this.message.id}_image`);
+
+    const bubble = imageBubble.createDiv('message-bubble image-bubble');
+
+    // Image container
+    const imageContainer = bubble.createDiv('generated-image-container');
+
+    // Create image element
+    const img = imageContainer.createEl('img', { cls: 'generated-image' });
+
+    // Get the resource path using Obsidian's vault adapter
+    const resourcePath = this.app.vault.adapter.getResourcePath(imageData.imagePath);
+    img.src = resourcePath;
+    img.alt = imageData.prompt || 'Generated image';
+    img.setAttribute('loading', 'lazy');
+
+    // Open in Obsidian button
+    const openButton = bubble.createEl('button', { cls: 'generated-image-open-btn' });
+    setIcon(openButton, 'external-link');
+    openButton.createSpan({ text: 'Open in Obsidian' });
+    openButton.addEventListener('click', () => {
+      this.app.workspace.openLinkText(imageData.imagePath, '', false);
+    });
+
+    return imageBubble;
   }
 
   /**
