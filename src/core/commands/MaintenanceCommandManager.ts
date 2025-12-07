@@ -65,7 +65,6 @@ export class MaintenanceCommandManager {
     // Check critical services
     const criticalServices = [
       'vaultOperations',
-      'eventManager',
       'workspaceService',
       'memoryService',
       'sessionService',

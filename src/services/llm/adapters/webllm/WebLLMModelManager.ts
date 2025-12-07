@@ -5,7 +5,7 @@
  * Manages model files in the vault's .obsidian/models/ directory.
  */
 
-import { Vault, requestUrl } from 'obsidian';
+import { Vault, requestUrl, FileSystemAdapter } from 'obsidian';
 import {
   InstalledModel,
   DownloadProgress,
@@ -446,10 +446,17 @@ export class WebLLMModelManager {
   async getLocalModelUrl(modelId: string): Promise<string> {
     const modelPath = this.getModelPath(modelId);
 
-    // For Obsidian, we need to use the vault adapter's base path
-    // This may need adjustment based on how WebLLM handles custom URLs
-    const basePath = (this.vault.adapter as any).basePath || '';
-    return `file://${basePath}/${modelPath}`;
+    const adapter: any = this.vault.adapter;
+    if (typeof adapter.getResourcePath === 'function') {
+      return adapter.getResourcePath(modelPath);
+    }
+
+    if (adapter instanceof FileSystemAdapter) {
+      return `file://${adapter.getBasePath()}/${modelPath}`;
+    }
+
+    // Fallback: relative path
+    return modelPath;
   }
 
   // ============================================================================

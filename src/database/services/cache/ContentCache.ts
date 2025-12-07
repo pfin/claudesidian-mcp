@@ -8,8 +8,7 @@
  * Dependencies: BaseCacheStrategy, CacheEvictionPolicy
  */
 
-import { EventEmitter } from 'events';
-import { Plugin, TFile } from 'obsidian';
+import { Events, Plugin, TFile } from 'obsidian';
 import { BaseCacheStrategy } from './strategies/BaseCacheStrategy';
 import { CachedEntry } from './strategies/CacheStrategy';
 import { CacheEvictionPolicy } from './CacheEvictionPolicy';
@@ -82,7 +81,7 @@ class GenericCacheStrategy extends BaseCacheStrategy<CachedEntry> {}
  *
  * Provides unified caching with Strategy pattern for different cache types
  */
-export class ContentCache extends EventEmitter {
+export class ContentCache extends Events {
   // Cache strategies
   private fileContentStrategy: FileContentCacheStrategy;
   private metadataStrategy: GenericCacheStrategy;
@@ -159,7 +158,7 @@ export class ContentCache extends EventEmitter {
     this.fileContentStrategy.set(filePath, cacheEntry);
     this.currentMemoryMB += size / (1024 * 1024);
 
-    this.emit('cached', { type: 'file', filePath, size });
+    this.trigger('cached', { type: 'file', filePath, size });
     this.enforceMemoryLimits();
   }
 
@@ -229,7 +228,7 @@ export class ContentCache extends EventEmitter {
     this.embeddingStrategy.set(cacheKey, cacheEntry);
     this.currentMemoryMB += size / (1024 * 1024);
 
-    this.emit('cached', { type: 'embedding', filePath, model, size });
+    this.trigger('cached', { type: 'embedding', filePath, model, size });
     this.enforceMemoryLimits();
   }
 
@@ -288,7 +287,7 @@ export class ContentCache extends EventEmitter {
     this.searchResultsStrategy.set(cacheKey, cacheEntry);
     this.currentMemoryMB += size / (1024 * 1024);
 
-    this.emit('cached', { type: 'search', query, searchType, size });
+    this.trigger('cached', { type: 'search', query, searchType, size });
     this.enforceMemoryLimits();
   }
 
@@ -330,7 +329,7 @@ export class ContentCache extends EventEmitter {
     this.computedStrategy.set(key, cacheEntry);
     this.currentMemoryMB += size / (1024 * 1024);
 
-    this.emit('cached', { type: 'computed', key, size });
+    this.trigger('cached', { type: 'computed', key, size });
     this.enforceMemoryLimits();
   }
 
@@ -371,7 +370,7 @@ export class ContentCache extends EventEmitter {
     // Remove metadata cache
     this.metadataStrategy.delete(filePath);
 
-    this.emit('invalidated', { type: 'file', filePath });
+    this.trigger('invalidated', { type: 'file', filePath });
   }
 
   /**
@@ -388,7 +387,7 @@ export class ContentCache extends EventEmitter {
     this.hits = 0;
     this.misses = 0;
 
-    this.emit('cleared');
+    this.trigger('cleared');
   }
 
   /**
@@ -404,7 +403,7 @@ export class ContentCache extends EventEmitter {
     cleanedCount += this.computedStrategy.cleanup(now);
 
     if (cleanedCount > 0) {
-      this.emit('cleaned', { removedEntries: cleanedCount });
+      this.trigger('cleaned', { removedEntries: cleanedCount });
     }
   }
 
@@ -439,7 +438,6 @@ export class ContentCache extends EventEmitter {
     }
 
     this.clearAll();
-    this.removeAllListeners();
   }
 
   // =============================================================================
@@ -472,14 +470,14 @@ export class ContentCache extends EventEmitter {
       this.currentMemoryMB,
       this.maxMemoryMB,
       (key, type, sizeMB) => {
-        this.emit('evicted', { key, type, sizeMB });
+        this.trigger('evicted', { key, type, sizeMB });
       }
     );
 
     this.currentMemoryMB -= freedMemoryMB;
 
     if (evictedCount > 0) {
-      this.emit('memoryLimitEnforced', { removedEntries: evictedCount, freedMemoryMB });
+      this.trigger('memoryLimitEnforced', { removedEntries: evictedCount, freedMemoryMB });
     }
   }
 

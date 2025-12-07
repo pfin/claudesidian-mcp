@@ -3,7 +3,7 @@
  * Handles tab switching and list/detail view navigation
  */
 
-export type SettingsTab = 'workspaces' | 'agents' | 'providers' | 'getstarted';
+export type SettingsTab = 'defaults' | 'workspaces' | 'agents' | 'providers' | 'getstarted';
 export type SettingsView = 'list' | 'detail';
 
 export interface RouterState {
@@ -13,7 +13,7 @@ export interface RouterState {
 }
 
 export class SettingsRouter {
-    private state: RouterState = { tab: 'workspaces', view: 'list' };
+    private state: RouterState = { tab: 'defaults', view: 'list' };
     private listeners: Set<(state: RouterState) => void> = new Set();
 
     /**

@@ -3,7 +3,7 @@
  * Manages MCP server URL, tool availability, and provider-specific configurations
  */
 
-import { EventEmitter } from 'events';
+import { Events } from 'obsidian';
 import { logger } from '../../utils/logger';
 import { BRAND_NAME } from '../../constants/branding';
 
@@ -61,7 +61,7 @@ export interface MCPConfiguration {
   };
 }
 
-export class MCPConfigurationManager extends EventEmitter {
+export class MCPConfigurationManager extends Events {
   private config: MCPConfiguration;
   private serverUrl: string | null = null;
   
@@ -83,7 +83,7 @@ export class MCPConfigurationManager extends EventEmitter {
     this.config.server.enabled = true;
     
     logger.systemLog(`[MCP Config] Initialized with server URL: ${serverUrl}`);
-    this.emit('configUpdated', this.config);
+    this.trigger('configUpdated', this.config);
   }
 
   /**
@@ -114,7 +114,7 @@ export class MCPConfigurationManager extends EventEmitter {
     this.config.providers[providerId].enabled = enabled;
     
     logger.systemLog(`[MCP Config] ${providerId} MCP ${enabled ? 'enabled' : 'disabled'}`);
-    this.emit('providerConfigChanged', providerId, this.config.providers[providerId]);
+    this.trigger('providerConfigChanged', providerId, this.config.providers[providerId]);
   }
 
   /**
@@ -136,7 +136,7 @@ export class MCPConfigurationManager extends EventEmitter {
     }
     
     logger.systemLog(`[MCP Config] ${providerId} MCP support: ${supported}`);
-    this.emit('providerConfigChanged', providerId, this.config.providers[providerId]);
+    this.trigger('providerConfigChanged', providerId, this.config.providers[providerId]);
   }
 
   /**
@@ -146,7 +146,7 @@ export class MCPConfigurationManager extends EventEmitter {
     this.config.server = { ...this.config.server, ...updates };
     
     logger.systemLog(`[MCP Config] Server config updated`);
-    this.emit('serverConfigChanged', this.config.server);
+    this.trigger('serverConfigChanged', this.config.server);
   }
 
   /**
@@ -201,7 +201,7 @@ export class MCPConfigurationManager extends EventEmitter {
     this.config.global = { ...this.config.global, ...updates };
     
     logger.systemLog(`[MCP Config] Global config updated`);
-    this.emit('globalConfigChanged', this.config.global);
+    this.trigger('globalConfigChanged', this.config.global);
   }
 
   /**
@@ -221,7 +221,7 @@ export class MCPConfigurationManager extends EventEmitter {
     };
     
     logger.systemLog(`[MCP Config] Configuration imported`);
-    this.emit('configUpdated', this.config);
+    this.trigger('configUpdated', this.config);
   }
 
   /**

@@ -8,10 +8,9 @@
  * Dependencies: AgentInitializationService, AgentValidationService
  */
 
-import { App, Plugin } from 'obsidian';
+import { App, Plugin, Events } from 'obsidian';
 import NexusPlugin from '../../main';
 import { AgentManager } from '../AgentManager';
-import { EventManager } from '../EventManager';
 import type { ServiceManager } from '../../core/ServiceManager';
 import { AgentFactoryRegistry } from '../../core/ServiceFactory';
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
@@ -67,11 +66,11 @@ export class AgentRegistrationService implements AgentRegistrationServiceInterfa
   constructor(
     private app: App,
     private plugin: Plugin | NexusPlugin,
-    private eventManager: EventManager,
+    private events: Events,
     private serviceManager?: ServiceManager,
     private customPromptStorage?: CustomPromptStorageService
   ) {
-    this.agentManager = new AgentManager(app, plugin, eventManager);
+    this.agentManager = new AgentManager(app, plugin, events);
     this.factoryRegistry = new AgentFactoryRegistry();
     this.registrationStatus = {
       totalAgents: 0,

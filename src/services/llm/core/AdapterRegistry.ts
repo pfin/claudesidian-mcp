@@ -224,7 +224,7 @@ export class AdapterRegistry implements IAdapterRegistry {
     //
     // TO RE-ENABLE FOR TESTING:
     // 1. Uncomment the webllm registration block below
-    // 2. Uncomment webllm entry in LLMProviderTab.ts getProviderConfigs()
+    // 2. Uncomment webllm entry in src/settings/tabs/ProvidersTab.ts
     // 3. Rebuild the plugin
     // 4. Test thoroughly before shipping
     //

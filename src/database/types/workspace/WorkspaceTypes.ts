@@ -17,18 +17,18 @@ export interface WorkspaceContext {
    * What is this workspace for?
    * Example: "Apply for marketing manager positions"
    */
-  purpose: string;
+  purpose?: string;
 
   /**
    * What are you trying to accomplish right now?
    * Example: "Submit 10 applications this week"
    */
-  currentGoal: string;
+  currentGoal?: string;
 
   /**
    * Workflows for different situations
    */
-  workflows: Array<{
+  workflows?: Array<{
     name: string;           // "New Application", "Follow-up", "Interview Prep"
     when: string;           // "When applying to new position"
     steps: string;          // "Research company\nCustomize cover letter\nApply\nTrack"
@@ -37,12 +37,12 @@ export interface WorkspaceContext {
   /**
    * Simple key files list for quick reference
    */
-  keyFiles: string[];       // ["path/to/resume.md", "path/to/portfolio.md"]
+  keyFiles?: string[];       // ["path/to/resume.md", "path/to/portfolio.md"]
 
   /**
    * User preferences as actionable guidelines
    */
-  preferences: string;      // "Use professional tone. Focus on tech companies."
+  preferences?: string;      // "Use professional tone. Focus on tech companies."
 
   /**
    * Single dedicated agent for this workspace

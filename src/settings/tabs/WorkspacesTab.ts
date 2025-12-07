@@ -261,8 +261,14 @@ export class WorkspacesTab {
             .setButtonText('Save')
             .setCta()
             .onClick(async () => {
+                // Cancel any pending debounced save to prevent double-save
+                if (this.saveTimeout) {
+                    clearTimeout(this.saveTimeout);
+                    this.saveTimeout = undefined;
+                }
                 await this.saveCurrentWorkspace();
                 new Notice('Workspace saved');
+                this.router.back();
             });
 
         // Delete button (only for existing workspaces)

@@ -30,17 +30,9 @@ export interface ServiceCreationContext {
 
 /**
  * Core service definitions in dependency order
+ * Note: Events are handled via Obsidian's built-in Events API (plugin.on/trigger)
  */
 export const CORE_SERVICE_DEFINITIONS: ServiceDefinition[] = [
-    // Foundation services (no dependencies)
-    {
-        name: 'eventManager',
-        create: async () => {
-            const { EventManager } = await import('../../services/EventManager');
-            return new EventManager();
-        }
-    },
-
     // VaultOperations - centralized vault operations using Obsidian API
     {
         name: 'vaultOperations',
@@ -238,7 +230,7 @@ export const CORE_SERVICE_DEFINITIONS: ServiceDefinition[] = [
         }
     },
 
-    // Hybrid storage adapter (SQLite + JSONL) - optional, graceful fallback to legacy if fails
+    // Hybrid storage adapter (SQLite + JSONL) - deferred initialization for fast startup
     {
         name: 'hybridStorageAdapter',
         create: async (context) => {
@@ -253,11 +245,13 @@ export const CORE_SERVICE_DEFINITIONS: ServiceDefinition[] = [
                     cacheMaxSize: 500
                 });
 
-                await adapter.initialize();
-                console.log('[ServiceDefinitions] HybridStorageAdapter initialized successfully');
+                // Start initialization in background (non-blocking)
+                // ChatView will show loading indicator until ready
+                adapter.initialize(false);
+                console.log('[ServiceDefinitions] HybridStorageAdapter initialization started (deferred)');
                 return adapter;
             } catch (error) {
-                console.warn('[ServiceDefinitions] HybridStorageAdapter initialization failed, will use legacy storage:', error);
+                console.warn('[ServiceDefinitions] HybridStorageAdapter creation failed, will use legacy storage:', error);
                 return null; // Graceful fallback - services will use legacy backend
             }
         }

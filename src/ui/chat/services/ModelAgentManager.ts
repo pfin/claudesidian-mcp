@@ -151,11 +151,11 @@ export class ModelAgentManager {
   }
 
   /**
-   * Initialize the selected model from plugin settings default
-   * Also clears workspace, agent, and context notes for clean slate
+   * Initialize from plugin settings defaults (model, workspace, agent)
    */
   private async initializeDefaultModel(): Promise<void> {
     try {
+      // Initialize default model
       const availableModels = await this.getAvailableModels();
       const defaultModel = await ModelSelectionUtility.findDefaultModelOption(this.app, availableModels);
 
@@ -164,7 +164,7 @@ export class ModelAgentManager {
         this.events.onModelChanged(defaultModel);
       }
 
-      // Clear all other state for new conversations
+      // Clear state first
       this.selectedAgent = null;
       this.currentSystemPrompt = null;
       this.selectedWorkspaceId = null;
@@ -172,11 +172,42 @@ export class ModelAgentManager {
       this.loadedWorkspaceData = null;
       this.contextNotesManager.clear();
 
-      // Notify listeners about the state reset
+      // Get plugin settings for defaults
+      const { getNexusPlugin } = await import('../../../utils/pluginLocator');
+      const plugin = getNexusPlugin(this.app) as any;
+      const settings = plugin?.settings?.settings;
+
+      // Load default workspace if set
+      if (settings?.defaultWorkspaceId) {
+        try {
+          await this.restoreWorkspace(settings.defaultWorkspaceId, undefined);
+        } catch (error) {
+          console.warn('[ModelAgentManager] Failed to load default workspace:', error);
+        }
+      }
+
+      // Load default agent if set
+      if (settings?.defaultAgentId) {
+        try {
+          const availableAgents = await this.getAvailableAgents();
+          const defaultAgent = availableAgents.find(a => a.id === settings.defaultAgentId || a.name === settings.defaultAgentId);
+          if (defaultAgent) {
+            this.selectedAgent = defaultAgent;
+            this.currentSystemPrompt = defaultAgent.systemPrompt || null;
+            this.events.onAgentChanged(defaultAgent);
+            this.events.onSystemPromptChanged(this.currentSystemPrompt);
+            return; // Agent was set, don't reset
+          }
+        } catch (error) {
+          console.warn('[ModelAgentManager] Failed to load default agent:', error);
+        }
+      }
+
+      // Notify listeners about the state (no agent selected)
       this.events.onAgentChanged(null);
       this.events.onSystemPromptChanged(null);
     } catch (error) {
-      // Failed to initialize default model
+      // Failed to initialize defaults
     }
   }
 

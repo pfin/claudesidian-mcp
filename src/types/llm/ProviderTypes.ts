@@ -52,6 +52,14 @@ export interface DefaultModelSettings {
 }
 
 /**
+ * Default image model selection settings
+ */
+export interface DefaultImageModelSettings {
+  provider: 'google' | 'openrouter';
+  model: string;
+}
+
+/**
  * LLM provider settings
  */
 export interface LLMProviderSettings {
@@ -59,6 +67,7 @@ export interface LLMProviderSettings {
     [providerId: string]: LLMProviderConfig;
   };
   defaultModel: DefaultModelSettings;
+  defaultImageModel?: DefaultImageModelSettings; // Default image generation model
   defaultThinking?: DefaultThinkingSettings; // Default thinking settings for supported models
   monthlyBudget?: number; // Monthly budget in USD for LLM usage
 }
@@ -121,6 +130,10 @@ export const DEFAULT_LLM_PROVIDER_SETTINGS: LLMProviderSettings = {
   defaultModel: {
     provider: 'openai',
     model: 'gpt-4o'
+  },
+  defaultImageModel: {
+    provider: 'google',
+    model: 'gemini-2.5-flash-image'
   },
   defaultThinking: {
     enabled: false,

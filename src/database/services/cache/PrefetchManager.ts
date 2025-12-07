@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { Events } from 'obsidian';
 import { CacheManager } from './CacheManager';
 import { WorkspaceService } from '../../../services/WorkspaceService';
 import { MemoryService } from '../../../agents/memoryManager/services/MemoryService';
@@ -9,7 +9,7 @@ export interface PrefetchOptions {
     enableSmartPrefetch?: boolean;
 }
 
-export class PrefetchManager extends EventEmitter {
+export class PrefetchManager extends Events {
     private prefetchQueue: string[] = [];
     private isPrefetching = false;
     private prefetchHistory = new Map<string, number>(); // entityId -> last prefetch timestamp
@@ -146,7 +146,7 @@ export class PrefetchManager extends EventEmitter {
         // Add to queue if not already there
         if (!this.prefetchQueue.includes(key)) {
             this.prefetchQueue.push(key);
-            this.emit('prefetch:queued', { type, id });
+            this.trigger('prefetch:queued', { type, id });
         }
     }
 
@@ -182,10 +182,10 @@ export class PrefetchManager extends EventEmitter {
                     
                     // Record successful prefetch
                     this.prefetchHistory.set(item, Date.now());
-                    this.emit('prefetch:completed', { type, id });
+                    this.trigger('prefetch:completed', { type, id });
                 } catch (error) {
                     console.warn(`Failed to prefetch ${type} ${id}:`, error);
-                    this.emit('prefetch:failed', { type, id, error });
+                    this.trigger('prefetch:failed', { type, id, error });
                 }
             });
 
@@ -212,7 +212,7 @@ export class PrefetchManager extends EventEmitter {
     clearQueue(): void {
         this.prefetchQueue = [];
         this.isPrefetching = false;
-        this.emit('prefetch:queueCleared');
+        this.trigger('prefetch:queueCleared');
     }
 
     /**

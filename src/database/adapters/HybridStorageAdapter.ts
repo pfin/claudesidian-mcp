@@ -82,6 +82,11 @@ export class HybridStorageAdapter implements IStorageAdapter {
   private initialized = false;
   private syncInterval?: NodeJS.Timeout;
 
+  // Deferred initialization support
+  private initPromise: Promise<void> | null = null;
+  private initResolve: (() => void) | null = null;
+  private initError: Error | null = null;
+
   // Infrastructure (owned by adapter)
   private jsonlWriter: JSONLWriter;
   private sqliteCache: SQLiteCacheManager;
@@ -156,11 +161,52 @@ export class HybridStorageAdapter implements IStorageAdapter {
   // Lifecycle Management
   // ============================================================================
 
-  async initialize(): Promise<void> {
+  /**
+   * Initialize the storage adapter.
+   * By default, starts initialization in background and returns immediately.
+   * Use waitForReady() to wait for completion if needed.
+   *
+   * @param blocking - If true, waits for initialization to complete before returning
+   */
+  async initialize(blocking = false): Promise<void> {
     if (this.initialized) {
       console.warn('[HybridStorageAdapter] Already initialized');
       return;
     }
+
+    // If already initializing, optionally wait for it
+    if (this.initPromise) {
+      if (blocking) {
+        await this.initPromise;
+      }
+      return;
+    }
+
+    // Create the promise that will resolve when initialization completes
+    this.initPromise = new Promise<void>((resolve) => {
+      this.initResolve = resolve;
+    });
+
+    // Start initialization in background
+    this.performInitialization().catch(error => {
+      this.initError = error;
+      console.error('[HybridStorageAdapter] Background initialization failed:', error);
+    });
+
+    // If blocking mode, wait for completion
+    if (blocking) {
+      await this.initPromise;
+      if (this.initError) {
+        throw this.initError;
+      }
+    }
+  }
+
+  /**
+   * Perform the actual initialization work
+   */
+  private async performInitialization(): Promise<void> {
+    const startTime = Date.now();
 
     try {
       // 1. Initialize SQLite cache
@@ -193,12 +239,49 @@ export class HybridStorageAdapter implements IStorageAdapter {
       }
 
       this.initialized = true;
-      console.log('[HybridStorageAdapter] Initialized successfully');
+      console.log(`[HybridStorageAdapter] Initialized successfully (${Date.now() - startTime}ms)`);
+
+      // Resolve the ready promise
+      if (this.initResolve) {
+        this.initResolve();
+      }
 
     } catch (error) {
       console.error('[HybridStorageAdapter] Initialization failed:', error);
+      this.initError = error as Error;
+      if (this.initResolve) {
+        this.initResolve(); // Resolve even on error so waiters don't hang
+      }
       throw error;
     }
+  }
+
+  /**
+   * Check if the adapter is ready for use
+   */
+  isReady(): boolean {
+    return this.initialized && !this.initError;
+  }
+
+  /**
+   * Wait for initialization to complete
+   * @returns true if initialization succeeded, false if it failed
+   */
+  async waitForReady(): Promise<boolean> {
+    if (this.initialized) {
+      return !this.initError;
+    }
+    if (this.initPromise) {
+      await this.initPromise;
+    }
+    return this.initialized && !this.initError;
+  }
+
+  /**
+   * Get initialization error if any
+   */
+  getInitError(): Error | null {
+    return this.initError;
   }
 
   async close(): Promise<void> {
@@ -247,33 +330,33 @@ export class HybridStorageAdapter implements IStorageAdapter {
   // Workspace Operations - Delegate to WorkspaceRepository
   // ============================================================================
 
-  getWorkspace = (id: string): Promise<WorkspaceMetadata | null> => {
-    this.ensureInitialized();
+  getWorkspace = async (id: string): Promise<WorkspaceMetadata | null> => {
+    await this.ensureInitialized();
     return this.workspaceRepo.getById(id);
   };
 
-  getWorkspaces = (options?: QueryOptions): Promise<PaginatedResult<WorkspaceMetadata>> => {
-    this.ensureInitialized();
+  getWorkspaces = async (options?: QueryOptions): Promise<PaginatedResult<WorkspaceMetadata>> => {
+    await this.ensureInitialized();
     return this.workspaceRepo.getWorkspaces(options);
   };
 
-  createWorkspace = (workspace: Omit<WorkspaceMetadata, 'id'>): Promise<string> => {
-    this.ensureInitialized();
+  createWorkspace = async (workspace: Omit<WorkspaceMetadata, 'id'> & { id?: string }): Promise<string> => {
+    await this.ensureInitialized();
     return this.workspaceRepo.create(workspace);
   };
 
-  updateWorkspace = (id: string, updates: Partial<WorkspaceMetadata>): Promise<void> => {
-    this.ensureInitialized();
+  updateWorkspace = async (id: string, updates: Partial<WorkspaceMetadata>): Promise<void> => {
+    await this.ensureInitialized();
     return this.workspaceRepo.update(id, updates);
   };
 
-  deleteWorkspace = (id: string): Promise<void> => {
-    this.ensureInitialized();
+  deleteWorkspace = async (id: string): Promise<void> => {
+    await this.ensureInitialized();
     return this.workspaceRepo.delete(id);
   };
 
-  searchWorkspaces = (query: string): Promise<WorkspaceMetadata[]> => {
-    this.ensureInitialized();
+  searchWorkspaces = async (query: string): Promise<WorkspaceMetadata[]> => {
+    await this.ensureInitialized();
     return this.workspaceRepo.search(query);
   };
 
@@ -281,30 +364,30 @@ export class HybridStorageAdapter implements IStorageAdapter {
   // Session Operations - Delegate to SessionRepository
   // ============================================================================
 
-  getSession = (id: string): Promise<SessionMetadata | null> => {
-    this.ensureInitialized();
+  getSession = async (id: string): Promise<SessionMetadata | null> => {
+    await this.ensureInitialized();
     return this.sessionRepo.getById(id);
   };
 
-  getSessions = (workspaceId: string, options?: PaginationParams): Promise<PaginatedResult<SessionMetadata>> => {
-    this.ensureInitialized();
+  getSessions = async (workspaceId: string, options?: PaginationParams): Promise<PaginatedResult<SessionMetadata>> => {
+    await this.ensureInitialized();
     return this.sessionRepo.getByWorkspaceId(workspaceId, options);
   };
 
-  createSession = (workspaceId: string, session: Omit<SessionMetadata, 'id' | 'workspaceId'>): Promise<string> => {
-    this.ensureInitialized();
+  createSession = async (workspaceId: string, session: Omit<SessionMetadata, 'id' | 'workspaceId'>): Promise<string> => {
+    await this.ensureInitialized();
     return this.sessionRepo.create({ ...session, workspaceId });
   };
 
-  updateSession = (workspaceId: string, sessionId: string, updates: Partial<SessionMetadata>): Promise<void> => {
-    this.ensureInitialized();
+  updateSession = async (workspaceId: string, sessionId: string, updates: Partial<SessionMetadata>): Promise<void> => {
+    await this.ensureInitialized();
     // Extract fields that are valid for UpdateSessionData (includes required workspaceId)
     const { name, description, endTime, isActive } = updates;
     return this.sessionRepo.update(sessionId, { name, description, endTime, isActive, workspaceId });
   };
 
-  deleteSession = (sessionId: string): Promise<void> => {
-    this.ensureInitialized();
+  deleteSession = async (sessionId: string): Promise<void> => {
+    await this.ensureInitialized();
     return this.sessionRepo.delete(sessionId);
   };
 
@@ -312,36 +395,36 @@ export class HybridStorageAdapter implements IStorageAdapter {
   // State Operations - Delegate to StateRepository
   // ============================================================================
 
-  getState = (id: string): Promise<StateData | null> => {
-    this.ensureInitialized();
+  getState = async (id: string): Promise<StateData | null> => {
+    await this.ensureInitialized();
     return this.stateRepo.getStateData(id);
   };
 
-  getStates = (
+  getStates = async (
     workspaceId: string,
     sessionId?: string,
     options?: PaginationParams
   ): Promise<PaginatedResult<StateMetadata>> => {
-    this.ensureInitialized();
+    await this.ensureInitialized();
     return this.stateRepo.getStates(workspaceId, sessionId, options);
   };
 
-  saveState = (
+  saveState = async (
     workspaceId: string,
     sessionId: string,
     state: Omit<StateData, 'id' | 'workspaceId' | 'sessionId'>
   ): Promise<string> => {
-    this.ensureInitialized();
+    await this.ensureInitialized();
     return this.stateRepo.saveState(workspaceId, sessionId, state);
   };
 
-  deleteState = (id: string): Promise<void> => {
-    this.ensureInitialized();
+  deleteState = async (id: string): Promise<void> => {
+    await this.ensureInitialized();
     return this.stateRepo.delete(id);
   };
 
-  countStates = (workspaceId: string, sessionId?: string): Promise<number> => {
-    this.ensureInitialized();
+  countStates = async (workspaceId: string, sessionId?: string): Promise<number> => {
+    await this.ensureInitialized();
     return this.stateRepo.countStates(workspaceId, sessionId);
   };
 
@@ -349,21 +432,21 @@ export class HybridStorageAdapter implements IStorageAdapter {
   // Trace Operations - Delegate to TraceRepository
   // ============================================================================
 
-  getTraces = (
+  getTraces = async (
     workspaceId: string,
     sessionId?: string,
     options?: PaginationParams
   ): Promise<PaginatedResult<MemoryTraceData>> => {
-    this.ensureInitialized();
+    await this.ensureInitialized();
     return this.traceRepo.getTraces(workspaceId, sessionId, options);
   };
 
-  addTrace = (
+  addTrace = async (
     workspaceId: string,
     sessionId: string,
     trace: Omit<MemoryTraceData, 'id' | 'workspaceId' | 'sessionId'>
   ): Promise<string> => {
-    this.ensureInitialized();
+    await this.ensureInitialized();
     return this.traceRepo.addTrace(workspaceId, sessionId, trace);
   };
 
@@ -372,7 +455,7 @@ export class HybridStorageAdapter implements IStorageAdapter {
     query: string,
     sessionId?: string
   ): Promise<MemoryTraceData[]> => {
-    this.ensureInitialized();
+    await this.ensureInitialized();
     // Repository returns paginated, but interface expects array
     const result = await this.traceRepo.searchTraces(workspaceId, query, sessionId);
     return result.items;
@@ -382,33 +465,33 @@ export class HybridStorageAdapter implements IStorageAdapter {
   // Conversation Operations - Delegate to ConversationRepository
   // ============================================================================
 
-  getConversation = (id: string): Promise<ConversationMetadata | null> => {
-    this.ensureInitialized();
+  getConversation = async (id: string): Promise<ConversationMetadata | null> => {
+    await this.ensureInitialized();
     return this.conversationRepo.getById(id);
   };
 
-  getConversations = (options?: QueryOptions): Promise<PaginatedResult<ConversationMetadata>> => {
-    this.ensureInitialized();
+  getConversations = async (options?: QueryOptions): Promise<PaginatedResult<ConversationMetadata>> => {
+    await this.ensureInitialized();
     return this.conversationRepo.getConversations(options);
   };
 
-  createConversation = (params: Omit<ConversationMetadata, 'id' | 'messageCount'>): Promise<string> => {
-    this.ensureInitialized();
+  createConversation = async (params: Omit<ConversationMetadata, 'id' | 'messageCount'>): Promise<string> => {
+    await this.ensureInitialized();
     return this.conversationRepo.create(params);
   };
 
-  updateConversation = (id: string, updates: Partial<ConversationMetadata>): Promise<void> => {
-    this.ensureInitialized();
+  updateConversation = async (id: string, updates: Partial<ConversationMetadata>): Promise<void> => {
+    await this.ensureInitialized();
     return this.conversationRepo.update(id, updates);
   };
 
-  deleteConversation = (id: string): Promise<void> => {
-    this.ensureInitialized();
+  deleteConversation = async (id: string): Promise<void> => {
+    await this.ensureInitialized();
     return this.conversationRepo.delete(id);
   };
 
-  searchConversations = (query: string): Promise<ConversationMetadata[]> => {
-    this.ensureInitialized();
+  searchConversations = async (query: string): Promise<ConversationMetadata[]> => {
+    await this.ensureInitialized();
     return this.conversationRepo.search(query);
   };
 
@@ -416,33 +499,33 @@ export class HybridStorageAdapter implements IStorageAdapter {
   // Message Operations - Delegate to MessageRepository
   // ============================================================================
 
-  getMessages = (
+  getMessages = async (
     conversationId: string,
     options?: PaginationParams
   ): Promise<PaginatedResult<MessageData>> => {
-    this.ensureInitialized();
+    await this.ensureInitialized();
     return this.messageRepo.getMessages(conversationId, options);
   };
 
-  addMessage = (
+  addMessage = async (
     conversationId: string,
     message: Omit<MessageData, 'id' | 'conversationId' | 'sequenceNumber'> & { id?: string }
   ): Promise<string> => {
-    this.ensureInitialized();
+    await this.ensureInitialized();
     return this.messageRepo.addMessage(conversationId, message);
   };
 
-  updateMessage = (
+  updateMessage = async (
     _conversationId: string,
     messageId: string,
     updates: Partial<MessageData>
   ): Promise<void> => {
-    this.ensureInitialized();
+    await this.ensureInitialized();
     return this.messageRepo.update(messageId, updates);
   };
 
-  deleteMessage = (conversationId: string, messageId: string): Promise<void> => {
-    this.ensureInitialized();
+  deleteMessage = async (conversationId: string, messageId: string): Promise<void> => {
+    await this.ensureInitialized();
     return this.messageRepo.deleteMessage(conversationId, messageId);
   };
 
@@ -450,18 +533,18 @@ export class HybridStorageAdapter implements IStorageAdapter {
   // Export/Import Operations - Delegate to ExportService
   // ============================================================================
 
-  exportConversationsForFineTuning = (filter?: ExportFilter): Promise<string> => {
-    this.ensureInitialized();
+  exportConversationsForFineTuning = async (filter?: ExportFilter): Promise<string> => {
+    await this.ensureInitialized();
     return this.exportService.exportForFineTuning(filter);
   };
 
-  exportAllData = (): Promise<ExportData> => {
-    this.ensureInitialized();
+  exportAllData = async (): Promise<ExportData> => {
+    await this.ensureInitialized();
     return this.exportService.exportAllData();
   };
 
   async importData(_data: ExportData, _options?: ImportOptions): Promise<void> {
-    this.ensureInitialized();
+    await this.ensureInitialized();
     // TODO: Implement importData in ExportService
     throw new Error('importData not yet implemented');
   }
@@ -470,9 +553,27 @@ export class HybridStorageAdapter implements IStorageAdapter {
   // Utilities
   // ============================================================================
 
-  private ensureInitialized(): void {
-    if (!this.initialized) {
-      throw new Error('HybridStorageAdapter not initialized. Call initialize() first.');
+  /**
+   * Ensure the adapter is initialized before use.
+   * If initialization is in progress, waits for it to complete.
+   */
+  private async ensureInitialized(): Promise<void> {
+    if (this.initialized) {
+      return;
     }
+
+    // If initialization is in progress, wait for it
+    if (this.initPromise) {
+      await this.initPromise;
+      if (this.initError) {
+        throw this.initError;
+      }
+      if (!this.initialized) {
+        throw new Error('HybridStorageAdapter initialization failed.');
+      }
+      return;
+    }
+
+    throw new Error('HybridStorageAdapter not initialized. Call initialize() first.');
   }
 }

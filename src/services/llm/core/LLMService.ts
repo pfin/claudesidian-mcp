@@ -15,6 +15,9 @@ import { ModelDiscoveryService } from './ModelDiscoveryService';
 import { FileContentService } from './FileContentService';
 import { StreamingOrchestrator, StreamingOptions, StreamYield } from './StreamingOrchestrator';
 import { VaultOperations } from '../../../core/VaultOperations';
+import { CacheManager } from '../utils/CacheManager';
+import { Logger } from '../utils/Logger';
+import { ConfigManager } from '../utils/ConfigManager';
 
 export interface LLMExecutionOptions extends GenerateOptions {
   provider?: string;
@@ -56,6 +59,13 @@ export class LLMService {
   constructor(settings: LLMProviderSettings, mcpConnector?: any, vault?: Vault) {
     this.settings = settings;
     this.vault = vault;
+    if (vault) {
+      const adapter = vault.adapter as any;
+      CacheManager.configureVaultAdapter(adapter);
+      Logger.setVaultAdapter(adapter);
+      ConfigManager.setVaultAdapter(adapter);
+      void ConfigManager.ensureVaultConfigLoaded();
+    }
     this.adapterRegistry = new AdapterRegistry(settings, mcpConnector, vault);
     this.adapterRegistry.initialize(settings, mcpConnector, vault);
     this.modelDiscovery = new ModelDiscoveryService(this.adapterRegistry, settings);

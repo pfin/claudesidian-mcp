@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, Notice, ButtonComponent } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, Notice, ButtonComponent, FileSystemAdapter } from 'obsidian';
 import { Settings } from '../settings';
 import { UnifiedTabs, UnifiedTabConfig } from '../components/UnifiedTabs';
 import { SettingsRouter, RouterState, SettingsTab } from './SettingsRouter';
@@ -15,6 +15,7 @@ import { VaultLibrarianAgent } from '../agents/vaultLibrarian/vaultLibrarian';
 import { MemoryManagerAgent } from '../agents/memoryManager/memoryManager';
 
 // Tab implementations
+import { DefaultsTab } from './tabs/DefaultsTab';
 import { WorkspacesTab } from './tabs/WorkspacesTab';
 import { AgentsTab } from './tabs/AgentsTab';
 import { ProvidersTab } from './tabs/ProvidersTab';
@@ -47,6 +48,7 @@ export class SettingsView extends PluginSettingTab {
     private unsubscribeRouter: (() => void) | undefined;
 
     // Tab instances
+    private defaultsTab: DefaultsTab | undefined;
     private workspacesTab: WorkspacesTab | undefined;
     private agentsTab: AgentsTab | undefined;
     private providersTab: ProvidersTab | undefined;
@@ -117,6 +119,7 @@ export class SettingsView extends PluginSettingTab {
             this.tabs.destroy();
         }
         // Cleanup tab instances
+        this.defaultsTab?.destroy();
         this.workspacesTab?.destroy();
         this.agentsTab?.destroy();
         this.providersTab?.destroy();
@@ -166,6 +169,7 @@ export class SettingsView extends PluginSettingTab {
 
         // 2. Create tabs
         const tabConfigs: UnifiedTabConfig[] = [
+            { key: 'defaults', label: 'Defaults' },
             { key: 'workspaces', label: 'Workspaces' },
             { key: 'agents', label: 'Agents' },
             { key: 'providers', label: 'Providers' },
@@ -281,6 +285,9 @@ export class SettingsView extends PluginSettingTab {
         const services = this.getCurrentServices();
 
         switch (state.tab) {
+            case 'defaults':
+                this.renderDefaultsTab(pane, state, services);
+                break;
             case 'workspaces':
                 this.renderWorkspacesTab(pane, state, services);
                 break;
@@ -325,6 +332,31 @@ export class SettingsView extends PluginSettingTab {
             workspaceService,
             customPromptStorage: this.customPromptStorage
         };
+    }
+
+    /**
+     * Render Defaults tab content
+     */
+    private renderDefaultsTab(
+        container: HTMLElement,
+        state: RouterState,
+        services: { workspaceService?: WorkspaceService; customPromptStorage?: CustomPromptStorageService }
+    ): void {
+        // Destroy previous tab instance if exists
+        this.defaultsTab?.destroy();
+
+        // Create new DefaultsTab
+        this.defaultsTab = new DefaultsTab(
+            container,
+            this.router,
+            {
+                app: this.app,
+                settings: this.settingsManager,
+                llmProviderSettings: this.settingsManager.settings.llmProviders,
+                workspaceService: services.workspaceService,
+                customPromptStorage: services.customPromptStorage
+            }
+        );
     }
 
     /**
@@ -403,10 +435,12 @@ export class SettingsView extends PluginSettingTab {
         this.getStartedTab?.destroy();
 
         // Get plugin path for MCP config
-        const pluginPath = (this.plugin as any).manifest?.dir
-            ? `${(this.app as any).vault.adapter.basePath}/.obsidian/plugins/${(this.plugin as any).manifest.dir}`
+        const vaultBasePath = this.getVaultBasePath();
+        const pluginDir = (this.plugin as any).manifest?.dir;
+        const pluginPath = vaultBasePath && pluginDir
+            ? `${vaultBasePath}/.obsidian/plugins/${pluginDir}`
             : '';
-        const vaultPath = (this.app as any).vault.adapter.basePath || '';
+        const vaultPath = vaultBasePath || '';
 
         // Create new GetStartedTab
         this.getStartedTab = new GetStartedTab(
@@ -423,5 +457,16 @@ export class SettingsView extends PluginSettingTab {
                 }
             }
         );
+    }
+
+    /**
+     * Resolve vault base path when running on desktop FileSystemAdapter
+     */
+    private getVaultBasePath(): string | null {
+        const adapter = this.app.vault.adapter;
+        if (adapter instanceof FileSystemAdapter) {
+            return adapter.getBasePath();
+        }
+        return null;
     }
 }

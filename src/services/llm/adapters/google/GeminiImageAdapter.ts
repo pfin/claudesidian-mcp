@@ -1,20 +1,25 @@
 /**
  * Google Gemini Image Generation Adapter
- * Supports Google's Imagen 4 models for image generation
- * Based on 2025 API documentation using @google/genai SDK
+ * Supports Google's Nano Banana models for image generation
+ * - gemini-2.5-flash-image (Nano Banana) - fast generation
+ * - gemini-3-pro-image-preview (Nano Banana Pro) - advanced with reference images
+ *
+ * Uses generateContent() API with responseModalities: ['TEXT', 'IMAGE']
  */
 
 import { GoogleGenAI } from '@google/genai';
+import { Vault } from 'obsidian';
 import { BaseImageAdapter } from '../BaseImageAdapter';
-import { 
-  ImageGenerationParams, 
-  ImageGenerationResponse, 
+import {
+  ImageGenerationParams,
+  ImageGenerationResponse,
   ImageValidationResult,
   ImageModel,
   ImageUsage,
-  AspectRatio
+  AspectRatio,
+  NanoBananaImageSize
 } from '../../types/ImageTypes';
-import { 
+import {
   ProviderConfig,
   ProviderCapabilities,
   ModelInfo,
@@ -22,82 +27,103 @@ import {
 } from '../types';
 
 export class GeminiImageAdapter extends BaseImageAdapter {
-  
+
   // Image adapters don't support streaming in the same way as text
   async* generateStreamAsync(): AsyncGenerator<never, void, unknown> {
-    // Image generation is not streamable - it's a single result
-    // This method should not be called for image adapters
     throw new Error('Image generation does not support streaming');
   }
+
   readonly name = 'gemini-image';
   readonly baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
-  readonly supportedModels: ImageModel[] = ['imagen-4', 'imagen-4-ultra', 'imagen-4-fast'];
+  readonly supportedModels: ImageModel[] = ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview'];
   readonly supportedSizes: string[] = ['1024x1024', '1536x1024', '1024x1536', '1792x1024', '1024x1792'];
-  readonly supportedFormats: string[] = ['png'];
-  
+  readonly supportedFormats: string[] = ['png', 'jpeg', 'webp'];
+
   private client: GoogleGenAI;
-  private readonly modelMap = {
-    'imagen-4': 'imagen-4.0-generate-001',
-    'imagen-4-ultra': 'imagen-4.0-ultra-generate-001',
-    'imagen-4-fast': 'imagen-4.0-fast-generate-001'
-  };
-  private readonly defaultModel = 'imagen-4';
-  private readonly aspectRatioMap = {
-    '1024x1024': '1:1',
-    '1536x1024': '3:4',
-    '1024x1536': '4:3', 
-    '1792x1024': '16:9',
-    '1024x1792': '9:16'
+  private vault: Vault | null = null;
+  private readonly defaultModel = 'gemini-2.5-flash-image';
+
+  // Max reference images per model
+  private readonly maxReferenceImages = {
+    'gemini-2.5-flash-image': 6,
+    'gemini-3-pro-image-preview': 14
   };
 
-  constructor(config?: ProviderConfig) {
+  // Supported aspect ratios for Nano Banana models
+  private readonly nanoBananaAspectRatios = [
+    '1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'
+  ];
+
+  constructor(config?: ProviderConfig & { vault?: Vault }) {
     const apiKey = config?.apiKey || '';
-    super(apiKey, 'imagen-4', config?.baseUrl);
-    
+    super(apiKey, 'gemini-2.5-flash-image', config?.baseUrl);
+
     this.client = new GoogleGenAI({
       apiKey: apiKey
     });
+
+    if (config?.vault) {
+      this.vault = config.vault;
+    }
 
     this.initializeCache();
   }
 
   /**
-   * Generate images using Google's Imagen 4 models
+   * Set vault for reading reference images
+   */
+  setVault(vault: Vault): void {
+    this.vault = vault;
+  }
+
+  /**
+   * Generate images using Google's Nano Banana models
+   * Uses generateContent() API with responseModalities: ['TEXT', 'IMAGE']
    */
   async generateImage(params: ImageGenerationParams): Promise<ImageGenerationResponse> {
     try {
       this.validateConfiguration();
-      
-      const modelId = this.modelMap[params.model as keyof typeof this.modelMap] || 
-                     this.modelMap[this.defaultModel as keyof typeof this.modelMap];
+
+      const model = params.model || this.defaultModel;
 
       const response = await this.withRetry(async () => {
+        // Build contents array with prompt and reference images
+        const contents: any[] = [{ text: params.prompt }];
+
+        // Add reference images if provided
+        if (params.referenceImages && params.referenceImages.length > 0) {
+          const referenceImageParts = await this.loadReferenceImages(params.referenceImages);
+          contents.push(...referenceImageParts);
+        }
+
+        // Build config
         const config: any = {
-          numberOfImages: params.numberOfImages || 1,
+          responseModalities: ['TEXT', 'IMAGE'],
         };
 
-        // Add aspect ratio directly from params (preferred) or convert from size (legacy)
+        // Add image config if aspect ratio or size specified
+        const imageConfig: any = {};
         if (params.aspectRatio) {
-          config.aspectRatio = params.aspectRatio;
-        } else if (params.size) {
-          config.aspectRatio = this.getAspectRatio(params.size);
-        } else {
-          config.aspectRatio = '1:1'; // Default aspect ratio
+          imageConfig.aspectRatio = params.aspectRatio;
+        }
+        // Use imageSize or fall back to sampleImageSize (legacy)
+        const imageSize = params.imageSize || params.sampleImageSize;
+        if (imageSize) {
+          imageConfig.imageSize = imageSize;
+        }
+        if (Object.keys(imageConfig).length > 0) {
+          config.imageConfig = imageConfig;
         }
 
-        // Add sample image size if specified (only for imagen-4 and imagen-4-ultra)
-        if (params.sampleImageSize && (params.model === 'imagen-4' || params.model === 'imagen-4-ultra')) {
-          config.sampleImageSize = params.sampleImageSize;
-        }
-
-        const result = await (this.client as any).models.generateImages({
-          model: modelId,
-          prompt: params.prompt,
-          config
+        // Call generateContent API
+        const result = await (this.client as any).models.generateContent({
+          model: model,
+          contents: contents,
+          config: config
         });
 
         return result;
-      }, 2); // Reduced retry count for faster failure detection
+      }, 2);
 
       return this.buildImageResponse(response, params);
     } catch (error) {
@@ -106,7 +132,62 @@ export class GeminiImageAdapter extends BaseImageAdapter {
   }
 
   /**
-   * Validate Google-specific image generation parameters
+   * Load reference images from vault and convert to base64
+   */
+  private async loadReferenceImages(paths: string[]): Promise<any[]> {
+    if (!this.vault) {
+      throw new Error('Vault not configured - cannot load reference images');
+    }
+
+    const parts: any[] = [];
+
+    for (const path of paths) {
+      try {
+        const file = this.vault.getAbstractFileByPath(path);
+        if (!file) {
+          throw new Error(`Reference image not found: ${path}`);
+        }
+
+        // Read file as binary
+        const arrayBuffer = await this.vault.readBinary(file as any);
+        const buffer = Buffer.from(arrayBuffer);
+        const base64 = buffer.toString('base64');
+
+        // Determine MIME type from extension
+        const mimeType = this.getMimeType(path);
+
+        parts.push({
+          inlineData: {
+            mimeType: mimeType,
+            data: base64
+          }
+        });
+      } catch (error) {
+        throw new Error(`Failed to load reference image ${path}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
+    return parts;
+  }
+
+  /**
+   * Get MIME type from file extension
+   */
+  private getMimeType(path: string): string {
+    const ext = path.toLowerCase().split('.').pop() || '';
+    const mimeTypes: Record<string, string> = {
+      'png': 'image/png',
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'bmp': 'image/bmp'
+    };
+    return mimeTypes[ext] || 'image/png';
+  }
+
+  /**
+   * Validate Nano Banana-specific image generation parameters
    */
   validateImageParams(params: ImageGenerationParams): ImageValidationResult {
     // Start with common validation
@@ -119,35 +200,49 @@ export class GeminiImageAdapter extends BaseImageAdapter {
     const warnings: string[] = [...(baseValidation.warnings || [])];
     const adjustedParams: Partial<ImageGenerationParams> = {};
 
-    // Validate prompt length (Imagen 4 has a 480 token limit)
-    if (params.prompt.length > 2000) { // Rough approximation of 480 tokens
-      errors.push('Prompt too long (approximately 480 tokens max for Imagen 4)');
-    }
-
     // Validate model
-    if (params.model && !this.supportedModels.includes(params.model as ImageModel)) {
+    const model = params.model || this.defaultModel;
+    if (!this.supportedModels.includes(model as ImageModel)) {
       errors.push(`Invalid model. Supported models: ${this.supportedModels.join(', ')}`);
     }
 
-    // Size validation - convert to aspect ratios (legacy support)
-    if (params.size) {
-      if (!this.supportedSizes.includes(params.size)) {
-        errors.push(`Invalid size. Supported sizes: ${this.supportedSizes.join(', ')}`);
+    // Validate aspect ratio
+    if (params.aspectRatio && !this.nanoBananaAspectRatios.includes(params.aspectRatio)) {
+      errors.push(`Invalid aspect ratio. Supported ratios: ${this.nanoBananaAspectRatios.join(', ')}`);
+    }
+
+    // Validate image size
+    const imageSize = params.imageSize || params.sampleImageSize;
+    if (imageSize) {
+      const validSizes = ['1K', '2K', '4K'];
+      if (!validSizes.includes(imageSize)) {
+        errors.push('imageSize must be "1K", "2K", or "4K"');
+      }
+      // 4K only available for Pro model
+      if (imageSize === '4K' && model !== 'gemini-3-pro-image-preview') {
+        errors.push('4K resolution is only available for gemini-3-pro-image-preview model');
       }
     }
 
-    // Number of images validation
+    // Validate number of images
     if (params.numberOfImages && (params.numberOfImages < 1 || params.numberOfImages > 4)) {
       errors.push('numberOfImages must be between 1 and 4');
     }
 
-    // Sample image size validation (only for imagen-4 and imagen-4-ultra)
-    if (params.sampleImageSize) {
-      if (!['1K', '2K'].includes(params.sampleImageSize)) {
-        errors.push('sampleImageSize must be "1K" or "2K"');
+    // Validate reference images
+    if (params.referenceImages && params.referenceImages.length > 0) {
+      const maxRefs = this.maxReferenceImages[model as keyof typeof this.maxReferenceImages] || 6;
+      if (params.referenceImages.length > maxRefs) {
+        errors.push(`Too many reference images. ${model} supports max ${maxRefs} reference images`);
       }
-      if (params.sampleImageSize === '2K' && params.model === 'imagen-4-fast') {
-        errors.push('2K resolution is not supported for imagen-4-fast model');
+
+      // Validate image extensions
+      const validExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'];
+      for (const path of params.referenceImages) {
+        const ext = '.' + (path.toLowerCase().split('.').pop() || '');
+        if (!validExtensions.includes(ext)) {
+          errors.push(`Invalid reference image format: ${path}. Supported formats: ${validExtensions.join(', ')}`);
+        }
       }
     }
 
@@ -165,52 +260,64 @@ export class GeminiImageAdapter extends BaseImageAdapter {
   }
 
   /**
-   * Get Google Imagen capabilities
+   * Get Nano Banana capabilities
    */
   getImageCapabilities(): ProviderCapabilities {
     return {
       supportsStreaming: false,
       supportsJSON: false,
-      supportsImages: false,
+      supportsImages: true, // Supports reference images
       supportsFunctions: false,
       supportsThinking: false,
       supportsImageGeneration: true,
-      maxContextWindow: 480, // Token limit for prompts
+      maxContextWindow: 32000, // Higher limit for Nano Banana
       supportedFeatures: [
         'text_to_image',
-        'multi_image_generation',
+        'image_to_image',
+        'multi_reference_images',
         'aspect_ratio_control',
         'high_quality_output',
-        'enhanced_text_rendering'
+        'enhanced_text_rendering',
+        '4k_resolution'
       ]
     };
-  }
-
-  /**
-   * Get supported aspect ratios (converted from sizes)
-   */
-  getSupportedImageSizes(): string[] {
-    return [...this.supportedSizes];
   }
 
   /**
    * Get supported aspect ratios
    */
   getSupportedAspectRatios(): AspectRatio[] {
-    return [AspectRatio.SQUARE, AspectRatio.PORTRAIT_3_4, AspectRatio.LANDSCAPE_4_3, AspectRatio.PORTRAIT_9_16, AspectRatio.LANDSCAPE_16_9];
+    return [
+      AspectRatio.SQUARE,
+      AspectRatio.PORTRAIT_2_3,
+      AspectRatio.LANDSCAPE_3_2,
+      AspectRatio.PORTRAIT_3_4,
+      AspectRatio.LANDSCAPE_4_3,
+      AspectRatio.PORTRAIT_4_5,
+      AspectRatio.LANDSCAPE_5_4,
+      AspectRatio.PORTRAIT_9_16,
+      AspectRatio.LANDSCAPE_16_9,
+      AspectRatio.ULTRAWIDE_21_9
+    ];
   }
 
   /**
-   * Get pricing for Imagen models (2025 pricing)
+   * Get supported image sizes
    */
-  async getImageModelPricing(model: string = 'imagen-4'): Promise<CostDetails> {
-    const pricing = {
-      'imagen-4': 0.04,      // Standard
-      'imagen-4-ultra': 0.06, // Ultra
-      'imagen-4-fast': 0.02   // Fast
+  getSupportedImageSizes(): string[] {
+    return [...this.supportedSizes];
+  }
+
+  /**
+   * Get pricing for Nano Banana models (2025 pricing)
+   */
+  async getImageModelPricing(model: string = 'gemini-2.5-flash-image'): Promise<CostDetails> {
+    const pricing: Record<string, number> = {
+      'gemini-2.5-flash-image': 0.039,      // Nano Banana
+      'gemini-3-pro-image-preview': 0.08    // Nano Banana Pro (estimate)
     };
 
-    const basePrice = pricing[model as keyof typeof pricing] || 0.04;
+    const basePrice = pricing[model] || 0.039;
 
     return {
       inputCost: 0,
@@ -223,17 +330,17 @@ export class GeminiImageAdapter extends BaseImageAdapter {
   }
 
   /**
-   * List available Google image models
+   * List available Nano Banana image models
    */
   async listModels(): Promise<ModelInfo[]> {
     return [
       {
-        id: 'imagen-4',
-        name: 'Imagen 4',
-        contextWindow: 480,
+        id: 'gemini-2.5-flash-image',
+        name: 'Nano Banana (Fast)',
+        contextWindow: 32000,
         maxOutputTokens: 0,
         supportsJSON: false,
-        supportsImages: false,
+        supportsImages: true,
         supportsFunctions: false,
         supportsStreaming: false,
         supportsThinking: false,
@@ -241,18 +348,18 @@ export class GeminiImageAdapter extends BaseImageAdapter {
         pricing: {
           inputPerMillion: 0,
           outputPerMillion: 0,
-          imageGeneration: 0.04,
+          imageGeneration: 0.039,
           currency: 'USD',
-          lastUpdated: '2025-08-22'
+          lastUpdated: '2025-12-07'
         }
       },
       {
-        id: 'imagen-4-ultra',
-        name: 'Imagen 4 Ultra',
-        contextWindow: 480,
+        id: 'gemini-3-pro-image-preview',
+        name: 'Nano Banana Pro (Advanced)',
+        contextWindow: 32000,
         maxOutputTokens: 0,
         supportsJSON: false,
-        supportsImages: false,
+        supportsImages: true,
         supportsFunctions: false,
         supportsStreaming: false,
         supportsThinking: false,
@@ -260,28 +367,9 @@ export class GeminiImageAdapter extends BaseImageAdapter {
         pricing: {
           inputPerMillion: 0,
           outputPerMillion: 0,
-          imageGeneration: 0.06,
+          imageGeneration: 0.08,
           currency: 'USD',
-          lastUpdated: '2025-08-22'
-        }
-      },
-      {
-        id: 'imagen-4-fast',
-        name: 'Imagen 4 Fast',
-        contextWindow: 480,
-        maxOutputTokens: 0,
-        supportsJSON: false,
-        supportsImages: false,
-        supportsFunctions: false,
-        supportsStreaming: false,
-        supportsThinking: false,
-        supportsImageGeneration: true,
-        pricing: {
-          inputPerMillion: 0,
-          outputPerMillion: 0,
-          imageGeneration: 0.02,
-          currency: 'USD',
-          lastUpdated: '2025-08-22'
+          lastUpdated: '2025-12-07'
         }
       }
     ];
@@ -290,53 +378,61 @@ export class GeminiImageAdapter extends BaseImageAdapter {
   // Private helper methods
 
   private buildImageResponse(
-    response: any, 
+    response: any,
     params: ImageGenerationParams
   ): ImageGenerationResponse {
-    // Handle Google GenAI SDK response format
-    if (!response.generatedImages || response.generatedImages.length === 0) {
-      throw new Error('No image data received from Google');
+    // Handle generateContent response format
+    // Response structure: { candidates: [{ content: { parts: [{ inlineData: { mimeType, data } }] } }] }
+
+    if (!response.candidates || response.candidates.length === 0) {
+      throw new Error('No response candidates received from Google');
     }
 
-    const generatedImage = response.generatedImages[0];
-    if (!generatedImage.image || !generatedImage.image.imageBytes) {
-      throw new Error('No image bytes found in Google response');
+    const candidate = response.candidates[0];
+    if (!candidate.content || !candidate.content.parts) {
+      throw new Error('No content parts in Google response');
+    }
+
+    // Find the image part in the response
+    const imagePart = candidate.content.parts.find((part: any) => part.inlineData);
+    if (!imagePart || !imagePart.inlineData) {
+      throw new Error('No image data found in Google response');
     }
 
     // Convert base64 to buffer
-    const buffer = Buffer.from(generatedImage.image.imageBytes, 'base64');
+    const buffer = Buffer.from(imagePart.inlineData.data, 'base64');
 
-    // Extract dimensions from aspectRatio or size parameter
-    let width = 1024, height = 1024; // Default square
+    // Determine format from MIME type
+    const mimeType = imagePart.inlineData.mimeType || 'image/png';
+    const format = mimeType.split('/')[1] as 'png' | 'jpeg' | 'webp' || 'png';
+
+    // Extract dimensions from aspectRatio
+    let width = 1024, height = 1024;
     let aspectRatio: AspectRatio = params.aspectRatio || AspectRatio.SQUARE;
-    let size = '1024x1024';
-    
-    if (params.aspectRatio) {
-      // Use aspect ratio to calculate dimensions
-      const aspectRatioToDimensions: Record<AspectRatio, [number, number]> = {
-        [AspectRatio.SQUARE]: [1024, 1024],
-        [AspectRatio.PORTRAIT_3_4]: [1152, 896], // Google's typical dimensions for 3:4
-        [AspectRatio.LANDSCAPE_4_3]: [896, 1152], // Google's typical dimensions for 4:3  
-        [AspectRatio.PORTRAIT_9_16]: [576, 1024], // Google's typical dimensions for 9:16
-        [AspectRatio.LANDSCAPE_16_9]: [1024, 576]  // Google's typical dimensions for 16:9
-      };
-      [width, height] = aspectRatioToDimensions[params.aspectRatio] || [1024, 1024];
-      size = `${width}x${height}`;
-    } else if (params.size) {
-      // Legacy: extract from size parameter
-      const [w, h] = params.size.split('x').map(Number);
-      width = w;
-      height = h;
-      size = params.size;
-      const mappedRatio = this.aspectRatioMap[size as keyof typeof this.aspectRatioMap];
-      aspectRatio = (mappedRatio as AspectRatio) || AspectRatio.SQUARE;
+
+    // Map aspect ratios to typical dimensions
+    const aspectRatioToDimensions: Record<string, [number, number]> = {
+      '1:1': [1024, 1024],
+      '2:3': [768, 1152],
+      '3:2': [1152, 768],
+      '3:4': [896, 1152],
+      '4:3': [1152, 896],
+      '4:5': [896, 1120],
+      '5:4': [1120, 896],
+      '9:16': [576, 1024],
+      '16:9': [1024, 576],
+      '21:9': [1344, 576]
+    };
+
+    if (params.aspectRatio && aspectRatioToDimensions[params.aspectRatio]) {
+      [width, height] = aspectRatioToDimensions[params.aspectRatio];
     }
 
-    const usage: ImageUsage = this.buildImageUsage(1, size, params.model || this.defaultModel);
+    const usage: ImageUsage = this.buildImageUsage(1, `${width}x${height}`, params.model || this.defaultModel);
 
     return {
       imageData: buffer,
-      format: 'png', // Google Imagen typically returns PNG
+      format: format,
       dimensions: { width, height },
       metadata: {
         aspectRatio,
@@ -344,17 +440,10 @@ export class GeminiImageAdapter extends BaseImageAdapter {
         provider: this.name,
         generatedAt: new Date().toISOString(),
         originalPrompt: params.prompt,
-        synthidWatermarking: true // Google adds SynthID watermarking
+        referenceImagesCount: params.referenceImages?.length || 0,
+        synthidWatermarking: true // Nano Banana adds SynthID watermarking
       },
       usage
     };
   }
-
-  /**
-   * Convert size to aspect ratio for Google API
-   */
-  private getAspectRatio(size: string): string {
-    return this.aspectRatioMap[size as keyof typeof this.aspectRatioMap] || '1:1';
-  }
-
 }

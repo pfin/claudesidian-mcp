@@ -3,10 +3,9 @@
  * Main orchestrator for MCP server operations
  */
 
-import { App, Plugin } from 'obsidian';
+import { App, Plugin, Events } from 'obsidian';
 import { IMCPServer, ServerStatus } from '../types';
 import { IAgent } from '../agents/interfaces/IAgent';
-import { EventManager } from '../services/EventManager';
 import { SessionContextManager } from '../services/SessionContextManager';
 import { CustomPromptStorageService } from "../agents/agentManager/services/CustomPromptStorageService";
 import { Server as MCPSDKServer } from '@modelcontextprotocol/sdk/server/index.js';
@@ -48,7 +47,7 @@ export class MCPServer implements IMCPServer {
     constructor(
         private app: App,
         _plugin: Plugin,
-        private eventManager: EventManager,
+        private events: Events,
         private sessionContextManager?: SessionContextManager,
         serverName?: string,
         private customPromptStorage?: CustomPromptStorageService,
@@ -83,7 +82,7 @@ export class MCPServer implements IMCPServer {
             this.agentRegistry,
             this.httpTransportManager as any,
             this.ipcTransportManager,
-            this.eventManager
+            this.events
         );
         
         // Setup handlers

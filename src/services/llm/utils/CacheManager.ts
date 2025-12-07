@@ -6,6 +6,7 @@
 import { createHash } from 'crypto';
 import { promises as fs } from 'fs';
 import { join } from 'path';
+import { normalizePath } from 'obsidian';
 import { logger } from './Logger';
 
 export interface CacheEntry<T> {
@@ -27,6 +28,15 @@ export interface CacheMetrics {
   misses: number;
   evictions: number;
   size: number;
+}
+
+export interface VaultAdapter {
+  exists(path: string): Promise<boolean>;
+  read(path: string): Promise<string>;
+  write(path: string, data: string): Promise<void>;
+  mkdir(path: string): Promise<void>;
+  remove(path: string): Promise<void>;
+  list?(path: string): Promise<{ files: string[]; folders: string[] }>;
 }
 
 export abstract class BaseCache<T> {
@@ -165,9 +175,23 @@ export class LRUCache<T> extends BaseCache<T> {
   }
 
   private async persistEntry(key: string, entry: CacheEntry<T>): Promise<void> {
+    const hashed = `${this.generateHash(key)}.json`;
+    if (CacheManager.vaultAdapterConfig) {
+      const adapter = CacheManager.vaultAdapterConfig.adapter;
+      const dir = normalizePath(CacheManager.vaultAdapterConfig.baseDir);
+      const filePath = normalizePath(`${dir}/${hashed}`);
+      try {
+        await adapter.mkdir(dir);
+        await adapter.write(filePath, JSON.stringify({ key, entry }));
+      } catch (error) {
+        logger.warn('Failed to persist cache entry via vault adapter:', { error: (error as Error).message });
+      }
+      return;
+    }
+
     try {
       await fs.mkdir(this.config.cacheDir, { recursive: true });
-      const filePath = join(this.config.cacheDir, `${this.generateHash(key)}.json`);
+      const filePath = join(this.config.cacheDir, hashed);
       await fs.writeFile(filePath, JSON.stringify({ key, entry }));
     } catch (error) {
       logger.warn('Failed to persist cache entry:', { error: (error as Error).message });
@@ -177,9 +201,11 @@ export class LRUCache<T> extends BaseCache<T> {
 
 export class FileCache<T> extends BaseCache<T> {
   private memoryCache = new Map<string, CacheEntry<T>>();
+  private baseDir: string;
 
   constructor(config: Partial<CacheConfig> = {}) {
     super({ ...config, persistToDisk: true });
+    this.baseDir = CacheManager.vaultAdapterConfig?.baseDir || config.cacheDir || '.cache';
     this.initializeCache();
   }
 
@@ -237,10 +263,14 @@ export class FileCache<T> extends BaseCache<T> {
 
   async clear(): Promise<void> {
     this.memoryCache.clear();
-    try {
-      await fs.rm(this.config.cacheDir, { recursive: true, force: true });
-    } catch (error) {
-      logger.warn('Failed to clear disk cache:', { error: (error as Error).message });
+    if (CacheManager.vaultAdapterConfig) {
+      await this.clearVaultCache();
+    } else {
+      try {
+        await fs.rm(this.config.cacheDir, { recursive: true, force: true });
+      } catch (error) {
+        logger.warn('Failed to clear disk cache:', { error: (error as Error).message });
+      }
     }
     this.metrics.size = 0;
   }
@@ -250,16 +280,40 @@ export class FileCache<T> extends BaseCache<T> {
   }
 
   private async initializeCache(): Promise<void> {
-    try {
-      await fs.mkdir(this.config.cacheDir, { recursive: true });
-    } catch (error) {
-      logger.warn('Failed to initialize cache directory:', { error: (error as Error).message });
+    if (CacheManager.vaultAdapterConfig) {
+      try {
+        const dir = this.getCacheDir();
+        await CacheManager.vaultAdapterConfig.adapter.mkdir(dir);
+      } catch (error) {
+        logger.warn('Failed to initialize cache directory via vault adapter:', { error: (error as Error).message });
+      }
+    } else {
+      try {
+        await fs.mkdir(this.config.cacheDir, { recursive: true });
+      } catch (error) {
+        logger.warn('Failed to initialize cache directory:', { error: (error as Error).message });
+      }
     }
   }
 
   private async loadFromDisk(key: string): Promise<CacheEntry<T> | null> {
+    const hashed = `${this.generateHash(key)}.json`;
+    if (CacheManager.vaultAdapterConfig) {
+      const adapter = CacheManager.vaultAdapterConfig.adapter;
+      const filePath = this.normalizeVaultPath(`${this.baseDir}/${hashed}`);
+      try {
+        const exists = await adapter.exists(filePath);
+        if (!exists) return null;
+        const data = await adapter.read(filePath);
+        const parsed = JSON.parse(data);
+        return parsed.entry;
+      } catch {
+        return null;
+      }
+    }
+
     try {
-      const filePath = join(this.config.cacheDir, `${this.generateHash(key)}.json`);
+      const filePath = join(this.config.cacheDir, hashed);
       const data = await fs.readFile(filePath, 'utf-8');
       const parsed = JSON.parse(data);
       return parsed.entry;
@@ -269,8 +323,20 @@ export class FileCache<T> extends BaseCache<T> {
   }
 
   private async saveToDisk(key: string, entry: CacheEntry<T>): Promise<void> {
+    const hashed = `${this.generateHash(key)}.json`;
+    if (CacheManager.vaultAdapterConfig) {
+      const adapter = CacheManager.vaultAdapterConfig.adapter;
+      const filePath = this.normalizeVaultPath(`${this.baseDir}/${hashed}`);
+      try {
+        await adapter.write(filePath, JSON.stringify({ key, entry }));
+      } catch (error) {
+        logger.warn('Failed to save cache entry to vault:', { error: (error as Error).message });
+      }
+      return;
+    }
+
     try {
-      const filePath = join(this.config.cacheDir, `${this.generateHash(key)}.json`);
+      const filePath = join(this.config.cacheDir, hashed);
       await fs.writeFile(filePath, JSON.stringify({ key, entry }));
     } catch (error) {
       logger.warn('Failed to save cache entry to disk:', { error: (error as Error).message });
@@ -278,18 +344,55 @@ export class FileCache<T> extends BaseCache<T> {
   }
 
   private async deleteFromDisk(key: string): Promise<boolean> {
+    const hashed = `${this.generateHash(key)}.json`;
+    if (CacheManager.vaultAdapterConfig) {
+      const adapter = CacheManager.vaultAdapterConfig.adapter;
+      const filePath = this.normalizeVaultPath(`${this.baseDir}/${hashed}`);
+      try {
+        await adapter.remove(filePath);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
     try {
-      const filePath = join(this.config.cacheDir, `${this.generateHash(key)}.json`);
+      const filePath = join(this.config.cacheDir, hashed);
       await fs.unlink(filePath);
       return true;
     } catch (error) {
       return false;
     }
   }
+
+  private getCacheDir(): string {
+    return this.normalizeVaultPath(this.baseDir);
+  }
+
+  private normalizeVaultPath(p: string): string {
+    return normalizePath(p);
+  }
+
+  private async clearVaultCache(): Promise<void> {
+    const adapter = CacheManager.vaultAdapterConfig?.adapter;
+    if (!adapter) return;
+    const dir = this.getCacheDir();
+    try {
+      const listing = await adapter.list?.(dir);
+      if (listing) {
+        for (const file of listing.files) {
+          await adapter.remove(normalizePath(file));
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to clear vault cache:', { error: (error as Error).message });
+    }
+  }
 }
 
 export class CacheManager {
   private static instances = new Map<string, BaseCache<any>>();
+  static vaultAdapterConfig: { adapter: VaultAdapter; baseDir: string } | null = null;
 
   static createLRUCache<T>(name: string, config?: Partial<CacheConfig>): LRUCache<T> {
     const cache = new LRUCache<T>(config);
@@ -319,5 +422,12 @@ export class CacheManager {
       metrics[name] = cache.getMetrics();
     }
     return metrics;
+  }
+
+  /**
+   * Configure a vault adapter so cache persistence uses Obsidian API instead of Node fs.
+   */
+  static configureVaultAdapter(adapter: VaultAdapter, baseDir: string = '.nexus/cache') {
+    this.vaultAdapterConfig = { adapter, baseDir };
   }
 }

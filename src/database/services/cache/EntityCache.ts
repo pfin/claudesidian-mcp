@@ -1,5 +1,4 @@
-import { EventEmitter } from 'events';
-import { Vault, TFile } from 'obsidian';
+import { Events, Vault, TFile } from 'obsidian';
 import { WorkspaceService } from '../../../services/WorkspaceService';
 import { MemoryService } from '../../../agents/memoryManager/services/MemoryService';
 
@@ -39,7 +38,7 @@ interface CacheOptions {
     maxSize?: number; // Maximum number of items per cache
 }
 
-export class EntityCache extends EventEmitter {
+export class EntityCache extends Events {
     private workspaceCache = new Map<string, CachedWorkspace>();
     private sessionCache = new Map<string, CachedSession>();
     private stateCache = new Map<string, CachedState>();
@@ -112,7 +111,7 @@ export class EntityCache extends EventEmitter {
             // Preload file metadata
             await this.preloadFiles(Array.from(associatedFiles));
 
-            this.emit('workspace:preloaded', workspaceId);
+            this.trigger('workspace:preloaded', workspaceId);
         } catch (error) {
             console.error('Error preloading workspace:', error);
         }
@@ -160,7 +159,7 @@ export class EntityCache extends EventEmitter {
             // Preload file metadata
             await this.preloadFiles(Array.from(associatedFiles));
 
-            this.emit('session:preloaded', sessionId);
+            this.trigger('session:preloaded', sessionId);
         } catch (error) {
             console.error('Error preloading session:', error);
         }
@@ -196,7 +195,7 @@ export class EntityCache extends EventEmitter {
             // Preload file metadata
             await this.preloadFiles(Array.from(associatedFiles));
 
-            this.emit('state:preloaded', stateId);
+            this.trigger('state:preloaded', stateId);
         } catch (error) {
             console.error('Error preloading state:', error);
         }
@@ -334,17 +333,17 @@ export class EntityCache extends EventEmitter {
     // Cache management
     invalidateWorkspace(workspaceId: string): void {
         this.workspaceCache.delete(workspaceId);
-        this.emit('workspace:invalidated', workspaceId);
+        this.trigger('workspace:invalidated', workspaceId);
     }
 
     invalidateSession(sessionId: string): void {
         this.sessionCache.delete(sessionId);
-        this.emit('session:invalidated', sessionId);
+        this.trigger('session:invalidated', sessionId);
     }
 
     invalidateState(stateId: string): void {
         this.stateCache.delete(stateId);
-        this.emit('state:invalidated', stateId);
+        this.trigger('state:invalidated', stateId);
     }
 
     invalidateFile(filePath: string): void {
@@ -356,7 +355,7 @@ export class EntityCache extends EventEmitter {
         this.sessionCache.clear();
         this.stateCache.clear();
         this.fileMetadataCache.clear();
-        this.emit('cache:cleared');
+        this.trigger('cache:cleared');
     }
 
     private isValid(timestamp: number): boolean {

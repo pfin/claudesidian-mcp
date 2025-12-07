@@ -54,6 +54,49 @@ export interface SyncState {
 // ============================================================================
 
 /**
+ * Workflow definition for workspace automation
+ */
+export interface WorkspaceWorkflow {
+  /** Workflow name (e.g., "New Application", "Follow-up") */
+  name: string;
+
+  /** When to use this workflow (e.g., "When applying to new position") */
+  when: string;
+
+  /** Steps in the workflow (newline-separated) */
+  steps: string;
+}
+
+/**
+ * Workspace context for LLM understanding and workflow automation
+ *
+ * Contains purpose, goals, workflows, and preferences that help
+ * the LLM understand what the user is trying to accomplish.
+ */
+export interface WorkspaceContext {
+  /** What is this workspace for? */
+  purpose?: string;
+
+  /** What are you trying to accomplish right now? */
+  currentGoal?: string;
+
+  /** Workflows for different situations */
+  workflows?: WorkspaceWorkflow[];
+
+  /** Key files for quick reference (paths) */
+  keyFiles?: string[];
+
+  /** User preferences as actionable guidelines */
+  preferences?: string;
+
+  /** Single dedicated agent for this workspace */
+  dedicatedAgent?: {
+    agentId: string;
+    agentName: string;
+  };
+}
+
+/**
  * Workspace metadata for organizational context
  *
  * Workspaces provide organizational boundaries for sessions, states,
@@ -83,6 +126,9 @@ export interface WorkspaceMetadata {
 
   /** Optional dedicated agent ID for this workspace */
   dedicatedAgentId?: string;
+
+  /** Optional workspace context (purpose, workflows, keyFiles, etc.) */
+  context?: WorkspaceContext;
 }
 
 // ============================================================================

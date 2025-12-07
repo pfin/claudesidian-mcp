@@ -149,7 +149,6 @@ export class ServiceRegistrar {
      */
     async initializeEssentialServices(): Promise<void> {
         try {
-            await this.context.serviceManager.getService('eventManager');
             await this.context.serviceManager.getService('workspaceService');
             await this.context.serviceManager.getService('memoryService');
             await this.context.serviceManager.getService('cacheManager');
@@ -168,7 +167,7 @@ export class ServiceRegistrar {
     async initializeBusinessServices(): Promise<void> {
         try {
             // Core services already initialized in essential services:
-            // - eventManager, workspaceService, memoryService, sessionService, sessionContextManager
+            // - workspaceService, memoryService, sessionService, sessionContextManager
 
             await this.context.serviceManager.getService('defaultWorkspaceManager'); // Initialize default workspace
             await this.context.serviceManager.getService('agentManager');

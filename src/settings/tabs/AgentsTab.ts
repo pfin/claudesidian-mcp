@@ -227,8 +227,14 @@ export class AgentsTab {
             .setButtonText('Save')
             .setCta()
             .onClick(async () => {
+                // Cancel any pending debounced save to prevent double-save
+                if (this.saveTimeout) {
+                    clearTimeout(this.saveTimeout);
+                    this.saveTimeout = undefined;
+                }
                 await this.saveCurrentAgent();
                 new Notice('Agent saved');
+                this.router.back();
             });
 
         if (!this.isNewAgent && agent.id) {

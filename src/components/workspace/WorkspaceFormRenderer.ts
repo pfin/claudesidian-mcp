@@ -233,7 +233,7 @@ export class WorkspaceFormRenderer {
           .setButtonText('×')
           .setWarning()
           .onClick(() => {
-            this.formData.context!.workflows.splice(index, 1);
+            this.formData.context!.workflows!.splice(index, 1);
             this.onRefresh();
           });
       });
@@ -242,8 +242,8 @@ export class WorkspaceFormRenderer {
     new ButtonComponent(subsection)
       .setButtonText('+ Add Workflow')
       .onClick(() => {
-        this.formData.context!.workflows.push({ name: '', when: '', steps: '' });
-        this.onWorkflowEdit(this.formData.context!.workflows.length - 1);
+        this.formData.context!.workflows!.push({ name: '', when: '', steps: '' });
+        this.onWorkflowEdit(this.formData.context!.workflows!.length - 1);
       });
   }
 
@@ -266,17 +266,17 @@ export class WorkspaceFormRenderer {
     const updateKeyFilesList = () => {
       listContainer.empty();
 
-      if (this.formData.context!.keyFiles.length === 0) {
+      if (this.formData.context!.keyFiles!.length === 0) {
         listContainer.createEl('span', { text: 'None', cls: 'nexus-form-hint' });
       } else {
-        this.formData.context!.keyFiles.forEach((filePath, index) => {
+        this.formData.context!.keyFiles!.forEach((filePath, index) => {
           const item = listContainer.createDiv('nexus-item-row');
 
           const input = new TextComponent(item);
           input.setPlaceholder('path/to/file.md');
           input.setValue(filePath);
           input.onChange((value) => {
-            this.formData.context!.keyFiles[index] = value;
+            this.formData.context!.keyFiles![index] = value;
           });
 
           const actions = item.createDiv('nexus-item-actions');
@@ -287,7 +287,7 @@ export class WorkspaceFormRenderer {
             .setButtonText('×')
             .setWarning()
             .onClick(() => {
-              this.formData.context!.keyFiles.splice(index, 1);
+              this.formData.context!.keyFiles!.splice(index, 1);
               updateKeyFilesList();
             });
         });
@@ -299,8 +299,8 @@ export class WorkspaceFormRenderer {
     new ButtonComponent(subsection)
       .setButtonText('+ Add Key File')
       .onClick(() => {
-        const newIndex = this.formData.context!.keyFiles.length;
-        this.formData.context!.keyFiles.push('');
+        const newIndex = this.formData.context!.keyFiles!.length;
+        this.formData.context!.keyFiles!.push('');
         this.onFilePick(newIndex);
       });
   }

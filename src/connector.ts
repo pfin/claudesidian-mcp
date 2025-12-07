@@ -1,6 +1,5 @@
-import { App, Plugin } from 'obsidian';
+import { App, Plugin, Events } from 'obsidian';
 import NexusPlugin from './main';
-import { EventManager } from './services/EventManager';
 import { SessionContextManager, WorkspaceContext } from './services/SessionContextManager';
 import type { ServiceManager } from './core/ServiceManager';
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
@@ -33,7 +32,7 @@ export class MCPConnector {
     private connectionManager: MCPConnectionManagerInterface;
     private toolRouter: ToolCallRouterInterface;
     private agentRegistry: AgentRegistrationServiceInterface;
-    private eventManager: EventManager;
+    private events: Events;
     private sessionContextManager: SessionContextManager | null = null;
     private customPromptStorage?: CustomPromptStorageService;
     private serviceManager?: ServiceManager;
@@ -42,8 +41,8 @@ export class MCPConnector {
         private app: App,
         private plugin: Plugin | NexusPlugin
     ) {
-        // Initialize core components
-        this.eventManager = new EventManager();
+        // Initialize core components - use Obsidian's Events API
+        this.events = new Events();
         // SessionContextManager will be retrieved from ServiceManager via lazy getter
 
         // Get service manager reference
@@ -71,19 +70,19 @@ export class MCPConnector {
         this.connectionManager = new MCPConnectionManager(
             this.app,
             this.plugin,
-            this.eventManager,
+            this.events,
             this.serviceManager,
             this.customPromptStorage,
             (toolName: string, params: any) => this.onToolCall(toolName, params),
             (toolName: string, params: any, response: any, success: boolean, executionTime: number) => this.onToolResponse(toolName, params, response, success, executionTime)
         );
-        
+
         this.toolRouter = new ToolCallRouter();
-        
+
         this.agentRegistry = new AgentRegistrationService(
             this.app,
             this.plugin,
-            this.eventManager,
+            this.events,
             this.serviceManager,
             this.customPromptStorage
         );
@@ -165,7 +164,7 @@ export class MCPConnector {
                         this.agentRegistry = new AgentRegistrationService(
                             this.app,
                             this.plugin,
-                            this.eventManager,
+                            this.events,
                             this.serviceManager,
                             this.customPromptStorage
                         );
@@ -641,10 +640,10 @@ Keep sessionId and workspaceId values EXACTLY as shown above throughout the conv
     }
     
     /**
-     * Get the event manager instance
+     * Get the events instance (Obsidian Events API)
      */
-    getEventManager(): EventManager {
-        return this.eventManager;
+    getEvents(): Events {
+        return this.events;
     }
     
     /**

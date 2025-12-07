@@ -1,5 +1,4 @@
-import { EventEmitter } from 'events';
-import { Vault, TFile, TFolder, FileStats, MetadataCache, App, EventRef } from 'obsidian';
+import { Events, Vault, TFile, TFolder, FileStats, MetadataCache, App, EventRef } from 'obsidian';
 
 export interface IndexedFile {
     path: string;
@@ -25,7 +24,7 @@ export interface IndexStats {
     indexingTime: number;
 }
 
-export class VaultFileIndex extends EventEmitter {
+export class VaultFileIndex extends Events {
     private fileIndex = new Map<string, IndexedFile>();
     private keyFilePatterns = [
         /readme\.md$/i,
@@ -67,7 +66,7 @@ export class VaultFileIndex extends EventEmitter {
             this.isIndexing = false;
             this.indexPromise = null;
             this.setupMetadataCacheEvents();
-            this.emit('index:ready', this.stats);
+            this.trigger('index:ready', this.stats);
         }).catch(error => {
             console.error('Error building file index:', error);
             this.isIndexing = false;
@@ -95,7 +94,7 @@ export class VaultFileIndex extends EventEmitter {
         await Promise.all(keyFiles.map(f => this.loadFileMetadata(f.path)));
 
         this.updateStats();
-        this.emit('index:built', this.stats);
+        this.trigger('index:built', this.stats);
     }
 
     private async indexFile(file: TFile, loadMetadata = false): Promise<void> {
@@ -165,7 +164,7 @@ export class VaultFileIndex extends EventEmitter {
     async updateFile(file: TFile): Promise<void> {
         await this.indexFile(file, true);
         this.updateStats();
-        this.emit('file:updated', file.path);
+        this.trigger('file:updated', file.path);
     }
 
     removeFile(filePath: string): void {
@@ -196,7 +195,7 @@ export class VaultFileIndex extends EventEmitter {
         });
 
         this.updateStats();
-        this.emit('file:removed', filePath);
+        this.trigger('file:removed', filePath);
     }
 
     async renameFile(oldPath: string, newPath: string): Promise<void> {
@@ -212,7 +211,7 @@ export class VaultFileIndex extends EventEmitter {
             await this.updateFile(file);
         }
 
-        this.emit('file:renamed', { oldPath, newPath });
+        this.trigger('file:renamed', { oldPath, newPath });
     }
 
     // Query methods
@@ -317,7 +316,7 @@ export class VaultFileIndex extends EventEmitter {
             lastUpdated: 0,
             indexingTime: 0
         };
-        this.emit('index:cleared');
+        this.trigger('index:cleared');
     }
 
     // Performance helpers
@@ -390,14 +389,14 @@ export class VaultFileIndex extends EventEmitter {
         // Reload metadata and update index
         await this.loadFileMetadata(file.path);
         this.updateStats();
-        this.emit('metadata:updated', file.path, indexed);
+        this.trigger('metadata:updated', file.path, indexed);
     }
 
     /**
      * Handle when metadata cache resolution is complete
      */
     private handleMetadataResolved(): void {
-        this.emit('metadata:resolved');
+        this.trigger('metadata:resolved');
     }
 
     /**

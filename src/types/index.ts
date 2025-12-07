@@ -62,9 +62,7 @@ export type {
   NoteInfo,
   FolderInfo,
   WorkspaceSessionInfo,
-  WorkspaceStateInfo,
-  EventData,
-  EventSubscriber
+  WorkspaceStateInfo
 } from './common';
 
 // Chat types

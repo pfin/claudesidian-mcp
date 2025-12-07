@@ -47,6 +47,10 @@ export interface MCPSettings {
   customPrompts?: CustomPromptsSettings;
   llmProviders?: LLMProviderSettings;
   chatView?: ChatViewSettings;
+  // Default selections for chat
+  defaultWorkspaceId?: string;
+  defaultAgentId?: string;
+  // Update tracking
   lastUpdateVersion?: string;
   lastUpdateDate?: string;
   availableUpdateVersion?: string;

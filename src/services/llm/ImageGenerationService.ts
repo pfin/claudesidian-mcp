@@ -7,6 +7,7 @@
 import { Vault } from 'obsidian';
 import { OpenAIImageAdapter } from './adapters/openai/OpenAIImageAdapter'; // Available but not used
 import { GeminiImageAdapter } from './adapters/google/GeminiImageAdapter';
+import { OpenRouterImageAdapter } from './adapters/openrouter/OpenRouterImageAdapter';
 import { ImageFileManager } from './ImageFileManager';
 import { 
   ImageGenerationParams, 
@@ -60,13 +61,26 @@ export class ImageGenerationService {
       const googleConfig = this.llmSettings.providers?.google;
       if (googleConfig?.apiKey && googleConfig?.enabled) {
         const googleAdapter = new GeminiImageAdapter({
-          apiKey: googleConfig.apiKey
+          apiKey: googleConfig.apiKey,
+          vault: this.vault // Pass vault for reference image loading
         });
         this.adapters.set('google', googleAdapter);
       }
 
+      // Initialize OpenRouter adapter if API key is available and enabled
+      const openRouterConfig = this.llmSettings.providers?.openrouter;
+      if (openRouterConfig?.apiKey && openRouterConfig?.enabled) {
+        const openRouterAdapter = new OpenRouterImageAdapter({
+          apiKey: openRouterConfig.apiKey,
+          vault: this.vault,
+          httpReferer: openRouterConfig.httpReferer,
+          xTitle: openRouterConfig.xTitle
+        });
+        this.adapters.set('openrouter', openRouterAdapter);
+      }
+
       if (this.adapters.size === 0) {
-        console.warn('No image generation providers configured. Please configure Google API keys in plugin settings and enable the providers.');
+        console.warn('No image generation providers configured. Please configure Google or OpenRouter API keys in plugin settings and enable the providers.');
       } else {
       }
     } catch (error) {
@@ -204,7 +218,7 @@ export class ImageGenerationService {
     }
 
     // Add unavailable providers if no API keys are configured
-    const allProviders: ImageProvider[] = ['openai', 'google']; // OpenAI available but disabled
+    const allProviders: ImageProvider[] = ['openai', 'google', 'openrouter']; // OpenAI available but disabled
     for (const provider of allProviders) {
       if (!providers.find(p => p.provider === provider)) {
         providers.push({

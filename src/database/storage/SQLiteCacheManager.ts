@@ -15,8 +15,11 @@
  * - Implements IStorageBackend interface
  */
 
-import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
-import { App, TFile } from 'obsidian';
+// Use asm.js version (pure JS, no external WASM file needed)
+// This avoids CDN requests on every startup
+import initSqlJs from 'sql.js/dist/sql-asm.js';
+import type { Database, SqlJsStatic } from 'sql.js';
+import { App } from 'obsidian';
 import { PaginatedResult, PaginationParams } from '../../types/pagination/PaginationTypes';
 import { IStorageBackend, RunResult, DatabaseStats } from '../interfaces/IStorageBackend';
 import type { SyncState, ISQLiteCacheManager } from '../sync/SyncCoordinator';
@@ -75,11 +78,8 @@ export class SQLiteCacheManager implements IStorageBackend, ISQLiteCacheManager 
     }
 
     try {
-      // Initialize sql.js
-      this.SQL = await initSqlJs({
-        // Load sql.js wasm from CDN
-        locateFile: (file: string) => `https://sql.js.org/dist/${file}`
-      });
+      // Initialize sql.js (asm.js version - no external files needed)
+      this.SQL = await initSqlJs();
 
       // Try to load existing database
       const existingData = await this.loadDatabaseFile();
@@ -107,15 +107,19 @@ export class SQLiteCacheManager implements IStorageBackend, ISQLiteCacheManager 
 
   /**
    * Load database file from Obsidian vault
+   * Uses raw adapter to support hidden folders (like .nexus/)
    */
   private async loadDatabaseFile(): Promise<Uint8Array | null> {
     try {
-      const file = this.app.vault.getAbstractFileByPath(this.dbPath);
-      if (!(file instanceof TFile)) {
+      // Use adapter directly - vault.getAbstractFileByPath doesn't work for hidden files
+      const exists = await this.app.vault.adapter.exists(this.dbPath);
+      if (!exists) {
+        console.log(`[SQLiteCacheManager] Database file not found: ${this.dbPath}`);
         return null;
       }
 
-      const arrayBuffer = await this.app.vault.readBinary(file);
+      const arrayBuffer = await this.app.vault.adapter.readBinary(this.dbPath);
+      console.log(`[SQLiteCacheManager] Loaded database file: ${this.dbPath} (${arrayBuffer.byteLength} bytes)`);
       return new Uint8Array(arrayBuffer);
     } catch (error) {
       console.error('[SQLiteCacheManager] Failed to load database file:', error);
@@ -125,6 +129,7 @@ export class SQLiteCacheManager implements IStorageBackend, ISQLiteCacheManager 
 
   /**
    * Save database to Obsidian vault
+   * Uses raw adapter to support hidden folders (like .nexus/)
    */
   async save(): Promise<void> {
     if (!this.db) {
@@ -138,50 +143,22 @@ export class SQLiteCacheManager implements IStorageBackend, ISQLiteCacheManager 
 
     try {
       const data = this.db.export();
-      // Convert Uint8Array to ArrayBuffer (Obsidian API requires ArrayBuffer, not SharedArrayBuffer)
+      // Convert Uint8Array to ArrayBuffer (Obsidian adapter requires ArrayBuffer)
       const buffer = new ArrayBuffer(data.byteLength);
       new Uint8Array(buffer).set(data);
 
-      // Ensure parent directory exists (race-safe)
+      // Ensure parent directory exists using adapter (works for hidden folders)
       const parentPath = this.dbPath.substring(0, this.dbPath.lastIndexOf('/'));
-      const parentFolder = this.app.vault.getAbstractFileByPath(parentPath);
-      if (!parentFolder) {
-        try {
-          await this.app.vault.createFolder(parentPath);
-        } catch (e: any) {
-          // Ignore "already exists" errors (race condition with other init code)
-          if (!e?.message?.includes('already exists')) {
-            throw e;
-          }
-        }
+      const parentExists = await this.app.vault.adapter.exists(parentPath);
+      if (!parentExists) {
+        await this.app.vault.adapter.mkdir(parentPath);
       }
 
-      const file = this.app.vault.getAbstractFileByPath(this.dbPath);
-      if (file instanceof TFile) {
-        await this.app.vault.modifyBinary(file, buffer);
-      } else {
-        // Try to create, but handle race condition where file exists but isn't in metadata cache yet
-        try {
-          await this.app.vault.createBinary(this.dbPath, buffer);
-        } catch (createError: any) {
-          if (createError?.message?.includes('already exists')) {
-            // File exists but wasn't in metadata cache - wait a bit and retry with modify
-            await new Promise(resolve => setTimeout(resolve, 100));
-            const retryFile = this.app.vault.getAbstractFileByPath(this.dbPath);
-            if (retryFile instanceof TFile) {
-              await this.app.vault.modifyBinary(retryFile, buffer);
-            } else {
-              // Last resort: delete and recreate
-              await this.app.vault.adapter.remove(this.dbPath);
-              await this.app.vault.createBinary(this.dbPath, buffer);
-            }
-          } else {
-            throw createError;
-          }
-        }
-      }
+      // Write directly using adapter (works for hidden folders)
+      await this.app.vault.adapter.writeBinary(this.dbPath, buffer);
 
       this.isDirty = false;
+      console.log(`[SQLiteCacheManager] Saved database: ${this.dbPath} (${buffer.byteLength} bytes)`);
     } catch (error) {
       console.error('[SQLiteCacheManager] Failed to save database:', error);
       throw error;

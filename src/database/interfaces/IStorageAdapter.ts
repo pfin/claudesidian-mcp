@@ -126,14 +126,14 @@ export interface IStorageAdapter {
    * Create a new workspace
    *
    * This should:
-   * 1. Generate a new workspace ID
+   * 1. Use provided ID or generate a new workspace ID
    * 2. Write create event to JSONL
    * 3. Update SQLite cache
    *
-   * @param workspace - Workspace metadata (without id)
+   * @param workspace - Workspace metadata (id optional - will be generated if not provided)
    * @returns ID of the created workspace
    */
-  createWorkspace(workspace: Omit<WorkspaceMetadata, 'id'>): Promise<string>;
+  createWorkspace(workspace: Omit<WorkspaceMetadata, 'id'> & { id?: string }): Promise<string>;
 
   /**
    * Update an existing workspace

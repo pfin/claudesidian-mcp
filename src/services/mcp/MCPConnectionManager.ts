@@ -1,6 +1,5 @@
-import { App, Plugin } from 'obsidian';
+import { App, Plugin, Events } from 'obsidian';
 import { MCPServer } from '../../server';
-import { EventManager } from '../EventManager';
 import { SessionContextManager } from '../SessionContextManager';
 import { CustomPromptStorageService } from "../../agents/agentManager/services/CustomPromptStorageService";
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
@@ -15,7 +14,7 @@ import { logger } from '../../utils/logger';
  * - Server lifecycle (start/stop/shutdown)
  * 
  * Used by: MCPConnector
- * Dependencies: MCPServer, EventManager, SessionContextManager
+ * Dependencies: MCPServer, Obsidian Events, SessionContextManager
  */
 
 export interface MCPConnectionManagerInterface {
@@ -97,7 +96,7 @@ export class MCPConnectionManager implements MCPConnectionManagerInterface {
     constructor(
         private app: App,
         private plugin: Plugin,
-        private eventManager: EventManager,
+        private events: Events,
         serviceManager: any,
         private customPromptStorage?: CustomPromptStorageService,
         private onToolCall?: (toolName: string, params: any) => Promise<void>,
@@ -202,7 +201,7 @@ export class MCPConnectionManager implements MCPConnectionManagerInterface {
             const server = new MCPServer(
                 this.app,
                 this.plugin,
-                this.eventManager,
+                this.events,
                 this.getSessionContextManagerFromService(),
                 undefined, // serviceContainer will be set later if needed
                 this.customPromptStorage,

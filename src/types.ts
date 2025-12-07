@@ -76,9 +76,7 @@ export type {
   NoteInfo,
   FolderInfo,
   WorkspaceSessionInfo,
-  WorkspaceStateInfo,
-  EventData,
-  EventSubscriber
+  WorkspaceStateInfo
 } from './types/common';
 
 // Create default settings object

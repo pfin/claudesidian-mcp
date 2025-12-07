@@ -74,8 +74,10 @@ export class WorkspaceRepository
   }
 
   async create(data: CreateWorkspaceData): Promise<string> {
-    const id = this.generateId();
+    // Use provided ID or generate a new one
+    const id = data.id || this.generateId();
     const now = Date.now();
+    const contextJson = data.context ? JSON.stringify(data.context) : undefined;
 
     try {
       await this.transaction(async () => {
@@ -90,15 +92,16 @@ export class WorkspaceRepository
               description: data.description,
               rootFolder: data.rootFolder,
               created: data.created ?? now,
-              dedicatedAgentId: data.dedicatedAgentId
+              dedicatedAgentId: data.dedicatedAgentId,
+              contextJson
             }
           }
         );
 
         // 2. Update SQLite cache
         await this.sqliteCache.run(
-          `INSERT INTO workspaces (id, name, description, rootFolder, created, lastAccessed, isActive, dedicatedAgentId)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO workspaces (id, name, description, rootFolder, created, lastAccessed, isActive, dedicatedAgentId, contextJson)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
             data.name,
@@ -107,7 +110,8 @@ export class WorkspaceRepository
             data.created ?? now,
             now,
             data.isActive ? 1 : 0,
-            data.dedicatedAgentId ?? null
+            data.dedicatedAgentId ?? null,
+            contextJson
           ]
         );
       });
@@ -127,19 +131,22 @@ export class WorkspaceRepository
     try {
       await this.transaction(async () => {
         // 1. Write event to JSONL
+        const eventData: Partial<{ name: string; description: string; rootFolder: string; lastAccessed: number; isActive: boolean; dedicatedAgentId: string; contextJson: string }> = {
+          lastAccessed: data.lastAccessed ?? Date.now()
+        };
+        if (data.name !== undefined) eventData.name = data.name;
+        if (data.description !== undefined) eventData.description = data.description;
+        if (data.rootFolder !== undefined) eventData.rootFolder = data.rootFolder;
+        if (data.isActive !== undefined) eventData.isActive = data.isActive;
+        if (data.dedicatedAgentId !== undefined) eventData.dedicatedAgentId = data.dedicatedAgentId;
+        if (data.context !== undefined) eventData.contextJson = JSON.stringify(data.context);
+
         await this.writeEvent<WorkspaceUpdatedEvent>(
           this.jsonlPath(id),
           {
             type: 'workspace_updated',
             workspaceId: id,
-            data: {
-              name: data.name,
-              description: data.description,
-              rootFolder: data.rootFolder,
-              lastAccessed: data.lastAccessed ?? Date.now(),
-              isActive: data.isActive,
-              dedicatedAgentId: data.dedicatedAgentId
-            }
+            data: eventData
           }
         );
 
@@ -166,6 +173,10 @@ export class WorkspaceRepository
         if (data.dedicatedAgentId !== undefined) {
           setClauses.push('dedicatedAgentId = ?');
           params.push(data.dedicatedAgentId);
+        }
+        if (data.context !== undefined) {
+          setClauses.push('contextJson = ?');
+          params.push(JSON.stringify(data.context));
         }
 
         setClauses.push('lastAccessed = ?');
@@ -315,6 +326,16 @@ export class WorkspaceRepository
   // ============================================================================
 
   protected rowToEntity(row: any): WorkspaceMetadata {
+    // Parse context from JSON string
+    let context = undefined;
+    if (row.contextJson) {
+      try {
+        context = JSON.parse(row.contextJson);
+      } catch (e) {
+        console.warn('[WorkspaceRepository] Failed to parse contextJson:', e);
+      }
+    }
+
     return {
       id: row.id,
       name: row.name,
@@ -323,7 +344,8 @@ export class WorkspaceRepository
       created: row.created,
       lastAccessed: row.lastAccessed,
       isActive: row.isActive === 1,
-      dedicatedAgentId: row.dedicatedAgentId ?? undefined
+      dedicatedAgentId: row.dedicatedAgentId ?? undefined,
+      context
     };
   }
 }

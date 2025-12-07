@@ -1,4 +1,4 @@
-import { Vault, App } from 'obsidian';
+import { Vault, App, EventRef } from 'obsidian';
 import { EntityCache } from './EntityCache';
 import { VaultFileIndex } from './VaultFileIndex';
 import { WorkspaceService } from '../../../services/WorkspaceService';
@@ -19,6 +19,8 @@ export class CacheManager {
     private vaultFileIndex: VaultFileIndex | null = null;
     private prefetchManager: PrefetchManager | null = null;
     private isInitialized = false;
+    private vaultEventRefs: EventRef[] = [];
+    private entityCacheEventRefs: EventRef[] = [];
 
     constructor(
         private app: App,
@@ -79,48 +81,62 @@ export class CacheManager {
         if (!this.vaultFileIndex) return;
 
         // Listen for file events from Obsidian
-        this.vault.on('create', async (file) => {
-            if ('extension' in file && (file.extension === 'md' || file.extension === 'canvas')) {
-                await this.vaultFileIndex!.updateFile(file as any);
-            }
-        });
+        this.vaultEventRefs.push(
+            this.vault.on('create', async (file) => {
+                if ('extension' in file && (file.extension === 'md' || file.extension === 'canvas')) {
+                    await this.vaultFileIndex!.updateFile(file as any);
+                }
+            })
+        );
 
-        this.vault.on('delete', (file) => {
-            this.vaultFileIndex!.removeFile(file.path);
-            // Also invalidate entity cache for files
-            if (this.entityCache) {
-                this.entityCache.invalidateFile(file.path);
-            }
-        });
+        this.vaultEventRefs.push(
+            this.vault.on('delete', (file) => {
+                this.vaultFileIndex!.removeFile(file.path);
+                // Also invalidate entity cache for files
+                if (this.entityCache) {
+                    this.entityCache.invalidateFile(file.path);
+                }
+            })
+        );
 
-        this.vault.on('rename', async (file, oldPath) => {
-            if ('extension' in file && (file.extension === 'md' || file.extension === 'canvas')) {
-                await this.vaultFileIndex!.renameFile(oldPath, file.path);
-            }
-        });
+        this.vaultEventRefs.push(
+            this.vault.on('rename', async (file, oldPath) => {
+                if ('extension' in file && (file.extension === 'md' || file.extension === 'canvas')) {
+                    await this.vaultFileIndex!.renameFile(oldPath, file.path);
+                }
+            })
+        );
 
-        this.vault.on('modify', async (file) => {
-            if ('extension' in file && (file.extension === 'md' || file.extension === 'canvas')) {
-                await this.vaultFileIndex!.updateFile(file as any);
-            }
-        });
+        this.vaultEventRefs.push(
+            this.vault.on('modify', async (file) => {
+                if ('extension' in file && (file.extension === 'md' || file.extension === 'canvas')) {
+                    await this.vaultFileIndex!.updateFile(file as any);
+                }
+            })
+        );
     }
 
     private setupPrefetchListeners(): void {
         if (!this.entityCache || !this.prefetchManager) return;
 
         // Listen for entity cache events to trigger prefetching
-        this.entityCache.on('workspace:preloaded', (workspaceId: string) => {
-            this.prefetchManager!.onWorkspaceLoaded(workspaceId);
-        });
+        this.entityCacheEventRefs.push(
+            this.entityCache.on('workspace:preloaded', (workspaceId) => {
+                this.prefetchManager!.onWorkspaceLoaded(workspaceId as string);
+            })
+        );
 
-        this.entityCache.on('session:preloaded', (sessionId: string) => {
-            this.prefetchManager!.onSessionLoaded(sessionId);
-        });
+        this.entityCacheEventRefs.push(
+            this.entityCache.on('session:preloaded', (sessionId) => {
+                this.prefetchManager!.onSessionLoaded(sessionId as string);
+            })
+        );
 
-        this.entityCache.on('state:preloaded', (stateId: string) => {
-            this.prefetchManager!.onStateLoaded(stateId);
-        });
+        this.entityCacheEventRefs.push(
+            this.entityCache.on('state:preloaded', (stateId) => {
+                this.prefetchManager!.onStateLoaded(stateId as string);
+            })
+        );
     }
 
     // Entity cache methods
@@ -243,7 +259,21 @@ export class CacheManager {
     // Cleanup resources
     cleanup(): void {
         console.log('Cleaning up CacheManager...');
-        
+
+        // Unregister vault event listeners
+        for (const ref of this.vaultEventRefs) {
+            this.vault.offref(ref);
+        }
+        this.vaultEventRefs = [];
+
+        // Unregister entity cache event listeners
+        if (this.entityCache) {
+            for (const ref of this.entityCacheEventRefs) {
+                this.entityCache.offref(ref);
+            }
+        }
+        this.entityCacheEventRefs = [];
+
         // Cleanup VaultFileIndex and its metadata cache events
         if (this.vaultFileIndex) {
             this.vaultFileIndex.cleanup();
@@ -258,6 +288,7 @@ export class CacheManager {
 
         // Reset prefetch manager
         if (this.prefetchManager) {
+            this.prefetchManager.clearQueue();
             this.prefetchManager = null;
         }
 

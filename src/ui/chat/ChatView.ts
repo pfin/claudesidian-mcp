@@ -102,6 +102,10 @@ export class ChatView extends ItemView {
     }
 
     this.initializeArchitecture();
+
+    // Check if database is still loading and show overlay
+    await this.waitForDatabaseReady();
+
     await this.loadInitialData();
 
     // Set up Nexus lifecycle callbacks for loading indicator
@@ -121,6 +125,72 @@ export class ChatView extends ItemView {
     lifecycleManager.handleChatViewOpened().catch((error) => {
       console.warn('[ChatView] Nexus lifecycle manager error on open:', error);
     });
+  }
+
+  /**
+   * Wait for database to be ready, showing loading overlay if needed
+   */
+  private async waitForDatabaseReady(): Promise<void> {
+    const plugin = getNexusPlugin(this.app) as any;
+    if (!plugin?.serviceManager) return;
+
+    try {
+      const storageAdapter = await plugin.serviceManager.getService('hybridStorageAdapter') as any;
+      if (!storageAdapter) return;
+
+      // If already ready, no need to show overlay
+      if (storageAdapter.isReady?.()) {
+        return;
+      }
+
+      // Show loading overlay while waiting
+      this.showDatabaseLoadingOverlay();
+
+      // Wait for database to be ready
+      const success = await storageAdapter.waitForReady?.();
+
+      // Hide overlay
+      this.hideDatabaseLoadingOverlay();
+
+      if (!success) {
+        console.warn('[ChatView] Database initialization failed, using legacy storage');
+      }
+    } catch (error) {
+      this.hideDatabaseLoadingOverlay();
+      console.warn('[ChatView] Error waiting for database:', error);
+    }
+  }
+
+  /**
+   * Show database loading overlay
+   */
+  private showDatabaseLoadingOverlay(): void {
+    const overlay = this.layoutElements?.loadingOverlay;
+    if (!overlay) return;
+
+    // Update text for database loading
+    const statusEl = overlay.querySelector('[data-status-el]');
+    if (statusEl) statusEl.textContent = 'Loading database...';
+
+    overlay.style.display = 'flex';
+    overlay.offsetHeight; // Trigger reflow
+    overlay.addClass('is-visible');
+  }
+
+  /**
+   * Hide database loading overlay
+   */
+  private hideDatabaseLoadingOverlay(): void {
+    const overlay = this.layoutElements?.loadingOverlay;
+    if (!overlay) return;
+
+    overlay.removeClass('is-visible');
+    setTimeout(() => {
+      overlay.style.display = 'none';
+      // Reset text for potential Nexus loading later
+      const statusEl = overlay.querySelector('[data-status-el]');
+      if (statusEl) statusEl.textContent = 'Loading Nexus model...';
+    }, 300);
   }
 
   async onClose(): Promise<void> {

@@ -18,16 +18,21 @@ import { CostDetails, TokenUsage, LLMProviderError } from '../adapters/types';
 // Core image generation parameter interfaces
 export interface ImageGenerationParams {
   prompt: string;
-  provider: 'google'; // Only Google Imagen supported
-  model?: string; // imagen-4, imagen-4-ultra, imagen-4-fast
+  provider: 'google' | 'openrouter'; // Google direct or OpenRouter routing
+  model?: string; // gemini-2.5-flash-image, gemini-3-pro-image-preview, flux-2-pro, flux-2-flex
   size?: string; // Legacy support for pixel dimensions (converted to aspectRatio)
-  aspectRatio?: AspectRatio; // Google Imagen aspect ratios
+  aspectRatio?: AspectRatio; // Nano Banana aspect ratios
   numberOfImages?: number; // 1-4 images
-  sampleImageSize?: '1K' | '2K'; // Image resolution
+  imageSize?: NanoBananaImageSize; // Image resolution: 1K, 2K, or 4K
+  sampleImageSize?: '1K' | '2K'; // Legacy alias for imageSize
+  referenceImages?: string[]; // Vault-relative paths to reference images (max 14 for Pro, 6 for Flash)
   savePath: string; // vault relative path
   sessionId?: string;
   context?: string;
 }
+
+// Nano Banana image resolution sizes
+export type NanoBananaImageSize = '1K' | '2K' | '4K';
 
 // Image generation response from adapters
 export interface ImageGenerationResponse {
@@ -158,17 +163,36 @@ export namespace OpenAI {
   }
 }
 
-// Google specific types
+// Google Nano Banana specific types
 export namespace Google {
+  // Content part for reference images
+  export interface InlineDataPart {
+    inlineData: {
+      mimeType: string;
+      data: string; // base64
+    };
+  }
+
+  // Content part for text
+  export interface TextPart {
+    text: string;
+  }
+
+  export type ContentPart = InlineDataPart | TextPart;
+
+  // Nano Banana image generation config
+  export interface ImageConfig {
+    aspectRatio?: string;
+    imageSize?: '1K' | '2K' | '4K';
+  }
+
+  // Request for generateContent with image generation
   export interface ImageGenerationRequest {
-    model: 'imagen-4' | 'imagen-4-ultra';
-    prompt: { text: string };
-    safetySettings?: SafetySetting[];
-    generationConfig?: {
-      responseMimeType?: string;
-      responseSchema?: any;
-      seed?: number;
-      candidateCount?: number;
+    model: 'gemini-2.5-flash-image' | 'gemini-3-pro-image-preview';
+    contents: ContentPart[];
+    config?: {
+      responseModalities?: ('TEXT' | 'IMAGE')[];
+      imageConfig?: ImageConfig;
     };
   }
 
@@ -217,21 +241,25 @@ export class ImageGenerationError extends LLMProviderError {
 }
 
 // Supported providers and models
-export type ImageProvider = 'openai' | 'google'; // OpenAI available but not active
+export type ImageProvider = 'openai' | 'google' | 'openrouter'; // OpenAI available but not active
 
-export type ImageModel = 
-  | 'gpt-image-1'        // OpenAI (available but not active)
-  | 'imagen-4'           // Google
-  | 'imagen-4-ultra'     // Google
-  | 'imagen-4-fast';     // Google
+export type ImageModel =
+  | 'gpt-image-1'              // OpenAI (available but not active)
+  | 'gemini-2.5-flash-image'   // Google Nano Banana (fast)
+  | 'gemini-3-pro-image-preview'; // Google Nano Banana Pro (advanced)
 
-// Aspect ratio constants
+// Aspect ratio constants for Nano Banana models
 export enum AspectRatio {
   SQUARE = '1:1',
+  PORTRAIT_2_3 = '2:3',
+  LANDSCAPE_3_2 = '3:2',
   PORTRAIT_3_4 = '3:4',
   LANDSCAPE_4_3 = '4:3',
+  PORTRAIT_4_5 = '4:5',
+  LANDSCAPE_5_4 = '5:4',
   PORTRAIT_9_16 = '9:16',
-  LANDSCAPE_16_9 = '16:9'
+  LANDSCAPE_16_9 = '16:9',
+  ULTRAWIDE_21_9 = '21:9'
 }
 
 // Image size presets

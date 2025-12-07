@@ -18,11 +18,13 @@ import { LLMProviderSettings } from '../../../types/llm/ProviderTypes';
 
 export interface GenerateImageParams extends CommonParameters {
   prompt: string;
-  provider: 'google'; // Only Google Imagen supported
-  model?: 'imagen-4' | 'imagen-4-ultra' | 'imagen-4-fast';
+  provider: 'google' | 'openrouter'; // Google (direct) or OpenRouter (routing)
+  model?: 'gemini-2.5-flash-image' | 'gemini-3-pro-image-preview' | 'flux-2-pro' | 'flux-2-flex';
   aspectRatio?: AspectRatio;
   numberOfImages?: number;
-  sampleImageSize?: '1K' | '2K';
+  imageSize?: '1K' | '2K' | '4K';
+  sampleImageSize?: '1K' | '2K'; // Legacy alias
+  referenceImages?: string[]; // Vault-relative paths to reference images
   savePath: string;
 }
 
@@ -65,8 +67,8 @@ export class GenerateImageMode extends BaseMode<GenerateImageParams, GenerateIma
     super(
       'generateImage',
       'Generate Image',
-      'Generate images using Google Imagen 4 and save to vault',
-      '1.0.0'
+      'Generate images using Google Nano Banana models (direct or via OpenRouter). Supports reference images for style/composition guidance.',
+      '2.1.0'
     );
 
     this.schemaBuilder = new SchemaBuilder(null);
@@ -150,7 +152,9 @@ export class GenerateImageMode extends BaseMode<GenerateImageParams, GenerateIma
         model: params.model,
         aspectRatio: params.aspectRatio,
         numberOfImages: params.numberOfImages,
+        imageSize: params.imageSize,
         sampleImageSize: params.sampleImageSize,
+        referenceImages: params.referenceImages,
         savePath: params.savePath,
         sessionId: params.context.sessionId,
         context: typeof params.context === 'string' ? params.context : JSON.stringify(params.context)
@@ -175,7 +179,9 @@ export class GenerateImageMode extends BaseMode<GenerateImageParams, GenerateIma
         model: params.model,
         aspectRatio: params.aspectRatio,
         numberOfImages: params.numberOfImages,
+        imageSize: params.imageSize,
         sampleImageSize: params.sampleImageSize,
+        referenceImages: params.referenceImages,
         savePath: params.savePath,
         sessionId: params.context.sessionId,
         context: typeof params.context === 'string' ? params.context : JSON.stringify(params.context)
@@ -244,17 +250,17 @@ export class GenerateImageMode extends BaseMode<GenerateImageParams, GenerateIma
         },
         provider: {
           type: 'string',
-          enum: ['google'],
-          description: 'AI provider for image generation (google for Imagen 4)'
+          enum: ['google', 'openrouter'],
+          description: 'AI provider for image generation. google = direct API, openrouter = via OpenRouter routing'
         },
         model: {
           type: 'string',
-          enum: ['imagen-4', 'imagen-4-ultra', 'imagen-4-fast'],
-          description: 'Specific model to use (optional, will use provider default)'
+          enum: ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview', 'flux-2-pro', 'flux-2-flex'],
+          description: 'Model to use. Nano Banana models (gemini-*) work with both providers. FLUX models only via OpenRouter.'
         },
         aspectRatio: {
           type: 'string',
-          enum: ['1:1', '3:4', '4:3', '9:16', '16:9'],
+          enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'],
           description: 'Aspect ratio for the generated image'
         },
         numberOfImages: {
@@ -263,10 +269,16 @@ export class GenerateImageMode extends BaseMode<GenerateImageParams, GenerateIma
           maximum: 4,
           description: 'Number of images to generate (1-4)'
         },
-        sampleImageSize: {
+        imageSize: {
           type: 'string',
-          enum: ['1K', '2K'],
-          description: 'Image resolution (1K or 2K). 2K only available for imagen-4 and imagen-4-ultra'
+          enum: ['1K', '2K', '4K'],
+          description: 'Image resolution. 4K only available for gemini-3-pro-image-preview'
+        },
+        referenceImages: {
+          type: 'array',
+          items: { type: 'string' },
+          maxItems: 14,
+          description: 'Vault-relative paths to reference images for style/composition guidance. Max 6 for gemini-2.5-flash-image, max 14 for gemini-3-pro-image-preview'
         },
         savePath: {
           type: 'string',
@@ -281,7 +293,7 @@ export class GenerateImageMode extends BaseMode<GenerateImageParams, GenerateIma
       },
       required: ['prompt', 'provider', 'savePath']
     };
-    
+
     return this.getMergedSchema(modeSchema);
   }
 

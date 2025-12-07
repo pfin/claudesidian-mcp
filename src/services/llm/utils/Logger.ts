@@ -6,6 +6,7 @@
 
 import { appendFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { normalizePath } from 'obsidian';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -33,6 +34,7 @@ export interface LoggerConfig {
 export class Logger {
   private static instance: Logger;
   private config: LoggerConfig;
+  private static vaultAdapterConfig: { adapter: any; baseDir: string } | null = null;
   private logLevels: Record<LogLevel, number> = {
     debug: 0,
     info: 1,
@@ -267,6 +269,11 @@ export class Logger {
     const logFile = join(this.config.logDirectory, `lab-kit-${this.getDateString()}.log`);
     const line = JSON.stringify(entry) + '\n';
     
+    if (Logger.vaultAdapterConfig) {
+      this.writeViaVaultAdapter(logFile, line);
+      return;
+    }
+
     try {
       appendFileSync(logFile, line);
       this.rotateLogsIfNeeded(logFile);
@@ -276,7 +283,16 @@ export class Logger {
   }
 
   private ensureLogDirectory(): void {
-    if (this.config.enableFile && !existsSync(this.config.logDirectory)) {
+    if (!this.config.enableFile) return;
+
+    if (Logger.vaultAdapterConfig) {
+      const dir = normalizePath(Logger.vaultAdapterConfig.baseDir || '.nexus/logs');
+      Logger.vaultAdapterConfig.adapter.mkdir(dir).catch(() => {});
+      this.config.logDirectory = dir;
+      return;
+    }
+
+    if (!existsSync(this.config.logDirectory)) {
       try {
         mkdirSync(this.config.logDirectory, { recursive: true });
       } catch (error) {
@@ -291,6 +307,11 @@ export class Logger {
   }
 
   private rotateLogsIfNeeded(logFile: string): void {
+    if (Logger.vaultAdapterConfig) {
+      // Rotation not supported with vault adapter; rely on vault sync instead.
+      return;
+    }
+
     try {
       const stats = require('fs').statSync(logFile);
       if (stats.size > this.config.maxFileSize) {
@@ -333,6 +354,29 @@ export class Logger {
     } catch (error) {
       // Ignore cleanup errors
     }
+  }
+
+  /**
+   * Configure vault adapter-backed logging (uses Obsidian vault adapter for writes).
+   */
+  static setVaultAdapter(adapter: any, baseDir: string = '.nexus/logs') {
+    Logger.vaultAdapterConfig = { adapter, baseDir };
+    if (Logger.instance) {
+      Logger.instance.config.logDirectory = baseDir;
+      Logger.instance.ensureLogDirectory();
+    }
+  }
+
+  private writeViaVaultAdapter(logFile: string, line: string) {
+    const adapter = Logger.vaultAdapterConfig?.adapter;
+    if (!adapter) return;
+    const normalizedPath = normalizePath(logFile);
+    adapter.read(normalizedPath)
+      .catch(() => '')
+      .then((existing: string) => adapter.write(normalizedPath, `${existing}${line}`))
+      .catch((error: Error) => {
+        console.error('Failed to write to vault-backed log file:', error);
+      });
   }
 }
 

@@ -1,6 +1,5 @@
-import { App, Modal, Platform, Setting } from 'obsidian';
+import { App, FileSystemAdapter, Modal, Platform, Setting, normalizePath } from 'obsidian';
 import * as path from 'path';
-import { existsSync } from 'fs';
 import { getAllPluginIds, getPrimaryServerKey, BRAND_NAME } from '../constants/branding';
 
 /**
@@ -41,7 +40,7 @@ export class ConfigModal extends Modal {
                 .setValue(this.isFirstTimeSetup)
                 .onChange(value => {
                     this.isFirstTimeSetup = value;
-                    this.updateConfigDisplay();
+                    void this.updateConfigDisplay();
                 }));
 
         // Create tab container
@@ -155,11 +154,9 @@ export class ConfigModal extends Modal {
         // Step 3: Copy configuration
         steps.createEl('li', { text: 'Copy the following JSON configuration:' });
         
-        const config = this.getConfiguration('windows');
-        
         const codeBlock = windowsContent.createEl('pre');
-        codeBlock.createEl('code', {
-            text: JSON.stringify(config, null, 2)
+        const codeEl = codeBlock.createEl('code', {
+            text: JSON.stringify(this.getConfigurationSyncPlaceholder(), null, 2)
         });
         
         // Copy button
@@ -168,11 +165,7 @@ export class ConfigModal extends Modal {
             cls: 'mod-cta'
         });
         
-        copyButton.onclick = () => {
-            navigator.clipboard.writeText(JSON.stringify(config, null, 2));
-            copyButton.setText('Copied!');
-            setTimeout(() => copyButton.setText('Copy Configuration'), 2000);
-        };
+        this.populateTabConfig('windows', codeEl, copyButton);
         
         // Remaining steps
         steps.createEl('li', { text: this.isFirstTimeSetup
@@ -225,11 +218,9 @@ export class ConfigModal extends Modal {
         // Step 3: Copy configuration
         steps.createEl('li', { text: 'Copy the following JSON configuration:' });
         
-        const config = this.getConfiguration('mac');
-        
         const codeBlock = macContent.createEl('pre');
-        codeBlock.createEl('code', {
-            text: JSON.stringify(config, null, 2)
+        const codeEl = codeBlock.createEl('code', {
+            text: JSON.stringify(this.getConfigurationSyncPlaceholder(), null, 2)
         });
         
         // Copy button
@@ -238,11 +229,7 @@ export class ConfigModal extends Modal {
             cls: 'mod-cta'
         });
         
-        copyButton.onclick = () => {
-            navigator.clipboard.writeText(JSON.stringify(config, null, 2));
-            copyButton.setText('Copied!');
-            setTimeout(() => copyButton.setText('Copy Configuration'), 2000);
-        };
+        this.populateTabConfig('mac', codeEl, copyButton);
         
         // Remaining steps
         steps.createEl('li', { text: this.isFirstTimeSetup
@@ -295,11 +282,9 @@ export class ConfigModal extends Modal {
         // Step 3: Copy configuration
         steps.createEl('li', { text: 'Copy the following JSON configuration:' });
         
-        const config = this.getConfiguration('linux');
-        
         const codeBlock = linuxContent.createEl('pre');
-        codeBlock.createEl('code', {
-            text: JSON.stringify(config, null, 2)
+        const codeEl = codeBlock.createEl('code', {
+            text: JSON.stringify(this.getConfigurationSyncPlaceholder(), null, 2)
         });
         
         // Copy button
@@ -308,11 +293,7 @@ export class ConfigModal extends Modal {
             cls: 'mod-cta'
         });
         
-        copyButton.onclick = () => {
-            navigator.clipboard.writeText(JSON.stringify(config, null, 2));
-            copyButton.setText('Copied!');
-            setTimeout(() => copyButton.setText('Copy Configuration'), 2000);
-        };
+        this.populateTabConfig('linux', codeEl, copyButton);
         
         // Remaining steps
         steps.createEl('li', { text: this.isFirstTimeSetup
@@ -366,16 +347,16 @@ export class ConfigModal extends Modal {
     /**
      * Update the configuration display based on selected mode
      */
-    private updateConfigDisplay() {
+    private async updateConfigDisplay() {
         // Update all tab contents with new configuration
-        Object.keys(this.tabContents).forEach(tabId => {
+        for (const tabId of Object.keys(this.tabContents)) {
             const content = this.tabContents[tabId];
-            const codeBlock = content.querySelector('pre code');
-            if (codeBlock) {
-                const config = this.getConfiguration(tabId);
-                codeBlock.textContent = JSON.stringify(config, null, 2);
+            const codeBlock = content.querySelector('pre code') as HTMLElement | null;
+            const copyButton = content.querySelector('button.mod-cta') as HTMLButtonElement | null;
+            if (codeBlock && copyButton) {
+                await this.populateTabConfig(tabId, codeBlock, copyButton);
             }
-        });
+        }
     }
 
     /**
@@ -388,8 +369,8 @@ export class ConfigModal extends Modal {
      * @param os Operating system (windows, mac, linux)
      * @returns Configuration object
      */
-    private getConfiguration(os: string) {
-        const connectorPath = this.getConnectorPath(os);
+    private async getConfiguration(os: string) {
+        const connectorPath = await this.getConnectorPath(os);
         const serverKey = getPrimaryServerKey(this.app.vault.getName());
         
         // Create server configuration
@@ -417,21 +398,76 @@ export class ConfigModal extends Modal {
      * @param os Operating system (windows, mac, linux)
      * @returns Connector path
      */
-    private getConnectorPath(os: string): string {
-        // Get the vault's root path
-        const vaultRoot = (this.app.vault.adapter as any).basePath;
-        
-        // Build potential plugin paths (new + legacy)
+    private async getConnectorPath(_os: string): Promise<string> {
+        const vaultRoot = this.getVaultBasePath();
+        const adapter = this.app.vault.adapter;
         const pluginFolders = getAllPluginIds();
         for (const folder of pluginFolders) {
-            const connectorPath = path.join(vaultRoot, '.obsidian', 'plugins', folder, 'connector.js');
-            if (existsSync(connectorPath)) {
-                return connectorPath;
+            // Use vault-relative path for adapter checks
+            const relativeConnectorPath = normalizePath(`.obsidian/plugins/${folder}/connector.js`);
+            try {
+                const exists = await adapter.exists(relativeConnectorPath);
+                if (exists) {
+                    // Prefer absolute path when available (desktop FileSystemAdapter)
+                    if (vaultRoot) {
+                        return path.join(vaultRoot, relativeConnectorPath);
+                    }
+                    return relativeConnectorPath;
+                }
+            } catch (error) {
+                // Fall through and try next folder
+                console.warn(`[ConfigModal] Failed to check connector path ${relativeConnectorPath}:`, error);
             }
         }
 
-        // Default to the primary folder if none exist yet
-        return path.join(vaultRoot, '.obsidian', 'plugins', pluginFolders[0], 'connector.js');
+        // Default to the primary folder even if we couldn't verify existence
+        const fallbackRelative = normalizePath(`.obsidian/plugins/${pluginFolders[0]}/connector.js`);
+        return vaultRoot ? path.join(vaultRoot, fallbackRelative) : fallbackRelative;
+    }
+
+    /**
+     * Get a placeholder config synchronously for initial render
+     * Updated asynchronously once paths resolve
+     */
+    private getConfigurationSyncPlaceholder() {
+        const serverKey = getPrimaryServerKey(this.app.vault.getName());
+        return {
+            mcpServers: {
+                [serverKey]: {
+                    command: 'node',
+                    args: ['<resolving connector path...>']
+                }
+            }
+        };
+    }
+
+    /**
+     * Populate tab config code block and copy handler once paths resolve
+     */
+    private async populateTabConfig(tabId: string, codeEl: HTMLElement, copyButton: HTMLButtonElement) {
+        try {
+            const config = await this.getConfiguration(tabId);
+            codeEl.textContent = JSON.stringify(config, null, 2);
+            copyButton.onclick = () => {
+                navigator.clipboard.writeText(JSON.stringify(config, null, 2));
+                copyButton.setText('Copied!');
+                setTimeout(() => copyButton.setText('Copy Configuration'), 2000);
+            };
+        } catch (error) {
+            console.error(`[ConfigModal] Failed to populate config for ${tabId}:`, error);
+            codeEl.textContent = 'Failed to load configuration. See console for details.';
+        }
+    }
+
+    /**
+     * Resolve the vault's base filesystem path if available
+     */
+    private getVaultBasePath(): string | null {
+        const adapter = this.app.vault.adapter;
+        if (adapter instanceof FileSystemAdapter) {
+            return adapter.getBasePath();
+        }
+        return null;
     }
     
     /**

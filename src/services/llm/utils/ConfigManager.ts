@@ -6,6 +6,7 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { normalizePath } from 'obsidian';
 
 export interface LabKitConfig {
   // Provider configurations
@@ -87,6 +88,8 @@ export class ConfigManager {
   private static instance: ConfigManager;
   private config: LabKitConfig;
   private configPath?: string;
+  private static vaultAdapterConfig: { adapter: any; baseDir: string } | null = null;
+  private vaultConfigLoaded: boolean = false;
 
   private constructor() {
     this.config = this.loadDefaultConfig();
@@ -133,6 +136,9 @@ export class ConfigManager {
   updateConfig(updates: Partial<LabKitConfig>): void {
     this.config = this.mergeConfigs(this.config, updates);
     this.validateConfig();
+    if (ConfigManager.vaultAdapterConfig) {
+      void this.saveVaultConfig();
+    }
   }
 
   /**
@@ -337,6 +343,11 @@ export class ConfigManager {
   }
 
   private loadFileConfig(): void {
+    // If a vault adapter is configured, avoid desktop fs reads (vault configs should be injected separately)
+    if (ConfigManager.vaultAdapterConfig) {
+      return;
+    }
+
     const configPaths = [
       this.configPath,
       './lab-kit.config.json',
@@ -448,5 +459,68 @@ export class ConfigManager {
       defaults: this.config.defaults,
       logging: this.config.logging
     };
+  }
+
+  /**
+   * Configure vault adapter for Obsidian environments (uses vault-relative config paths).
+   */
+  static setVaultAdapter(adapter: any, baseDir: string = '.nexus/config') {
+    this.vaultAdapterConfig = { adapter, baseDir };
+    if (ConfigManager.instance) {
+      void ConfigManager.instance.loadVaultConfigFromAdapter().then(() => {
+        void ConfigManager.instance?.saveVaultConfig();
+      });
+    }
+  }
+
+  /**
+   * Ensure vault-backed config is loaded (no-op if already loaded or adapter missing).
+   */
+  static async ensureVaultConfigLoaded(): Promise<void> {
+    if (ConfigManager.instance) {
+      await ConfigManager.instance.loadVaultConfigFromAdapter();
+    }
+  }
+
+  /**
+   * Persist current config into vault-backed path (if adapter configured).
+   */
+  async saveVaultConfig(): Promise<void> {
+    if (!ConfigManager.vaultAdapterConfig) return;
+    const adapter = ConfigManager.vaultAdapterConfig.adapter;
+    const baseDir = normalizePath(ConfigManager.vaultAdapterConfig.baseDir || '.nexus/config');
+    const targetPath = this.getVaultConfigPath();
+    try {
+      await adapter.mkdir(baseDir);
+      await adapter.write(targetPath, JSON.stringify(this.config, null, 2));
+      console.log(`📁 Saved configuration to vault path ${targetPath}`);
+    } catch (error) {
+      console.warn(`Failed to save config to vault path ${targetPath}:`, error);
+    }
+  }
+
+  private async loadVaultConfigFromAdapter(): Promise<void> {
+    if (this.vaultConfigLoaded || !ConfigManager.vaultAdapterConfig) return;
+    const adapter = ConfigManager.vaultAdapterConfig.adapter;
+    const targetPath = this.getVaultConfigPath();
+    try {
+      const exists = await adapter.exists(targetPath);
+      if (!exists) {
+        this.vaultConfigLoaded = true;
+        return;
+      }
+      const content = await adapter.read(targetPath);
+      const parsed = JSON.parse(content);
+      this.config = this.mergeConfigs(this.config, parsed);
+      this.vaultConfigLoaded = true;
+      console.log(`📁 Loaded configuration from vault path ${targetPath}`);
+    } catch (error) {
+      console.warn(`Failed to load config from vault path ${targetPath}:`, error);
+    }
+  }
+
+  private getVaultConfigPath(): string {
+    const baseDir = ConfigManager.vaultAdapterConfig?.baseDir || '.nexus/config';
+    return normalizePath(`${baseDir}/lab-kit.config.json`);
   }
 }

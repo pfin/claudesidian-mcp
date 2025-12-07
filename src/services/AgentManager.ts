@@ -1,6 +1,5 @@
 import { IAgent } from '../agents/interfaces/IAgent';
-import { App } from 'obsidian';
-import { EventManager } from './EventManager';
+import { App, Events } from 'obsidian';
 
 /**
  * Agent management service
@@ -8,17 +7,17 @@ import { EventManager } from './EventManager';
  */
 export class AgentManager {
   private agents: Map<string, IAgent> = new Map();
-  
+
   /**
    * Create a new agent manager
    * @param app Obsidian app instance
    * @param plugin Plugin instance
-   * @param eventManager Event manager instance
+   * @param events Obsidian Events instance
    */
   constructor(
     _app: App,
     _plugin: any,
-    _eventManager: EventManager
+    _events: Events
   ) {
     // We're not currently using these parameters but they might be needed in the future
     // No need to store them as class properties for now

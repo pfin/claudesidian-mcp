@@ -3,10 +3,10 @@
  * Follows Single Responsibility Principle by focusing only on lifecycle management
  */
 
+import { Events } from 'obsidian';
 import { AgentRegistry } from '../services/AgentRegistry';
 import { HttpTransportManager } from '../transport/HttpTransportManager';
 import { IPCTransportManager } from '../transport/IPCTransportManager';
-import { EventManager } from '../../services/EventManager';
 import { ServerStatus } from '../../types';
 import { logger } from '../../utils/logger';
 
@@ -21,7 +21,7 @@ export class ServerLifecycleManager {
         private agentRegistry: AgentRegistry,
         private httpTransportManager: HttpTransportManager,
         private ipcTransportManager: IPCTransportManager,
-        private eventManager: EventManager
+        private events: Events
     ) {}
 
     /**
@@ -44,7 +44,7 @@ export class ServerLifecycleManager {
             await this.startTransports();
 
             this.status = 'running';
-            this.eventManager.emit('server:started', null);
+            this.events.trigger('server:started');
             logger.systemLog('Server started successfully with IPC transport');
         } catch (error) {
             this.status = 'error';
@@ -70,7 +70,7 @@ export class ServerLifecycleManager {
             await this.stopTransports();
 
             this.status = 'stopped';
-            this.eventManager.emit('server:stopped', null);
+            this.events.trigger('server:stopped');
             logger.systemLog('Server stopped successfully');
         } catch (error) {
             this.status = 'error';
@@ -177,7 +177,7 @@ export class ServerLifecycleManager {
     handleServerError(error: Error): void {
         logger.systemError(error, 'Server Error');
         this.status = 'error';
-        this.eventManager.emit('server:error', error);
+        this.events.trigger('server:error', error);
     }
 
     /**
@@ -248,8 +248,7 @@ export class ServerLifecycleManager {
                 ipc: this.ipcTransportManager.getDiagnostics()
             },
             events: {
-                hasEventManager: !!this.eventManager,
-                // Could add event statistics here if EventManager supports it
+                hasEvents: !!this.events
             }
         };
     }
@@ -280,7 +279,7 @@ export class ServerLifecycleManager {
         }
 
         this.status = 'stopped';
-        this.eventManager.emit('server:force-shutdown', null);
+        this.events.trigger('server:force-shutdown');
         logger.systemWarn('Force shutdown completed');
     }
 }

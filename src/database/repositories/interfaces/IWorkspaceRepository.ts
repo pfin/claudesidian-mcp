@@ -12,7 +12,7 @@
  */
 
 import { IRepository } from './IRepository';
-import { WorkspaceMetadata } from '../../../types/storage/HybridStorageTypes';
+import { WorkspaceMetadata, WorkspaceContext } from '../../../types/storage/HybridStorageTypes';
 import { PaginatedResult } from '../../../types/pagination/PaginationTypes';
 import { QueryOptions } from '../../interfaces/IStorageAdapter';
 
@@ -20,12 +20,16 @@ import { QueryOptions } from '../../interfaces/IStorageAdapter';
  * Data required to create a new workspace
  */
 export interface CreateWorkspaceData {
+  /** Optional custom ID (e.g., 'default' for the default workspace) */
+  id?: string;
   name: string;
   description?: string;
   rootFolder: string;
   created?: number;
   isActive?: boolean;
   dedicatedAgentId?: string;
+  /** Workspace context (purpose, workflows, keyFiles, etc.) */
+  context?: WorkspaceContext;
 }
 
 /**
@@ -38,6 +42,8 @@ export interface UpdateWorkspaceData {
   lastAccessed?: number;
   isActive?: boolean;
   dedicatedAgentId?: string;
+  /** Workspace context (purpose, workflows, keyFiles, etc.) */
+  context?: WorkspaceContext;
 }
 
 /**

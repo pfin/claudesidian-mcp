@@ -167,6 +167,7 @@ export class WorkspaceService {
         created: metadata.created,
         lastAccessed: metadata.lastAccessed,
         isActive: metadata.isActive,
+        context: metadata.context,
         sessions: {} // Sessions must be loaded separately with getSessions
       };
     }
@@ -192,6 +193,28 @@ export class WorkspaceService {
    * Get all workspaces with full data (expensive - avoid if possible)
    */
   async getAllWorkspaces(): Promise<IndividualWorkspace[]> {
+    // Use new adapter if available
+    if (this.storageAdapter) {
+      const result = await this.storageAdapter.getWorkspaces({
+        pageSize: 1000, // Get all workspaces
+        sortBy: 'lastAccessed',
+        sortOrder: 'desc'
+      });
+
+      return result.items.map(w => ({
+        id: w.id,
+        name: w.name,
+        description: w.description,
+        rootFolder: w.rootFolder,
+        created: w.created,
+        lastAccessed: w.lastAccessed,
+        isActive: w.isActive,
+        context: w.context,
+        sessions: {} // Sessions must be loaded separately
+      }));
+    }
+
+    // Fall back to legacy implementation
     const workspaceIds = await this.fileSystem.listWorkspaceIds();
     const workspaces: IndividualWorkspace[] = [];
 
@@ -217,13 +240,25 @@ export class WorkspaceService {
   async createWorkspace(data: Partial<IndividualWorkspace>): Promise<IndividualWorkspace> {
     // Use new adapter if available
     if (this.storageAdapter) {
-      const hybridData: Omit<HybridTypes.WorkspaceMetadata, 'id'> = {
+      // Convert context to HybridTypes format if provided
+      const hybridContext = data.context ? {
+        purpose: data.context.purpose,
+        currentGoal: data.context.currentGoal,
+        workflows: data.context.workflows,
+        keyFiles: data.context.keyFiles,
+        preferences: data.context.preferences,
+        dedicatedAgent: data.context.dedicatedAgent
+      } : undefined;
+
+      const hybridData: Omit<HybridTypes.WorkspaceMetadata, 'id'> & { id?: string } = {
+        id: data.id, // Pass optional ID (e.g., 'default')
         name: data.name || 'Untitled Workspace',
         description: data.description,
         rootFolder: data.rootFolder || '/',
         created: data.created || Date.now(),
         lastAccessed: data.lastAccessed || Date.now(),
-        isActive: data.isActive ?? true
+        isActive: data.isActive ?? true,
+        context: hybridContext
       };
 
       const id = await this.storageAdapter.createWorkspace(hybridData);
@@ -278,6 +313,18 @@ export class WorkspaceService {
       if (updates.description !== undefined) hybridUpdates.description = updates.description;
       if (updates.rootFolder !== undefined) hybridUpdates.rootFolder = updates.rootFolder;
       if (updates.isActive !== undefined) hybridUpdates.isActive = updates.isActive;
+
+      // Handle context update
+      if (updates.context !== undefined) {
+        hybridUpdates.context = {
+          purpose: updates.context.purpose,
+          currentGoal: updates.context.currentGoal,
+          workflows: updates.context.workflows,
+          keyFiles: updates.context.keyFiles,
+          preferences: updates.context.preferences,
+          dedicatedAgent: updates.context.dedicatedAgent
+        };
+      }
 
       // Always update lastAccessed
       hybridUpdates.lastAccessed = Date.now();

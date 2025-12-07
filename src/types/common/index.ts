@@ -10,8 +10,3 @@ export type {
   WorkspaceSessionInfo,
   WorkspaceStateInfo
 } from './VaultTypes';
-
-export type {
-  EventData,
-  EventSubscriber
-} from './EventTypes';
