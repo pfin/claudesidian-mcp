@@ -61,6 +61,7 @@ export const CORE_SERVICE_DEFINITIONS: ServiceDefinition[] = [
     // Workspace service (centralized storage service)
     {
         name: 'workspaceService',
+        dependencies: ['hybridStorageAdapter'],
         create: async (context) => {
             const { WorkspaceService } = await import('../../services/WorkspaceService');
             const { FileSystemService } = await import('../../services/storage/FileSystemService');
@@ -68,7 +69,11 @@ export const CORE_SERVICE_DEFINITIONS: ServiceDefinition[] = [
 
             const fileSystem = new FileSystemService(context.plugin);
             const indexManager = new IndexManager(fileSystem);
-            return new WorkspaceService(context.plugin, fileSystem, indexManager);
+
+            // Get storage adapter if available (may be null if initialization failed)
+            const storageAdapter = await context.serviceManager.getService('hybridStorageAdapter') as any;
+
+            return new WorkspaceService(context.plugin, fileSystem, indexManager, storageAdapter || undefined);
         }
     },
 
@@ -87,15 +92,19 @@ export const CORE_SERVICE_DEFINITIONS: ServiceDefinition[] = [
         }
     },
 
-    // Memory service (agent-specific, delegates to WorkspaceService)
+    // Memory service (agent-specific, delegates to WorkspaceService or SQLite via storageAdapter)
     {
         name: 'memoryService',
-        dependencies: ['workspaceService'],
+        dependencies: ['workspaceService', 'hybridStorageAdapter'],
         create: async (context) => {
             const { MemoryService } = await import('../../agents/memoryManager/services/MemoryService');
             const WorkspaceService = (await import('../../services/WorkspaceService')).WorkspaceService;
             const workspaceService = await context.serviceManager.getService('workspaceService') as InstanceType<typeof WorkspaceService>;
-            return new MemoryService(context.plugin, workspaceService);
+
+            // Get storage adapter if available (may be null if initialization failed)
+            const storageAdapter = await context.serviceManager.getService('hybridStorageAdapter') as any;
+
+            return new MemoryService(context.plugin, workspaceService, storageAdapter || undefined);
         }
     },
 

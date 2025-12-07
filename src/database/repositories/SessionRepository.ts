@@ -65,7 +65,7 @@ export class SessionRepository
   }
 
   async getAll(options?: PaginationParams): Promise<PaginatedResult<SessionMetadata>> {
-    const baseQuery = 'SELECT * FROM sessions ORDER BY start_time DESC';
+    const baseQuery = 'SELECT * FROM sessions ORDER BY startTime DESC';
     const countQuery = 'SELECT COUNT(*) as count FROM sessions';
     const result = await this.queryPaginated<any>(baseQuery, countQuery, options);
     return {
@@ -102,7 +102,7 @@ export class SessionRepository
 
         // 2. Update SQLite cache
         await this.sqliteCache.run(
-          `INSERT INTO sessions (id, workspace_id, name, description, start_time, is_active)
+          `INSERT INTO sessions (id, workspaceId, name, description, startTime, isActive)
            VALUES (?, ?, ?, ?, ?, ?)`,
           [
             id,
@@ -158,11 +158,11 @@ export class SessionRepository
           params.push(data.description);
         }
         if (data.endTime !== undefined) {
-          setClauses.push('end_time = ?');
+          setClauses.push('endTime = ?');
           params.push(data.endTime);
         }
         if (data.isActive !== undefined) {
-          setClauses.push('is_active = ?');
+          setClauses.push('isActive = ?');
           params.push(data.isActive ? 1 : 0);
         }
 
@@ -213,11 +213,11 @@ export class SessionRepository
     if (criteria) {
       const conditions: string[] = [];
       if (criteria.workspaceId) {
-        conditions.push('workspace_id = ?');
+        conditions.push('workspaceId = ?');
         params.push(criteria.workspaceId);
       }
       if (criteria.isActive !== undefined) {
-        conditions.push('is_active = ?');
+        conditions.push('isActive = ?');
         params.push(criteria.isActive ? 1 : 0);
       }
       if (conditions.length > 0) {
@@ -237,8 +237,8 @@ export class SessionRepository
     workspaceId: string,
     options?: PaginationParams
   ): Promise<PaginatedResult<SessionMetadata>> {
-    const baseQuery = 'SELECT * FROM sessions WHERE workspace_id = ? ORDER BY start_time DESC';
-    const countQuery = 'SELECT COUNT(*) as count FROM sessions WHERE workspace_id = ?';
+    const baseQuery = 'SELECT * FROM sessions WHERE workspaceId = ? ORDER BY startTime DESC';
+    const countQuery = 'SELECT COUNT(*) as count FROM sessions WHERE workspaceId = ?';
     const result = await this.queryPaginated<any>(baseQuery, countQuery, options, [workspaceId]);
     return {
       items: result.items.map(row => this.rowToEntity(row)),
@@ -253,7 +253,7 @@ export class SessionRepository
 
   async getActiveSession(workspaceId: string): Promise<SessionMetadata | null> {
     const row = await this.sqliteCache.queryOne<any>(
-      'SELECT * FROM sessions WHERE workspace_id = ? AND is_active = 1 ORDER BY start_time DESC LIMIT 1',
+      'SELECT * FROM sessions WHERE workspaceId = ? AND isActive = 1 ORDER BY startTime DESC LIMIT 1',
       [workspaceId]
     );
     return row ? this.rowToEntity(row) : null;
@@ -283,12 +283,12 @@ export class SessionRepository
   protected rowToEntity(row: any): SessionMetadata {
     return {
       id: row.id,
-      workspaceId: row.workspace_id,
+      workspaceId: row.workspaceId,
       name: row.name,
       description: row.description ?? undefined,
-      startTime: row.start_time,
-      endTime: row.end_time ?? undefined,
-      isActive: row.is_active === 1
+      startTime: row.startTime,
+      endTime: row.endTime ?? undefined,
+      isActive: row.isActive === 1
     };
   }
 }

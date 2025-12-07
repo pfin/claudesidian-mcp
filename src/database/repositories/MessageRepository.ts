@@ -9,7 +9,7 @@
  * Storage Strategy:
  * - JSONL: conversations/conv_{conversationId}.jsonl (source of truth)
  * - SQLite: messages table (cache for fast queries and pagination)
- * - Ordering: By sequence_number (auto-incremented)
+ * - Ordering: By sequenceNumber (auto-incremented)
  *
  * Related Files:
  * - src/database/repositories/interfaces/IMessageRepository.ts - Interface
@@ -111,15 +111,15 @@ export class MessageRepository
 
     // Count total
     const countResult = await this.sqliteCache.queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM ${this.tableName} WHERE conversation_id = ?`,
+      `SELECT COUNT(*) as count FROM ${this.tableName} WHERE conversationId = ?`,
       [conversationId]
     );
     const totalItems = countResult?.count ?? 0;
 
     // Get data (ordered by sequence number)
     const rows = await this.sqliteCache.query<any>(
-      `SELECT * FROM ${this.tableName} WHERE conversation_id = ?
-       ORDER BY sequence_number ASC
+      `SELECT * FROM ${this.tableName} WHERE conversationId = ?
+       ORDER BY sequenceNumber ASC
        LIMIT ? OFFSET ?`,
       [conversationId, pageSize, page * pageSize]
     );
@@ -140,7 +140,7 @@ export class MessageRepository
    */
   async countMessages(conversationId: string): Promise<number> {
     const result = await this.sqliteCache.queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM ${this.tableName} WHERE conversation_id = ?`,
+      `SELECT COUNT(*) as count FROM ${this.tableName} WHERE conversationId = ?`,
       [conversationId]
     );
     return result?.count ?? 0;
@@ -150,11 +150,11 @@ export class MessageRepository
    * Get the next sequence number for a conversation
    */
   async getNextSequenceNumber(conversationId: string): Promise<number> {
-    const result = await this.sqliteCache.queryOne<{ max_seq: number }>(
-      `SELECT MAX(sequence_number) as max_seq FROM ${this.tableName} WHERE conversation_id = ?`,
+    const result = await this.sqliteCache.queryOne<{ maxSeq: number }>(
+      `SELECT MAX(sequenceNumber) as maxSeq FROM ${this.tableName} WHERE conversationId = ?`,
       [conversationId]
     );
-    return (result?.max_seq ?? -1) + 1;
+    return (result?.maxSeq ?? -1) + 1;
   }
 
   // ============================================================================
@@ -204,7 +204,7 @@ export class MessageRepository
       // 2. Update SQLite cache
       await this.sqliteCache.run(
         `INSERT INTO ${this.tableName}
-         (id, conversation_id, role, content, timestamp, state, tool_calls_json, tool_call_id, sequence_number, reasoning_content)
+         (id, conversationId, role, content, timestamp, state, toolCallsJson, toolCallId, sequenceNumber, reasoningContent)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
@@ -239,7 +239,7 @@ export class MessageRepository
     try {
       // Get message to find conversation ID
       const message = await this.sqliteCache.queryOne<any>(
-        `SELECT conversation_id FROM ${this.tableName} WHERE id = ?`,
+        `SELECT conversationId FROM ${this.tableName} WHERE id = ?`,
         [messageId]
       );
 
@@ -249,10 +249,10 @@ export class MessageRepository
 
       // 1. Write update event to JSONL
       await this.writeEvent<MessageUpdatedEvent>(
-        this.jsonlPath(message.conversation_id),
+        this.jsonlPath(message.conversationId),
         {
           type: 'message_updated',
-          conversationId: message.conversation_id,
+          conversationId: message.conversationId,
           messageId,
           data: {
             content: data.content ?? undefined,
@@ -290,15 +290,15 @@ export class MessageRepository
         params.push(data.state);
       }
       if (data.reasoning !== undefined) {
-        setClauses.push('reasoning_content = ?');
+        setClauses.push('reasoningContent = ?');
         params.push(data.reasoning);
       }
       if (data.toolCalls !== undefined) {
-        setClauses.push('tool_calls_json = ?');
+        setClauses.push('toolCallsJson = ?');
         params.push(data.toolCalls ? JSON.stringify(data.toolCalls) : null);
       }
       if (data.toolCallId !== undefined) {
-        setClauses.push('tool_call_id = ?');
+        setClauses.push('toolCallId = ?');
         params.push(data.toolCallId);
       }
 
@@ -346,16 +346,16 @@ export class MessageRepository
   private rowToMessage(row: any): MessageData {
     return {
       id: row.id,
-      conversationId: row.conversation_id,
+      conversationId: row.conversationId,
       role: row.role,
       content: row.content,
       timestamp: row.timestamp,
       state: row.state ?? 'complete',
-      sequenceNumber: row.sequence_number,
-      toolCalls: row.tool_calls_json ? JSON.parse(row.tool_calls_json) : undefined,
-      toolCallId: row.tool_call_id ?? undefined,
-      reasoning: row.reasoning_content ?? undefined,
-      metadata: row.metadata_json ? JSON.parse(row.metadata_json) : undefined
+      sequenceNumber: row.sequenceNumber,
+      toolCalls: row.toolCallsJson ? JSON.parse(row.toolCallsJson) : undefined,
+      toolCallId: row.toolCallId ?? undefined,
+      reasoning: row.reasoningContent ?? undefined,
+      metadata: row.metadataJson ? JSON.parse(row.metadataJson) : undefined
     };
   }
 }

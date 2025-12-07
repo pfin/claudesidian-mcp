@@ -5,7 +5,7 @@
  * Provides:
  * - Local cache for fast queries and true pagination
  * - Can be rebuilt from JSONL files anytime
- * - Full-text search via FTS5
+ * - Full-text search via FTS4
  * - Transaction support
  * - Event tracking to prevent duplicate processing
  *
@@ -20,6 +20,7 @@ import { App, TFile } from 'obsidian';
 import { PaginatedResult, PaginationParams } from '../../types/pagination/PaginationTypes';
 import { IStorageBackend, RunResult, DatabaseStats } from '../interfaces/IStorageBackend';
 import type { SyncState, ISQLiteCacheManager } from '../sync/SyncCoordinator';
+import { SQLiteSearchService } from './SQLiteSearchService';
 
 // Import schema from TypeScript module (esbuild compatible)
 import { SCHEMA_SQL } from '../schema/schema';
@@ -41,7 +42,7 @@ export interface QueryResult<T> {
  * Features:
  * - Pure JavaScript SQLite (no native dependencies)
  * - Stored as binary in Obsidian vault
- * - Full-text search with FTS5
+ * - Full-text search with FTS4
  * - Cursor-based pagination
  * - Transaction support
  * - Auto-save with dirty tracking
@@ -55,11 +56,13 @@ export class SQLiteCacheManager implements IStorageBackend, ISQLiteCacheManager 
   private autoSaveInterval: number;
   private autoSaveTimer: NodeJS.Timeout | null = null;
   private isInitialized: boolean = false;
+  private searchService: SQLiteSearchService;
 
   constructor(options: SQLiteCacheManagerOptions) {
     this.app = options.app;
     this.dbPath = options.dbPath;
     this.autoSaveInterval = options.autoSaveInterval ?? 30000;
+    this.searchService = new SQLiteSearchService(this);
   }
 
   /**
@@ -384,8 +387,8 @@ export class SQLiteCacheManager implements IStorageBackend, ISQLiteCacheManager 
    * Check if an event has already been applied
    */
   async isEventApplied(eventId: string): Promise<boolean> {
-    const result = await this.queryOne<{ event_id: string }>(
-      'SELECT event_id FROM applied_events WHERE event_id = ?',
+    const result = await this.queryOne<{ eventId: string }>(
+      'SELECT eventId FROM applied_events WHERE eventId = ?',
       [eventId]
     );
     return result !== null;
@@ -396,7 +399,7 @@ export class SQLiteCacheManager implements IStorageBackend, ISQLiteCacheManager 
    */
   async markEventApplied(eventId: string): Promise<void> {
     await this.run(
-      'INSERT OR IGNORE INTO applied_events (event_id, applied_at) VALUES (?, ?)',
+      'INSERT OR IGNORE INTO applied_events (eventId, appliedAt) VALUES (?, ?)',
       [eventId, Date.now()]
     );
   }
@@ -405,11 +408,11 @@ export class SQLiteCacheManager implements IStorageBackend, ISQLiteCacheManager 
    * Get list of applied event IDs after a timestamp
    */
   async getAppliedEventsAfter(timestamp: number): Promise<string[]> {
-    const results = await this.query<{ event_id: string }>(
-      'SELECT event_id FROM applied_events WHERE applied_at > ? ORDER BY applied_at',
+    const results = await this.query<{ eventId: string }>(
+      'SELECT eventId FROM applied_events WHERE appliedAt > ? ORDER BY appliedAt',
       [timestamp]
     );
-    return results.map(r => r.event_id);
+    return results.map(r => r.eventId);
   }
 
   // ==================== Sync state ====================
@@ -418,17 +421,17 @@ export class SQLiteCacheManager implements IStorageBackend, ISQLiteCacheManager 
    * Get sync state for a device
    */
   async getSyncState(deviceId: string): Promise<SyncState | null> {
-    const result = await this.queryOne<{ device_id: string; last_event_timestamp: number; synced_files_json: string }>(
-      'SELECT device_id, last_event_timestamp, synced_files_json FROM sync_state WHERE device_id = ?',
+    const result = await this.queryOne<{ deviceId: string; lastEventTimestamp: number; syncedFilesJson: string }>(
+      'SELECT deviceId, lastEventTimestamp, syncedFilesJson FROM sync_state WHERE deviceId = ?',
       [deviceId]
     );
 
     if (!result) return null;
 
     return {
-      deviceId: result.device_id,
-      lastEventTimestamp: result.last_event_timestamp,
-      fileTimestamps: result.synced_files_json ? JSON.parse(result.synced_files_json) : {}
+      deviceId: result.deviceId,
+      lastEventTimestamp: result.lastEventTimestamp,
+      fileTimestamps: result.syncedFilesJson ? JSON.parse(result.syncedFilesJson) : {}
     };
   }
 
@@ -437,7 +440,7 @@ export class SQLiteCacheManager implements IStorageBackend, ISQLiteCacheManager 
    */
   async updateSyncState(deviceId: string, lastEventTimestamp: number, fileTimestamps: Record<string, number>): Promise<void> {
     await this.run(
-      `INSERT OR REPLACE INTO sync_state (device_id, last_event_timestamp, synced_files_json)
+      `INSERT OR REPLACE INTO sync_state (deviceId, lastEventTimestamp, syncedFilesJson)
        VALUES (?, ?, ?)`,
       [deviceId, lastEventTimestamp, JSON.stringify(fileTimestamps)]
     );
@@ -484,8 +487,8 @@ export class SQLiteCacheManager implements IStorageBackend, ISQLiteCacheManager 
       // Rebuild message FTS
       await this.exec(`
         DELETE FROM message_fts;
-        INSERT INTO message_fts(docid, id, conversation_id, content, reasoning_content)
-        SELECT rowid, id, conversation_id, content, reasoning_content FROM messages;
+        INSERT INTO message_fts(docid, id, conversationId, content, reasoningContent)
+        SELECT rowid, id, conversationId, content, reasoningContent FROM messages;
       `);
     });
   }
@@ -506,62 +509,34 @@ export class SQLiteCacheManager implements IStorageBackend, ISQLiteCacheManager 
   }
 
   // ==================== Full-text search ====================
+  // Delegated to SQLiteSearchService for single responsibility
 
   /**
    * Search workspaces using FTS4
-   * Note: FTS4 doesn't have built-in ranking like FTS5, ordered by last_accessed instead
    */
   async searchWorkspaces(query: string, limit: number = 50): Promise<any[]> {
-    return this.query(
-      `SELECT w.* FROM workspaces w
-       JOIN workspace_fts fts ON w.id = fts.id
-       WHERE workspace_fts MATCH ?
-       ORDER BY w.last_accessed DESC
-       LIMIT ?`,
-      [query, limit]
-    );
+    return this.searchService.searchWorkspaces(query, limit);
   }
 
   /**
    * Search conversations using FTS4
    */
   async searchConversations(query: string, limit: number = 50): Promise<any[]> {
-    return this.query(
-      `SELECT c.* FROM conversations c
-       JOIN conversation_fts fts ON c.id = fts.id
-       WHERE conversation_fts MATCH ?
-       ORDER BY c.updated DESC
-       LIMIT ?`,
-      [query, limit]
-    );
+    return this.searchService.searchConversations(query, limit);
   }
 
   /**
    * Search messages using FTS4
    */
   async searchMessages(query: string, limit: number = 50): Promise<any[]> {
-    return this.query(
-      `SELECT m.* FROM messages m
-       JOIN message_fts fts ON m.id = fts.id
-       WHERE message_fts MATCH ?
-       ORDER BY m.timestamp DESC
-       LIMIT ?`,
-      [query, limit]
-    );
+    return this.searchService.searchMessages(query, limit);
   }
 
   /**
    * Search messages within a specific conversation using FTS4
    */
   async searchMessagesInConversation(conversationId: string, query: string, limit: number = 50): Promise<any[]> {
-    return this.query(
-      `SELECT m.* FROM messages m
-       JOIN message_fts fts ON m.id = fts.id
-       WHERE fts.conversation_id = ? AND message_fts MATCH ?
-       ORDER BY m.timestamp DESC
-       LIMIT ?`,
-      [conversationId, query, limit]
-    );
+    return this.searchService.searchMessagesInConversation(conversationId, query, limit);
   }
 
   // ==================== Statistics ====================

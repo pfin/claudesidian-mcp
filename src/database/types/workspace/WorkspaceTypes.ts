@@ -7,7 +7,7 @@
 /**
  * Status types for individual items within a workspace
  */
-export type ItemStatus = 'not_started' | 'in_progress' | 'completed';
+export type ItemStatus = 'notStarted' | 'inProgress' | 'completed';
 
 /**
  * Simple workspace context for LLM understanding

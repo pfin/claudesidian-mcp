@@ -106,11 +106,11 @@ export class TraceRepository
     if (criteria) {
       const conditions: string[] = [];
       if (criteria.workspaceId) {
-        conditions.push('workspace_id = ?');
+        conditions.push('workspaceId = ?');
         params.push(criteria.workspaceId);
       }
       if (criteria.sessionId) {
-        conditions.push('session_id = ?');
+        conditions.push('sessionId = ?');
         params.push(criteria.sessionId);
       }
       if (criteria.type) {
@@ -135,13 +135,13 @@ export class TraceRepository
     sessionId?: string,
     options?: PaginationParams
   ): Promise<PaginatedResult<MemoryTraceData>> {
-    let baseQuery = 'SELECT * FROM memory_traces WHERE workspace_id = ?';
-    let countQuery = 'SELECT COUNT(*) as count FROM memory_traces WHERE workspace_id = ?';
+    let baseQuery = 'SELECT * FROM memory_traces WHERE workspaceId = ?';
+    let countQuery = 'SELECT COUNT(*) as count FROM memory_traces WHERE workspaceId = ?';
     const params: any[] = [workspaceId];
 
     if (sessionId) {
-      baseQuery += ' AND session_id = ?';
-      countQuery += ' AND session_id = ?';
+      baseQuery += ' AND sessionId = ?';
+      countQuery += ' AND sessionId = ?';
       params.push(sessionId);
     }
 
@@ -187,7 +187,7 @@ export class TraceRepository
 
         // 2. Update SQLite cache
         await this.sqliteCache.run(
-          `INSERT INTO memory_traces (id, workspace_id, session_id, timestamp, type, content, metadata_json)
+          `INSERT INTO memory_traces (id, workspaceId, sessionId, timestamp, type, content, metadataJson)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
@@ -222,19 +222,19 @@ export class TraceRepository
       // Use SQLite FTS for search
       let baseQuery = `
         SELECT mt.* FROM memory_traces mt
-        WHERE mt.workspace_id = ?
+        WHERE mt.workspaceId = ?
         AND mt.content LIKE ?
       `;
       let countQuery = `
         SELECT COUNT(*) as count FROM memory_traces mt
-        WHERE mt.workspace_id = ?
+        WHERE mt.workspaceId = ?
         AND mt.content LIKE ?
       `;
       const params: any[] = [workspaceId, `%${query}%`];
 
       if (sessionId) {
-        baseQuery += ' AND mt.session_id = ?';
-        countQuery += ' AND mt.session_id = ?';
+        baseQuery += ' AND mt.sessionId = ?';
+        countQuery += ' AND mt.sessionId = ?';
         params.push(sessionId);
       }
 
@@ -263,12 +263,12 @@ export class TraceRepository
   ): Promise<PaginatedResult<MemoryTraceData>> {
     const baseQuery = `
       SELECT * FROM memory_traces
-      WHERE workspace_id = ? AND type = ?
+      WHERE workspaceId = ? AND type = ?
       ORDER BY timestamp DESC
     `;
     const countQuery = `
       SELECT COUNT(*) as count FROM memory_traces
-      WHERE workspace_id = ? AND type = ?
+      WHERE workspaceId = ? AND type = ?
     `;
     const params = [workspaceId, type];
 
@@ -295,12 +295,12 @@ export class TraceRepository
   protected rowToEntity(row: any): MemoryTraceData {
     return {
       id: row.id,
-      sessionId: row.session_id,
-      workspaceId: row.workspace_id,
+      sessionId: row.sessionId,
+      workspaceId: row.workspaceId,
       timestamp: row.timestamp,
       type: row.type ?? undefined,
       content: row.content,
-      metadata: row.metadata_json ? JSON.parse(row.metadata_json) : undefined
+      metadata: row.metadataJson ? JSON.parse(row.metadataJson) : undefined
     };
   }
 }

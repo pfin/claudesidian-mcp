@@ -10,6 +10,7 @@ import {
 import { MemorySettings, DEFAULT_MEMORY_SETTINGS } from '../../types';
 import { MemoryService } from "../memoryManager/services/MemoryService";
 import { WorkspaceService } from '../../services/WorkspaceService';
+import { IStorageAdapter } from '../../database/interfaces/IStorageAdapter';
 import { getErrorMessage } from '../../utils/errorUtils';
 import { getNexusPlugin } from '../../utils/pluginLocator';
 
@@ -21,6 +22,7 @@ export class VaultLibrarianAgent extends BaseAgent {
   public app: App;
   private memoryService: MemoryService | null = null;
   private workspaceService: WorkspaceService | null = null;
+  private storageAdapter: IStorageAdapter | null = null;
   private settings: MemorySettings;
   
   /**
@@ -71,6 +73,10 @@ export class VaultLibrarianAgent extends BaseAgent {
               if (!this.workspaceService) {
                 this.workspaceService = pluginAny.serviceContainer.getIfReady('workspaceService');
               }
+              // Get SQLite storage adapter for memory search
+              if (!this.storageAdapter) {
+                this.storageAdapter = pluginAny.serviceContainer.getIfReady('hybridStorageAdapter');
+              }
             }
           }
         }
@@ -104,7 +110,8 @@ export class VaultLibrarianAgent extends BaseAgent {
     this.registerMode(new SearchMemoryMode(
       pluginRef || ({ app } as any),
       this.memoryService || undefined,
-      this.workspaceService || undefined
+      this.workspaceService || undefined,
+      this.storageAdapter || undefined  // SQLite storage adapter for memory trace search
     ));
     
     // Always register BatchMode (supports both semantic and non-semantic users)

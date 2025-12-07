@@ -97,7 +97,7 @@ export class WorkspaceRepository
 
         // 2. Update SQLite cache
         await this.sqliteCache.run(
-          `INSERT INTO workspaces (id, name, description, root_folder, created, last_accessed, is_active, dedicated_agent_id)
+          `INSERT INTO workspaces (id, name, description, rootFolder, created, lastAccessed, isActive, dedicatedAgentId)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
@@ -156,19 +156,19 @@ export class WorkspaceRepository
           params.push(data.description);
         }
         if (data.rootFolder !== undefined) {
-          setClauses.push('root_folder = ?');
+          setClauses.push('rootFolder = ?');
           params.push(data.rootFolder);
         }
         if (data.isActive !== undefined) {
-          setClauses.push('is_active = ?');
+          setClauses.push('isActive = ?');
           params.push(data.isActive ? 1 : 0);
         }
         if (data.dedicatedAgentId !== undefined) {
-          setClauses.push('dedicated_agent_id = ?');
+          setClauses.push('dedicatedAgentId = ?');
           params.push(data.dedicatedAgentId);
         }
 
-        setClauses.push('last_accessed = ?');
+        setClauses.push('lastAccessed = ?');
         params.push(data.lastAccessed ?? Date.now());
         params.push(id);
 
@@ -221,7 +221,7 @@ export class WorkspaceRepository
     if (criteria) {
       const conditions: string[] = [];
       if (criteria.isActive !== undefined) {
-        conditions.push('is_active = ?');
+        conditions.push('isActive = ?');
         params.push(criteria.isActive ? 1 : 0);
       }
       if (conditions.length > 0) {
@@ -238,7 +238,7 @@ export class WorkspaceRepository
   // ============================================================================
 
   async getWorkspaces(options?: QueryOptions): Promise<PaginatedResult<WorkspaceMetadata>> {
-    const sortBy = options?.sortBy ?? 'last_accessed';
+    const sortBy = options?.sortBy ?? 'lastAccessed';
     const sortOrder = options?.sortOrder ?? 'desc';
 
     let whereClause = '';
@@ -247,7 +247,7 @@ export class WorkspaceRepository
     if (options?.filter) {
       const filters: string[] = [];
       if (options.filter.isActive !== undefined) {
-        filters.push('is_active = ?');
+        filters.push('isActive = ?');
         params.push(options.filter.isActive ? 1 : 0);
       }
       if (filters.length > 0) {
@@ -293,7 +293,7 @@ export class WorkspaceRepository
         );
 
         await this.sqliteCache.run(
-          'UPDATE workspaces SET last_accessed = ? WHERE id = ?',
+          'UPDATE workspaces SET lastAccessed = ? WHERE id = ?',
           [now, id]
         );
       });
@@ -319,11 +319,11 @@ export class WorkspaceRepository
       id: row.id,
       name: row.name,
       description: row.description ?? undefined,
-      rootFolder: row.root_folder,
+      rootFolder: row.rootFolder,
       created: row.created,
-      lastAccessed: row.last_accessed,
-      isActive: row.is_active === 1,
-      dedicatedAgentId: row.dedicated_agent_id ?? undefined
+      lastAccessed: row.lastAccessed,
+      isActive: row.isActive === 1,
+      dedicatedAgentId: row.dedicatedAgentId ?? undefined
     };
   }
 }

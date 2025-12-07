@@ -205,6 +205,65 @@ export class JSONLWriter {
     }
   }
 
+  /**
+   * Append multiple events to a JSONL file in a single write (efficient for migration)
+   *
+   * Unlike appendEvent which reads/writes for each event, this batches all events
+   * into a single file operation. Much faster for bulk operations.
+   *
+   * @param relativePath - File path relative to basePath
+   * @param eventsData - Array of event data without id, deviceId, timestamp
+   * @returns Array of complete events with all metadata
+   */
+  async appendEvents<T extends BaseStorageEvent>(
+    relativePath: string,
+    eventsData: Array<Omit<T, 'id' | 'deviceId' | 'timestamp'>>
+  ): Promise<T[]> {
+    if (eventsData.length === 0) {
+      return [];
+    }
+
+    try {
+      const fullPath = `${this.basePath}/${relativePath}`;
+
+      // Create all events with metadata
+      const events: T[] = eventsData.map(eventData => ({
+        ...eventData,
+        id: uuidv4(),
+        deviceId: this.deviceId,
+        timestamp: Date.now(),
+      } as T));
+
+      const lines = events.map(event => JSON.stringify(event)).join('\n') + '\n';
+
+      // Ensure parent directory exists
+      const lastSlashIndex = fullPath.lastIndexOf('/');
+      if (lastSlashIndex > 0) {
+        const parentPath = fullPath.substring(0, lastSlashIndex);
+        const relativeParent = parentPath.replace(this.basePath + '/', '');
+        await this.ensureDirectory(relativeParent);
+      }
+
+      // Use adapter methods for hidden folder support (.nexus/)
+      const exists = await this.app.vault.adapter.exists(fullPath);
+
+      if (exists) {
+        // Append to existing file using adapter - single read/write
+        const existingContent = await this.app.vault.adapter.read(fullPath);
+        await this.app.vault.adapter.write(fullPath, existingContent + lines);
+      } else {
+        // Create new file with all lines
+        await this.app.vault.adapter.write(fullPath, lines);
+      }
+
+      return events;
+    } catch (error) {
+      console.error(`[JSONLWriter] Failed to append ${eventsData.length} events to ${relativePath}:`, error);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to append events: ${message}`);
+    }
+  }
+
   // ============================================================================
   // Event Reading
   // ============================================================================
@@ -237,17 +296,25 @@ export class JSONLWriter {
       const lines = content.split('\n').filter(line => line.trim());
 
       const events: T[] = [];
+      let parseErrors = 0;
       for (let i = 0; i < lines.length; i++) {
         try {
           const event = JSON.parse(lines[i]) as T;
           events.push(event);
         } catch (e) {
-          console.error(
-            `[JSONLWriter] Failed to parse line ${i + 1} in ${relativePath}: ${lines[i]}`,
-            e
+          parseErrors++;
+          // Truncate line preview to avoid console spam with huge malformed lines
+          const linePreview = lines[i].length > 200
+            ? lines[i].substring(0, 200) + '... [truncated]'
+            : lines[i];
+          console.warn(
+            `[JSONLWriter] Skipping malformed line ${i + 1} in ${relativePath}: ${linePreview}`
           );
           // Continue parsing other lines
         }
+      }
+      if (parseErrors > 0) {
+        console.warn(`[JSONLWriter] ${relativePath}: Skipped ${parseErrors} malformed line(s), loaded ${events.length} valid events`);
       }
 
       return events;

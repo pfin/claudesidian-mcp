@@ -93,7 +93,7 @@ export class ConversationRepository
     if (options?.filter) {
       const filters: string[] = [];
       if (options.filter.vaultName) {
-        filters.push('vault_name = ?');
+        filters.push('vaultName = ?');
         params.push(options.filter.vaultName);
       }
       // Note: workspaceId filter not supported - column not in schema
@@ -146,7 +146,7 @@ export class ConversationRepository
     if (filter) {
       const filters: string[] = [];
       if (filter.vaultName) {
-        filters.push('vault_name = ?');
+        filters.push('vaultName = ?');
         params.push(filter.vaultName);
       }
       if (filters.length > 0) {
@@ -189,7 +189,7 @@ export class ConversationRepository
 
       // 2. Update SQLite cache
       await this.sqliteCache.run(
-        `INSERT INTO ${this.tableName} (id, title, created, updated, vault_name, message_count, metadata_json)
+        `INSERT INTO ${this.tableName} (id, title, created, updated, vaultName, messageCount, metadataJson)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
@@ -241,9 +241,9 @@ export class ConversationRepository
         params.push(data.title);
       }
       // Note: workspaceId and sessionId are not in SQLite schema
-      // They are stored in metadata_json if needed
+      // They are stored in metadataJson if needed
       if (data.metadata !== undefined) {
-        setClauses.push('metadata_json = ?');
+        setClauses.push('metadataJson = ?');
         params.push(data.metadata ? JSON.stringify(data.metadata) : null);
       }
 
@@ -291,7 +291,7 @@ export class ConversationRepository
   async incrementMessageCount(id: string): Promise<void> {
     try {
       await this.sqliteCache.run(
-        `UPDATE ${this.tableName} SET message_count = message_count + 1, updated = ? WHERE id = ?`,
+        `UPDATE ${this.tableName} SET messageCount = messageCount + 1, updated = ? WHERE id = ?`,
         [Date.now(), id]
       );
 
@@ -329,14 +329,14 @@ export class ConversationRepository
    * Convert SQLite row to ConversationMetadata
    */
   private rowToConversation(row: any): ConversationMetadata {
-    const metadata = row.metadata_json ? JSON.parse(row.metadata_json) : undefined;
+    const metadata = row.metadataJson ? JSON.parse(row.metadataJson) : undefined;
     return {
       id: row.id,
       title: row.title,
       created: row.created,
       updated: row.updated,
-      vaultName: row.vault_name,
-      messageCount: row.message_count,
+      vaultName: row.vaultName,
+      messageCount: row.messageCount,
       // workspaceId and sessionId stored in metadata if needed
       workspaceId: metadata?.workspaceId,
       sessionId: metadata?.sessionId,

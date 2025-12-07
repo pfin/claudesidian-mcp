@@ -132,11 +132,11 @@ export class StateRepository
     if (criteria) {
       const conditions: string[] = [];
       if (criteria.workspaceId) {
-        conditions.push('workspace_id = ?');
+        conditions.push('workspaceId = ?');
         params.push(criteria.workspaceId);
       }
       if (criteria.sessionId) {
-        conditions.push('session_id = ?');
+        conditions.push('sessionId = ?');
         params.push(criteria.sessionId);
       }
       if (conditions.length > 0) {
@@ -157,13 +157,13 @@ export class StateRepository
     sessionId?: string,
     options?: PaginationParams
   ): Promise<PaginatedResult<StateMetadata>> {
-    let baseQuery = 'SELECT * FROM states WHERE workspace_id = ?';
-    let countQuery = 'SELECT COUNT(*) as count FROM states WHERE workspace_id = ?';
+    let baseQuery = 'SELECT * FROM states WHERE workspaceId = ?';
+    let countQuery = 'SELECT COUNT(*) as count FROM states WHERE workspaceId = ?';
     const params: any[] = [workspaceId];
 
     if (sessionId) {
-      baseQuery += ' AND session_id = ?';
-      countQuery += ' AND session_id = ?';
+      baseQuery += ' AND sessionId = ?';
+      countQuery += ' AND sessionId = ?';
       params.push(sessionId);
     }
 
@@ -256,7 +256,7 @@ export class StateRepository
 
         // 2. Update SQLite cache (metadata only, no content)
         await this.sqliteCache.run(
-          `INSERT INTO states (id, workspace_id, session_id, name, description, created, tags_json)
+          `INSERT INTO states (id, workspaceId, sessionId, name, description, created, tagsJson)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
@@ -299,8 +299,8 @@ export class StateRepository
 
   async getByTag(tag: string, options?: PaginationParams): Promise<PaginatedResult<StateMetadata>> {
     // SQLite JSON query for tags array
-    const baseQuery = `SELECT * FROM states WHERE tags_json LIKE ? ORDER BY created DESC`;
-    const countQuery = `SELECT COUNT(*) as count FROM states WHERE tags_json LIKE ?`;
+    const baseQuery = `SELECT * FROM states WHERE tagsJson LIKE ? ORDER BY created DESC`;
+    const countQuery = `SELECT COUNT(*) as count FROM states WHERE tagsJson LIKE ?`;
     const params = [`%"${tag}"%`];
 
     const result = await this.queryPaginated<any>(baseQuery, countQuery, options, params);
@@ -322,12 +322,12 @@ export class StateRepository
   protected rowToEntity(row: any): StateMetadata {
     return {
       id: row.id,
-      sessionId: row.session_id,
-      workspaceId: row.workspace_id,
+      sessionId: row.sessionId,
+      workspaceId: row.workspaceId,
       name: row.name,
       description: row.description ?? undefined,
       created: row.created,
-      tags: row.tags_json ? JSON.parse(row.tags_json) : undefined
+      tags: row.tagsJson ? JSON.parse(row.tagsJson) : undefined
     };
   }
 }

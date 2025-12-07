@@ -223,9 +223,10 @@ export class AdapterRegistry implements IAdapterRegistry {
     // This is a WebGPU resource management bug in WebLLM on Apple Silicon.
     //
     // TO RE-ENABLE FOR TESTING:
-    // 1. Set NEXUS_ENABLED = true below
-    // 2. Rebuild the plugin
-    // 3. Test thoroughly before shipping
+    // 1. Uncomment the webllm registration block below
+    // 2. Uncomment webllm entry in LLMProviderTab.ts getProviderConfigs()
+    // 3. Rebuild the plugin
+    // 4. Test thoroughly before shipping
     //
     // Full investigation notes in:
     // - WebLLMAdapter.ts (header comment)
@@ -234,43 +235,32 @@ export class AdapterRegistry implements IAdapterRegistry {
     //
     // Related: https://github.com/mlc-ai/web-llm/issues/647
     // ═══════════════════════════════════════════════════════════════════════════
-    const NEXUS_ENABLED = false; // Set to true to re-enable for testing
-
-    if (NEXUS_ENABLED && providers.webllm?.enabled && this.vault) {
-      console.log('[AdapterRegistry] Nexus check:', {
-        webllmEnabled: providers.webllm?.enabled,
-        hasVault: !!this.vault,
-        vaultName: this.vault?.getName?.() || 'N/A'
-      });
-
-      try {
-        console.log('[AdapterRegistry] Creating Nexus adapter...');
-        this.webllmAdapter = new WebLLMAdapter(this.vault, this.mcpConnector);
-        // Add adapter immediately so it's available for use
-        // The adapter will initialize lazily on first use
-        this.adapters.set('webllm', this.webllmAdapter);
-        console.log('[AdapterRegistry] Nexus adapter registered, available adapters:', Array.from(this.adapters.keys()));
-
-        // Connect to lifecycle manager for smart loading/unloading
-        const lifecycleManager = getWebLLMLifecycleManager();
-        lifecycleManager.setAdapter(this.webllmAdapter);
-
-        // Start async initialization in background (WebGPU detection)
-        this.webllmAdapter.initialize().then(() => {
-          console.log('[AdapterRegistry] Nexus adapter initialized (WebGPU ready)');
-        }).catch((error) => {
-          console.warn('[AdapterRegistry] Nexus background initialization failed:', error);
-          // Don't remove from adapters - let it fail gracefully on use
-        });
-      } catch (error) {
-        console.error('[AdapterRegistry] Failed to create Nexus adapter:', error);
-        this.logError('webllm', error);
-      }
-    } else if (!NEXUS_ENABLED) {
-      console.log('[AdapterRegistry] Nexus is disabled (NEXUS_ENABLED = false)');
-    } else if (providers.webllm?.enabled && !this.vault) {
-      console.warn('[AdapterRegistry] Nexus is enabled but vault is not available - adapter will not be created');
-    }
+    // if (providers.webllm?.enabled && this.vault) {
+    //   console.log('[AdapterRegistry] Nexus check:', {
+    //     webllmEnabled: providers.webllm?.enabled,
+    //     hasVault: !!this.vault,
+    //     vaultName: this.vault?.getName?.() || 'N/A'
+    //   });
+    //
+    //   try {
+    //     console.log('[AdapterRegistry] Creating Nexus adapter...');
+    //     this.webllmAdapter = new WebLLMAdapter(this.vault, this.mcpConnector);
+    //     this.adapters.set('webllm', this.webllmAdapter);
+    //     console.log('[AdapterRegistry] Nexus adapter registered, available adapters:', Array.from(this.adapters.keys()));
+    //
+    //     const lifecycleManager = getWebLLMLifecycleManager();
+    //     lifecycleManager.setAdapter(this.webllmAdapter);
+    //
+    //     this.webllmAdapter.initialize().then(() => {
+    //       console.log('[AdapterRegistry] Nexus adapter initialized (WebGPU ready)');
+    //     }).catch((error) => {
+    //       console.warn('[AdapterRegistry] Nexus background initialization failed:', error);
+    //     });
+    //   } catch (error) {
+    //     console.error('[AdapterRegistry] Failed to create Nexus adapter:', error);
+    //     this.logError('webllm', error);
+    //   }
+    // }
   }
 
   /**

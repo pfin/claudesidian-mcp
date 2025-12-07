@@ -391,14 +391,19 @@ export class LLMProviderTab {
    */
   private getProviderConfigs(): { [key: string]: ProviderDisplayConfig } {
     return {
-      // Nexus (Local) - Fine-tuned model for tool calling, shown first
-      webllm: {
-        name: 'Nexus (Local)',
-        description: '',
-        keyFormat: 'No API key required',
-        signupUrl: '',
-        docsUrl: ''
-      },
+      // ═══════════════════════════════════════════════════════════════════════
+      // NEXUS/WEBLLM DISABLED (Dec 6, 2025)
+      // WebGPU crashes on second generation - see AdapterRegistry.ts for details
+      // To re-enable: uncomment the webllm entry below AND set NEXUS_ENABLED=true
+      // in AdapterRegistry.ts
+      // ═══════════════════════════════════════════════════════════════════════
+      // webllm: {
+      //   name: 'Nexus (Local)',
+      //   description: '',
+      //   keyFormat: 'No API key required',
+      //   signupUrl: '',
+      //   docsUrl: ''
+      // },
       openai: {
         name: 'OpenAI',
         description: '',
