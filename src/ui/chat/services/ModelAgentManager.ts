@@ -13,7 +13,7 @@ import { ModelSelectionUtility } from '../utils/ModelSelectionUtility';
 import { AgentConfigurationUtility } from '../utils/AgentConfigurationUtility';
 import { WorkspaceIntegrationService } from './WorkspaceIntegrationService';
 import { getWebLLMLifecycleManager } from '../../../services/llm/adapters/webllm/WebLLMLifecycleManager';
-import { ThinkingSettings } from '../components/settings/types';
+import { ThinkingSettings } from '../../../types/llm/ProviderTypes';
 
 export interface ModelAgentManagerEvents {
   onModelChanged: (model: ModelOption | null) => void;

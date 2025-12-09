@@ -2,13 +2,11 @@
  * ChatSettingsRenderer - Shared settings UI for DefaultsTab and ChatSettingsModal
  *
  * Renders identical UI in both places:
- * - Provider dropdown
- * - Model dropdown
- * - Thinking toggle + effort slider
- * - Image model settings
- * - Workspace dropdown
- * - Agent dropdown
- * - Context notes (file picker)
+ * - Provider + Model (same section)
+ * - Reasoning toggle + Effort slider
+ * - Image generation settings
+ * - Workspace + Agent
+ * - Context notes
  *
  * The difference is only WHERE data is saved (via callbacks).
  */
@@ -62,9 +60,6 @@ export interface ChatSettingsRendererConfig {
   callbacks: ChatSettingsCallbacks;
 }
 
-/**
- * Provider display names
- */
 const PROVIDER_NAMES: Record<string, string> = {
   ollama: 'Ollama',
   lmstudio: 'LM Studio',
@@ -78,9 +73,6 @@ const PROVIDER_NAMES: Record<string, string> = {
   perplexity: 'Perplexity'
 };
 
-/**
- * Effort levels
- */
 const EFFORT_LEVELS: ThinkingEffort[] = ['low', 'medium', 'high'];
 const EFFORT_LABELS: Record<ThinkingEffort, string> = {
   low: 'Low',
@@ -88,9 +80,6 @@ const EFFORT_LABELS: Record<ThinkingEffort, string> = {
   high: 'High'
 };
 
-/**
- * Image models by provider
- */
 const IMAGE_MODELS: Record<string, Array<{ id: string; name: string }>> = {
   google: [
     { id: 'gemini-2.5-flash-image', name: 'Nano Banana (Fast)' },
@@ -109,13 +98,10 @@ export class ChatSettingsRenderer {
   private config: ChatSettingsRendererConfig;
   private providerManager: LLMProviderManager;
   private staticModelsService: StaticModelsService;
-
-  // Current state
   private settings: ChatSettings;
 
   // UI references
-  private thinkingContainer?: HTMLElement;
-  private effortContainer?: HTMLElement;
+  private effortSection?: HTMLElement;
   private contextNotesListEl?: HTMLElement;
 
   constructor(container: HTMLElement, config: ChatSettingsRendererConfig) {
@@ -131,29 +117,21 @@ export class ChatSettingsRenderer {
     );
   }
 
-  /**
-   * Render the full settings UI
-   */
   render(): void {
     this.container.empty();
+    this.container.addClass('chat-settings-renderer');
 
-    // LLM Section
-    this.renderLLMSection();
-
-    // Context Section
-    this.renderContextSection();
+    // Vertical layout
+    this.renderModelSection(this.container);
+    this.renderReasoningSection(this.container);
+    this.renderImageSection(this.container);
+    this.renderContextSection(this.container);
   }
 
-  /**
-   * Notify of settings change
-   */
   private notifyChange(): void {
     this.config.callbacks.onSettingsChange({ ...this.settings });
   }
 
-  /**
-   * Get enabled providers
-   */
   private getEnabledProviders(): string[] {
     const llmSettings = this.config.llmProviderSettings;
     return Object.keys(llmSettings.providers).filter(id => {
@@ -163,20 +141,15 @@ export class ChatSettingsRenderer {
     });
   }
 
-  // ========== LLM SECTION ==========
+  // ========== MODEL SECTION ==========
 
-  private renderLLMSection(): void {
-    const section = this.container.createDiv('chat-settings-section');
-    section.createEl('h4', { text: 'Model' });
+  private renderModelSection(parent: HTMLElement): void {
+    const section = parent.createDiv('csr-section');
+    section.createDiv('csr-section-header').setText('Chat Model');
+    const content = section.createDiv('csr-section-content');
 
-    this.renderProviderDropdown(section);
-    this.renderModelDropdown(section);
-    this.renderThinkingSection(section);
-    this.renderImageSection(section);
-  }
-
-  private renderProviderDropdown(container: HTMLElement): void {
-    new Setting(container)
+    // Provider
+    new Setting(content)
       .setName('Provider')
       .addDropdown(dropdown => {
         const providers = this.getEnabledProviders();
@@ -194,94 +167,76 @@ export class ChatSettingsRenderer {
           this.settings.provider = value;
           this.settings.model = await this.getDefaultModelForProvider(value);
           this.notifyChange();
-          this.render(); // Re-render to update model dropdown
+          this.render();
         });
       });
-  }
 
-  private renderModelDropdown(container: HTMLElement): void {
+    // Model
     const providerId = this.settings.provider;
 
-    // Ollama - show as text
     if (providerId === 'ollama') {
-      new Setting(container)
+      new Setting(content)
         .setName('Model')
         .addText(text => text
           .setValue(this.settings.model || '')
           .setDisabled(true)
           .setPlaceholder('Configure in Ollama settings'));
-      return;
-    }
-
-    new Setting(container)
-      .setName('Model')
-      .addDropdown(async dropdown => {
-        if (!providerId) {
-          dropdown.addOption('', 'Select a provider first');
-          return;
-        }
-
-        try {
-          const models = await this.providerManager.getModelsForProvider(providerId);
-
-          if (models.length === 0) {
-            dropdown.addOption('', 'No models available');
-          } else {
-            models.forEach(model => {
-              dropdown.addOption(model.id, model.name);
-            });
-
-            const exists = models.some(m => m.id === this.settings.model);
-            if (exists) {
-              dropdown.setValue(this.settings.model);
-            } else if (models.length > 0) {
-              this.settings.model = models[0].id;
-              dropdown.setValue(this.settings.model);
-              this.notifyChange();
-            }
+    } else {
+      new Setting(content)
+        .setName('Model')
+        .addDropdown(async dropdown => {
+          if (!providerId) {
+            dropdown.addOption('', 'Select a provider first');
+            return;
           }
 
-          dropdown.onChange((value) => {
-            this.settings.model = value;
-            this.notifyChange();
-            this.updateThinkingVisibility();
-          });
-        } catch {
-          dropdown.addOption('', 'Error loading models');
-        }
-      });
+          try {
+            const models = await this.providerManager.getModelsForProvider(providerId);
+
+            if (models.length === 0) {
+              dropdown.addOption('', 'No models available');
+            } else {
+              models.forEach(model => {
+                dropdown.addOption(model.id, model.name);
+              });
+
+              const exists = models.some(m => m.id === this.settings.model);
+              if (exists) {
+                dropdown.setValue(this.settings.model);
+              } else if (models.length > 0) {
+                this.settings.model = models[0].id;
+                dropdown.setValue(this.settings.model);
+                this.notifyChange();
+              }
+            }
+
+            dropdown.onChange((value) => {
+              this.settings.model = value;
+              this.notifyChange();
+              // Re-render to update reasoning visibility
+              this.render();
+            });
+          } catch {
+            dropdown.addOption('', 'Error loading models');
+          }
+        });
+    }
   }
 
-  private renderThinkingSection(container: HTMLElement): void {
-    this.thinkingContainer = container.createDiv('chat-settings-thinking');
+  // ========== REASONING SECTION ==========
 
+  private renderReasoningSection(parent: HTMLElement): void {
     const supportsThinking = this.checkModelSupportsThinking();
-    if (!supportsThinking) {
-      this.thinkingContainer.addClass('is-hidden');
-      return;
-    }
+    if (!supportsThinking) return;
 
-    // Effort slider (hidden when thinking disabled)
-    this.effortContainer = this.thinkingContainer.createDiv('chat-settings-effort');
-    if (!this.settings.thinking.enabled) {
-      this.effortContainer.addClass('is-hidden');
-    }
+    const section = parent.createDiv('csr-section');
+    section.createDiv('csr-section-header').setText('Reasoning');
+    const content = section.createDiv('csr-section-content');
 
-    new Setting(this.effortContainer)
-      .setName('Effort')
-      .addSlider(slider => slider
-        .setLimits(0, 2, 1)
-        .setValue(EFFORT_LEVELS.indexOf(this.settings.thinking.effort))
-        .setDynamicTooltip()
-        .onChange(value => {
-          this.settings.thinking.effort = EFFORT_LEVELS[value];
-          this.notifyChange();
-        }));
-
-    // Toggle
-    new Setting(this.thinkingContainer)
-      .setName('Reasoning')
-      .setDesc('Think step-by-step before responding')
+    // Reasoning toggle
+    new Setting(content)
+      .setName('Enable')
+      .setDesc('Think step-by-step')
       .addToggle(toggle => toggle
         .setValue(this.settings.thinking.enabled)
         .onChange(value => {
@@ -289,24 +244,52 @@ export class ChatSettingsRenderer {
           this.notifyChange();
           this.updateEffortVisibility();
         }));
+
+    // Effort slider
+    this.effortSection = content.createDiv('csr-effort-row');
+    if (!this.settings.thinking.enabled) {
+      this.effortSection.addClass('is-hidden');
+    }
+
+    const effortSetting = new Setting(this.effortSection)
+      .setName('Effort');
+
+    const valueDisplay = effortSetting.controlEl.createSpan('csr-effort-value');
+    valueDisplay.textContent = EFFORT_LABELS[this.settings.thinking.effort];
+
+    effortSetting.addSlider(slider => slider
+      .setLimits(0, 2, 1)
+      .setValue(EFFORT_LEVELS.indexOf(this.settings.thinking.effort))
+      .onChange(value => {
+        this.settings.thinking.effort = EFFORT_LEVELS[value];
+        valueDisplay.textContent = EFFORT_LABELS[this.settings.thinking.effort];
+        this.notifyChange();
+      }));
   }
 
-  private renderImageSection(container: HTMLElement): void {
-    const imageSection = container.createDiv('chat-settings-image');
-    imageSection.createEl('h5', { text: 'Image Generation' });
+  private updateEffortVisibility(): void {
+    if (!this.effortSection) return;
 
-    // Image provider
-    new Setting(imageSection)
-      .setName('Image Provider')
+    if (this.settings.thinking.enabled) {
+      this.effortSection.removeClass('is-hidden');
+    } else {
+      this.effortSection.addClass('is-hidden');
+    }
+  }
+
+  // ========== IMAGE SECTION ==========
+
+  private renderImageSection(parent: HTMLElement): void {
+    const section = parent.createDiv('csr-section');
+    section.createDiv('csr-section-header').setText('Image Generation');
+    const content = section.createDiv('csr-section-content');
+
+    // Provider
+    new Setting(content)
+      .setName('Provider')
       .addDropdown(dropdown => {
-        const imageProviders = [
-          { id: 'google', name: 'Google AI' },
-          { id: 'openrouter', name: 'OpenRouter' }
-        ];
-
-        imageProviders.forEach(p => {
-          dropdown.addOption(p.id, p.name);
-        });
+        dropdown.addOption('google', 'Google AI');
+        dropdown.addOption('openrouter', 'OpenRouter');
 
         dropdown.setValue(this.settings.imageProvider);
         dropdown.onChange((value) => {
@@ -317,10 +300,10 @@ export class ChatSettingsRenderer {
         });
       });
 
-    // Image model
+    // Model
     const models = IMAGE_MODELS[this.settings.imageProvider] || [];
-    new Setting(imageSection)
-      .setName('Image Model')
+    new Setting(content)
+      .setName('Model')
       .addDropdown(dropdown => {
         models.forEach(m => {
           dropdown.addOption(m.id, m.name);
@@ -343,17 +326,13 @@ export class ChatSettingsRenderer {
 
   // ========== CONTEXT SECTION ==========
 
-  private renderContextSection(): void {
-    const section = this.container.createDiv('chat-settings-section');
-    section.createEl('h4', { text: 'Context' });
+  private renderContextSection(parent: HTMLElement): void {
+    const section = parent.createDiv('csr-section');
+    section.createDiv('csr-section-header').setText('Context');
+    const content = section.createDiv('csr-section-content');
 
-    this.renderWorkspaceDropdown(section);
-    this.renderAgentDropdown(section);
-    this.renderContextNotes(section);
-  }
-
-  private renderWorkspaceDropdown(container: HTMLElement): void {
-    new Setting(container)
+    // Workspace
+    new Setting(content)
       .setName('Workspace')
       .addDropdown(dropdown => {
         dropdown.addOption('', 'None');
@@ -366,31 +345,12 @@ export class ChatSettingsRenderer {
         dropdown.onChange((value) => {
           this.settings.workspaceId = value || null;
           this.notifyChange();
-
-          // Auto-select workspace's dedicated agent if it has one
           this.syncWorkspaceAgent(value);
         });
       });
-  }
 
-  private async syncWorkspaceAgent(workspaceId: string | null): Promise<void> {
-    if (!workspaceId) return;
-
-    // Find the workspace and check for dedicated agent
-    const workspace = this.config.options.workspaces.find(w => w.id === workspaceId);
-    if (workspace && (workspace as any).context?.dedicatedAgent?.agentId) {
-      const agentId = (workspace as any).context.dedicatedAgent.agentId;
-      const agent = this.config.options.agents.find(a => a.id === agentId || a.name === agentId);
-      if (agent) {
-        this.settings.agentId = agent.id || agent.name;
-        this.notifyChange();
-        this.render(); // Re-render to update agent dropdown
-      }
-    }
-  }
-
-  private renderAgentDropdown(container: HTMLElement): void {
-    new Setting(container)
+    // Agent
+    new Setting(content)
       .setName('Agent')
       .addDropdown(dropdown => {
         dropdown.addOption('', 'None');
@@ -405,20 +365,31 @@ export class ChatSettingsRenderer {
           this.notifyChange();
         });
       });
+
+    // Context Notes header with Add button
+    const notesHeader = content.createDiv('csr-notes-header');
+    notesHeader.createSpan().setText('Context Notes');
+    const addBtn = notesHeader.createEl('button', { cls: 'csr-add-btn' });
+    addBtn.setText('+ Add');
+    addBtn.onclick = () => this.openNotePicker();
+
+    this.contextNotesListEl = content.createDiv('csr-notes-list');
+    this.renderContextNotesList();
   }
 
-  private renderContextNotes(container: HTMLElement): void {
-    const notesSection = container.createDiv('chat-settings-context-notes');
+  private async syncWorkspaceAgent(workspaceId: string | null): Promise<void> {
+    if (!workspaceId) return;
 
-    new Setting(notesSection)
-      .setName('Context Notes')
-      .setDesc('Files to include in the system prompt')
-      .addButton(button => button
-        .setButtonText('Add')
-        .onClick(() => this.openNotePicker()));
-
-    this.contextNotesListEl = notesSection.createDiv('context-notes-list');
-    this.renderContextNotesList();
+    const workspace = this.config.options.workspaces.find(w => w.id === workspaceId);
+    if (workspace && (workspace as any).context?.dedicatedAgent?.agentId) {
+      const agentId = (workspace as any).context.dedicatedAgent.agentId;
+      const agent = this.config.options.agents.find(a => a.id === agentId || a.name === agentId);
+      if (agent) {
+        this.settings.agentId = agent.name;
+        this.notifyChange();
+        this.render();
+      }
+    }
   }
 
   private renderContextNotesList(): void {
@@ -426,24 +397,19 @@ export class ChatSettingsRenderer {
     this.contextNotesListEl.empty();
 
     if (this.settings.contextNotes.length === 0) {
-      this.contextNotesListEl.createEl('p', {
-        text: 'No context notes added',
-        cls: 'setting-item-description'
-      });
+      this.contextNotesListEl.createDiv({ cls: 'csr-notes-empty', text: 'No files added' });
       return;
     }
 
     this.settings.contextNotes.forEach((notePath, index) => {
-      new Setting(this.contextNotesListEl!)
-        .setName(notePath)
-        .addButton(button => button
-          .setButtonText('Remove')
-          .setClass('mod-warning')
-          .onClick(() => {
-            this.settings.contextNotes.splice(index, 1);
-            this.notifyChange();
-            this.renderContextNotesList();
-          }));
+      const item = this.contextNotesListEl!.createDiv('csr-note-item');
+      item.createSpan({ cls: 'csr-note-path', text: notePath });
+      const removeBtn = item.createEl('button', { cls: 'csr-note-remove', text: '×' });
+      removeBtn.onclick = () => {
+        this.settings.contextNotes.splice(index, 1);
+        this.notifyChange();
+        this.renderContextNotesList();
+      };
     });
   }
 
@@ -482,29 +448,6 @@ export class ChatSettingsRenderer {
     return model?.capabilities?.supportsThinking ?? false;
   }
 
-  private updateThinkingVisibility(): void {
-    if (!this.thinkingContainer) return;
-
-    if (this.checkModelSupportsThinking()) {
-      this.thinkingContainer.removeClass('is-hidden');
-    } else {
-      this.thinkingContainer.addClass('is-hidden');
-    }
-  }
-
-  private updateEffortVisibility(): void {
-    if (!this.effortContainer) return;
-
-    if (this.settings.thinking.enabled) {
-      this.effortContainer.removeClass('is-hidden');
-    } else {
-      this.effortContainer.addClass('is-hidden');
-    }
-  }
-
-  /**
-   * Get current settings
-   */
   getSettings(): ChatSettings {
     return { ...this.settings };
   }

@@ -106,6 +106,18 @@ export class ExportService {
       // Format messages for OpenAI fine-tuning
       const formattedMessages = filteredMessages.map(m => this.formatMessageForExport(m));
 
+      // Inject system prompt from metadata if available and not already present
+      const systemPrompt = conv.metadata?.chatSettings?.systemPrompt;
+      if (systemPrompt && filter?.includeSystem !== false) {
+        const hasSystemMessage = formattedMessages.length > 0 && formattedMessages[0].role === 'system';
+        if (!hasSystemMessage) {
+          formattedMessages.unshift({
+            role: 'system',
+            content: systemPrompt
+          });
+        }
+      }
+
       // Output as single JSONL line
       output.push(JSON.stringify({ messages: formattedMessages }));
     }

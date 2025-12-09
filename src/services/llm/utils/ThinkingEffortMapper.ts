@@ -5,7 +5,7 @@
  * and value ranges. This utility provides a consistent interface for all providers.
  */
 
-import { ThinkingEffort, ThinkingSettings } from '../../../ui/chat/components/settings/types';
+import { ThinkingEffort, ThinkingSettings } from '../../../types/llm/ProviderTypes';
 
 /**
  * Provider-specific thinking configuration

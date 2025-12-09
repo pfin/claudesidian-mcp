@@ -41,6 +41,7 @@ export class ConversationManager {
         chatSettings: {
           providerId: params.provider,
           modelId: params.model,
+          systemPrompt: params.systemPrompt,
           workspaceId: params.workspaceId,
           sessionId: params.sessionId || generateSessionId()
         }

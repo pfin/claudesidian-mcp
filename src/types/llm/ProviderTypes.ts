@@ -9,12 +9,17 @@
 export type ThinkingEffort = 'low' | 'medium' | 'high';
 
 /**
- * Default thinking settings for models that support extended thinking
+ * Thinking settings for models that support extended thinking
  */
-export interface DefaultThinkingSettings {
+export interface ThinkingSettings {
   enabled: boolean;
   effort: ThinkingEffort;
 }
+
+/**
+ * Alias for backwards compatibility
+ */
+export type DefaultThinkingSettings = ThinkingSettings;
 
 /**
  * Model configuration with enabled status and optional description
