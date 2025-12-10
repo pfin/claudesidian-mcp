@@ -14,7 +14,7 @@
 
 import { BaseAdapter } from '../adapters/BaseAdapter';
 import { ConversationContextBuilder } from '../../chat/ConversationContextBuilder';
-import { MCPToolExecution } from '../adapters/shared/MCPToolExecution';
+import { MCPToolExecution, IToolExecutor } from '../adapters/shared/MCPToolExecution';
 import { LLMProviderSettings } from '../../../types';
 import { IAdapterRegistry } from './AdapterRegistry';
 
@@ -68,6 +68,13 @@ export class StreamingOrchestrator {
   ): any[] {
     const newTools = [...existingTools];
 
+    // Build a set of existing tool names for fast deduplication
+    const existingNames = new Set<string>();
+    for (const tool of existingTools) {
+      const name = tool.name || tool.function?.name;
+      if (name) existingNames.add(name);
+    }
+
     for (let i = 0; i < toolCalls.length; i++) {
       const toolCall = toolCalls[i];
       const result = toolResults[i];
@@ -76,20 +83,37 @@ export class StreamingOrchestrator {
       if (toolCall.function?.name === 'get_tools' && result?.success && result?.result?.tools) {
         const returnedTools = result.result.tools;
 
-        // Convert MCP tool format to OpenAI Responses API format
-        for (const mcpTool of returnedTools) {
-          // Check if tool already exists
-          const exists = newTools.some(t =>
-            (t.name === mcpTool.name) || (t.function?.name === mcpTool.name)
-          );
+        // Handle both MCP format and OpenAI format tools
+        for (const tool of returnedTools) {
+          // Extract tool name - handle both formats
+          const toolName = tool.name || tool.function?.name;
 
-          if (!exists) {
-            // Convert to Responses API format: {type, name, description, parameters}
+          if (!toolName) {
+            console.warn('[StreamingOrchestrator] Skipping tool with no name:', tool);
+            continue;
+          }
+
+          // Skip if already exists
+          if (existingNames.has(toolName)) {
+            continue;
+          }
+
+          // Mark as added to prevent duplicates within this batch
+          existingNames.add(toolName);
+
+          // Normalize to OpenAI Chat Completions format: {type, function: {name, description, parameters}}
+          if (tool.function) {
+            // Already in OpenAI format
+            newTools.push(tool);
+          } else {
+            // MCP format - convert
             newTools.push({
               type: 'function',
-              name: mcpTool.name,
-              description: mcpTool.description || '',
-              parameters: mcpTool.inputSchema || { type: 'object', properties: {} }
+              function: {
+                name: tool.name,
+                description: tool.description || '',
+                parameters: tool.inputSchema || { type: 'object', properties: {} }
+              }
             });
           }
         }
@@ -101,7 +125,8 @@ export class StreamingOrchestrator {
 
   constructor(
     private adapterRegistry: IAdapterRegistry,
-    private settings: LLMProviderSettings
+    private settings: LLMProviderSettings,
+    private toolExecutor?: IToolExecutor
   ) {}
 
   /**
@@ -343,7 +368,7 @@ export class StreamingOrchestrator {
       }));
 
       const toolResults = await MCPToolExecution.executeToolCalls(
-        adapter as any,
+        this.toolExecutor,
         mcpToolCalls,
         provider as any,
         generateOptions.onToolEvent,
@@ -525,7 +550,7 @@ export class StreamingOrchestrator {
       });
 
       const recursiveToolResults = await MCPToolExecution.executeToolCalls(
-        adapter as any,
+        this.toolExecutor,
         recursiveMcpToolCalls,
         provider as any,
         generateOptions.onToolEvent,

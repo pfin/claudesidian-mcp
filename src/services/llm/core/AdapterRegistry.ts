@@ -30,7 +30,7 @@ export interface IAdapterRegistry {
   /**
    * Initialize all adapters based on provider settings
    */
-  initialize(settings: LLMProviderSettings, mcpConnector?: any, vault?: Vault): void;
+  initialize(settings: LLMProviderSettings, vault?: Vault): void;
 
   /**
    * Update settings and reinitialize adapters
@@ -61,18 +61,19 @@ export interface IAdapterRegistry {
 /**
  * AdapterRegistry implementation
  * Manages the lifecycle of LLM provider adapters
+ *
+ * Note: Tool execution is now handled separately by IToolExecutor.
+ * Adapters only handle LLM communication - they don't need mcpConnector.
  */
 export class AdapterRegistry implements IAdapterRegistry {
   private adapters: Map<string, BaseAdapter> = new Map();
   private settings: LLMProviderSettings;
-  private mcpConnector?: any;
   private vault?: Vault;
   private webllmAdapter?: WebLLMAdapterType;
   private initPromise?: Promise<void>;
 
-  constructor(settings: LLMProviderSettings, mcpConnector?: any, vault?: Vault) {
+  constructor(settings: LLMProviderSettings, vault?: Vault) {
     this.settings = settings;
-    this.mcpConnector = mcpConnector;
     this.vault = vault;
   }
 
@@ -80,9 +81,8 @@ export class AdapterRegistry implements IAdapterRegistry {
    * Initialize all adapters based on provider settings
    * Now async to support dynamic imports for mobile compatibility
    */
-  initialize(settings: LLMProviderSettings, mcpConnector?: any, vault?: Vault): void {
+  initialize(settings: LLMProviderSettings, vault?: Vault): void {
     this.settings = settings;
-    this.mcpConnector = mcpConnector;
     if (vault) this.vault = vault;
     this.adapters.clear();
     // Start async initialization
@@ -102,7 +102,7 @@ export class AdapterRegistry implements IAdapterRegistry {
    * Update settings and reinitialize all adapters
    */
   updateSettings(settings: LLMProviderSettings): void {
-    this.initialize(settings, this.mcpConnector, this.vault);
+    this.initialize(settings, this.vault);
   }
 
   /**
@@ -182,7 +182,7 @@ export class AdapterRegistry implements IAdapterRegistry {
     // ═══════════════════════════════════════════════════════════════════════════
     await this.initializeProviderAsync('openrouter', providers.openrouter, async (config) => {
       const { OpenRouterAdapter } = await import('../adapters/openrouter/OpenRouterAdapter');
-      return new OpenRouterAdapter(config.apiKey, this.mcpConnector, {
+      return new OpenRouterAdapter(config.apiKey, {
         httpReferer: config.httpReferer,
         xTitle: config.xTitle
       });
@@ -190,12 +190,12 @@ export class AdapterRegistry implements IAdapterRegistry {
 
     await this.initializeProviderAsync('requesty', providers.requesty, async (config) => {
       const { RequestyAdapter } = await import('../adapters/requesty/RequestyAdapter');
-      return new RequestyAdapter(config.apiKey, this.mcpConnector);
+      return new RequestyAdapter(config.apiKey);
     });
 
     await this.initializeProviderAsync('perplexity', providers.perplexity, async (config) => {
       const { PerplexityAdapter } = await import('../adapters/perplexity/PerplexityAdapter');
-      return new PerplexityAdapter(config.apiKey, this.mcpConnector);
+      return new PerplexityAdapter(config.apiKey);
     });
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -205,27 +205,27 @@ export class AdapterRegistry implements IAdapterRegistry {
     if (!onMobile) {
       await this.initializeProviderAsync('openai', providers.openai, async (config) => {
         const { OpenAIAdapter } = await import('../adapters/openai/OpenAIAdapter');
-        return new OpenAIAdapter(config.apiKey, this.mcpConnector);
+        return new OpenAIAdapter(config.apiKey);
       });
 
       await this.initializeProviderAsync('anthropic', providers.anthropic, async (config) => {
         const { AnthropicAdapter } = await import('../adapters/anthropic/AnthropicAdapter');
-        return new AnthropicAdapter(config.apiKey, this.mcpConnector);
+        return new AnthropicAdapter(config.apiKey);
       });
 
       await this.initializeProviderAsync('google', providers.google, async (config) => {
         const { GoogleAdapter } = await import('../adapters/google/GoogleAdapter');
-        return new GoogleAdapter(config.apiKey, this.mcpConnector);
+        return new GoogleAdapter(config.apiKey);
       });
 
       await this.initializeProviderAsync('mistral', providers.mistral, async (config) => {
         const { MistralAdapter } = await import('../adapters/mistral/MistralAdapter');
-        return new MistralAdapter(config.apiKey, this.mcpConnector);
+        return new MistralAdapter(config.apiKey);
       });
 
       await this.initializeProviderAsync('groq', providers.groq, async (config) => {
         const { GroqAdapter } = await import('../adapters/groq/GroqAdapter');
-        return new GroqAdapter(config.apiKey, this.mcpConnector);
+        return new GroqAdapter(config.apiKey);
       });
     } else {
       // Log which providers are skipped on mobile
@@ -262,7 +262,7 @@ export class AdapterRegistry implements IAdapterRegistry {
       if (providers.lmstudio?.enabled && providers.lmstudio.apiKey) {
         try {
           const { LMStudioAdapter } = await import('../adapters/lmstudio/LMStudioAdapter');
-          this.adapters.set('lmstudio', new LMStudioAdapter(providers.lmstudio.apiKey, this.mcpConnector));
+          this.adapters.set('lmstudio', new LMStudioAdapter(providers.lmstudio.apiKey));
         } catch (error) {
           console.error('AdapterRegistry: Failed to initialize LM Studio adapter:', error);
           this.logError('lmstudio', error);

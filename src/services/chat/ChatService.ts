@@ -72,7 +72,16 @@ export class ChatService {
     this.toolCallService.setEventCallback(callback);
   }
 
-  /** Initialize the MCP SDK Client integration */
+  /**
+   * Set the DirectToolExecutor for direct tool execution
+   * This enables tools on ALL platforms (desktop + mobile) without MCP
+   */
+  setDirectToolExecutor(executor: any): void {
+    this.toolCallService.setDirectToolExecutor(executor);
+    console.log('[ChatService] DirectToolExecutor set - tools enabled on all platforms');
+  }
+
+  /** Initialize the tool service */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
       return;

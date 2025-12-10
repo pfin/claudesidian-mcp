@@ -16,31 +16,27 @@ import {
 } from '../types';
 import { ModelRegistry } from '../ModelRegistry';
 import { DeepResearchHandler } from './DeepResearchHandler';
-import { MCPToolExecution, MCPCapableAdapter } from '../shared/MCPToolExecution';
 import { WebSearchUtils } from '../../utils/WebSearchUtils';
 import { OPENAI_MODELS } from './OpenAIModels';
+import { MCPToolExecution } from '../shared/MCPToolExecution';
 
-export class OpenAIAdapter extends BaseAdapter implements MCPCapableAdapter {
+export class OpenAIAdapter extends BaseAdapter {
   readonly name = 'openai';
   readonly baseUrl = 'https://api.openai.com/v1';
-  
+
   private client: OpenAI;
   private deepResearch: DeepResearchHandler;
-  mcpConnector?: any;
 
-  constructor(apiKey: string, mcpConnector?: any) {
+  constructor(apiKey: string) {
     super(apiKey, 'gpt-5');
-    
+
     this.client = new OpenAI({
       apiKey: this.apiKey,
       dangerouslyAllowBrowser: true, // Required for Obsidian plugin environment
     });
-    
+
     this.deepResearch = new DeepResearchHandler(this.client);
-    this.mcpConnector = mcpConnector;
     this.initializeCache();
-    
-    // MCP connector will be provided via constructor
   }
 
   /**

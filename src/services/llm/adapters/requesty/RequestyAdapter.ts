@@ -14,17 +14,14 @@ import {
   ModelPricing 
 } from '../types';
 import { REQUESTY_MODELS, REQUESTY_DEFAULT_MODEL } from './RequestyModels';
-import { MCPToolExecution, MCPCapableAdapter } from '../shared/MCPToolExecution';
+import { MCPToolExecution } from '../shared/MCPToolExecution';
 
-export class RequestyAdapter extends BaseAdapter implements MCPCapableAdapter {
+export class RequestyAdapter extends BaseAdapter {
   readonly name = 'requesty';
   readonly baseUrl = 'https://router.requesty.ai/v1';
-  
-  mcpConnector?: any;
 
-  constructor(apiKey: string, mcpConnector?: any, model?: string) {
+  constructor(apiKey: string, model?: string) {
     super(apiKey, model || REQUESTY_DEFAULT_MODEL);
-    this.mcpConnector = mcpConnector;
     this.initializeCache();
   }
 

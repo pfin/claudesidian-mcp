@@ -112,7 +112,6 @@ export class ChatSettingsRenderer {
 
     this.providerManager = new LLMProviderManager(
       config.llmProviderSettings,
-      undefined,
       config.app.vault
     );
   }

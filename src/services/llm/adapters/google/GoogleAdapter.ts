@@ -21,25 +21,23 @@ import {
 } from '../types';
 import { GOOGLE_MODELS, GOOGLE_DEFAULT_MODEL } from './GoogleModels';
 import { WebSearchUtils } from '../../utils/WebSearchUtils';
-import { MCPToolExecution, MCPCapableAdapter } from '../shared/MCPToolExecution';
 import { ReasoningPreserver } from '../shared/ReasoningPreserver';
 import { SchemaValidator } from '../../utils/SchemaValidator';
 import { ThinkingEffortMapper } from '../../utils/ThinkingEffortMapper';
+import { MCPToolExecution } from '../shared/MCPToolExecution';
 
 // Type-only import for TypeScript (doesn't affect bundling)
 import type { GoogleGenAI as GoogleGenAIType } from '@google/genai';
 
-export class GoogleAdapter extends BaseAdapter implements MCPCapableAdapter {
+export class GoogleAdapter extends BaseAdapter {
   readonly name = 'google';
   readonly baseUrl = 'https://generativelanguage.googleapis.com/v1';
 
   private client: GoogleGenAIType | null = null;
   private clientPromise: Promise<GoogleGenAIType> | null = null;
-  mcpConnector?: any;
 
-  constructor(apiKey: string, mcpConnector?: any, model?: string) {
+  constructor(apiKey: string, model?: string) {
     super(apiKey, model || GOOGLE_DEFAULT_MODEL);
-    this.mcpConnector = mcpConnector;
     this.initializeCache();
   }
 

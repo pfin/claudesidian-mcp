@@ -2,18 +2,24 @@
  * ToolCallService - Manages tool calls, events, and execution for chat conversations
  *
  * Responsibilities:
- * - Tool initialization from MCPConnector
- * - MCP-to-OpenAI format conversion
+ * - Tool initialization from DirectToolExecutor (or legacy MCPConnector)
+ * - OpenAI format tool schemas
  * - Tool event callbacks (detected/updated/started/completed)
  * - Progressive tool call display coordination
- * - Tool execution via MCP
+ * - Tool execution via DirectToolExecutor
  * - Session/workspace context injection
+ *
+ * Architecture Note:
+ * This service now uses DirectToolExecutor by default, which works on BOTH
+ * desktop and mobile. MCPConnector is only needed for external clients
+ * (Claude Desktop) and is kept for backward compatibility during migration.
  *
  * Follows Single Responsibility Principle - only handles tool management.
  */
 
 import { ToolCall } from '../../types/chat/ChatTypes';
 import { getToolNameMetadata } from '../../utils/toolNameUtils';
+import { DirectToolExecutor } from './DirectToolExecutor';
 
 export interface ToolEventCallback {
   (messageId: string, event: 'detected' | 'updated' | 'started' | 'completed', data: any): void;
@@ -29,28 +35,54 @@ export class ToolCallService {
   private toolCallHistory = new Map<string, ToolCall[]>();
   private toolEventCallback?: ToolEventCallback;
   private detectedToolIds = new Set<string>(); // Track which tools have been detected already
+  private directToolExecutor?: DirectToolExecutor;
 
   constructor(
-    private mcpConnector: any
+    private mcpConnector?: any // Now optional - only for legacy/Claude Desktop
   ) {}
 
   /**
-   * Initialize available tools from MCPConnector
-   * On mobile, MCPConnector may be undefined - tools will be empty
+   * Set the DirectToolExecutor for direct tool execution
+   * This enables tools on ALL platforms (desktop + mobile)
+   */
+  setDirectToolExecutor(executor: DirectToolExecutor): void {
+    this.directToolExecutor = executor;
+    // Invalidate cached tools to force refresh
+    this.availableTools = [];
+  }
+
+  /**
+   * Get the DirectToolExecutor (for use by MCPToolExecution)
+   */
+  getDirectToolExecutor(): DirectToolExecutor | undefined {
+    return this.directToolExecutor;
+  }
+
+  /**
+   * Initialize available tools
+   * Uses DirectToolExecutor (preferred) or falls back to MCPConnector (legacy)
    */
   async initialize(): Promise<void> {
     try {
-      // MCPConnector may be undefined on mobile (MCP not supported)
-      if (!this.mcpConnector || typeof this.mcpConnector.getAvailableTools !== 'function') {
-        console.log('[ToolCallService] MCPConnector not available - tools disabled (normal on mobile)');
-        this.availableTools = [];
+      // Prefer DirectToolExecutor - works on ALL platforms
+      if (this.directToolExecutor) {
+        console.log('[ToolCallService] Using DirectToolExecutor for tools (works on desktop + mobile)');
+        this.availableTools = await this.directToolExecutor.getAvailableTools();
+        console.log(`[ToolCallService] Loaded ${this.availableTools.length} tools via DirectToolExecutor`);
         return;
       }
 
-      // Get available tools from MCPConnector (queries all registered agents)
-      this.availableTools = this.mcpConnector.getAvailableTools();
+      // Fallback to MCPConnector (legacy - only works on desktop)
+      if (this.mcpConnector && typeof this.mcpConnector.getAvailableTools === 'function') {
+        console.log('[ToolCallService] Using MCPConnector for tools (legacy mode)');
+        this.availableTools = this.mcpConnector.getAvailableTools();
+        return;
+      }
+
+      console.log('[ToolCallService] No tool executor available - tools disabled');
+      this.availableTools = [];
     } catch (error) {
-      console.error('Failed to initialize tools from MCPConnector:', error);
+      console.error('[ToolCallService] Failed to initialize tools:', error);
       this.availableTools = [];
     }
   }
@@ -64,16 +96,25 @@ export class ToolCallService {
 
   /**
    * Convert MCP tools (with inputSchema) to OpenAI format (with parameters)
+   * Handles both MCP format and already-converted OpenAI format
    */
   private convertMCPToolsToOpenAIFormat(mcpTools: any[]): any[] {
-    return mcpTools.map(tool => ({
-      type: 'function',
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.inputSchema // MCP's inputSchema maps to OpenAI's parameters
+    return mcpTools.map(tool => {
+      // Check if already in OpenAI format (has type: 'function' and function object)
+      if (tool.type === 'function' && tool.function) {
+        return tool; // Already converted, return as-is
       }
-    }));
+
+      // Convert from MCP format (name, description, inputSchema) to OpenAI format
+      return {
+        type: 'function',
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.inputSchema // MCP's inputSchema maps to OpenAI's parameters
+        }
+      };
+    });
   }
 
   /**

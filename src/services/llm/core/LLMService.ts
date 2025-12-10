@@ -7,7 +7,7 @@ import { Vault, EventRef } from 'obsidian';
 import { BaseAdapter } from '../adapters/BaseAdapter';
 import { GenerateOptions, LLMResponse, ModelInfo } from '../adapters/types';
 import { LLMProviderSettings, LLMProviderConfig } from '../../../types';
-import { MCPToolExecution } from '../adapters/shared/MCPToolExecution';
+import { IToolExecutor } from '../adapters/shared/MCPToolExecution';
 import { ConversationContextBuilder } from '../../chat/ConversationContextBuilder';
 import { ConversationData } from '../../../types/chat/ChatTypes';
 import { AdapterRegistry } from './AdapterRegistry';
@@ -57,8 +57,9 @@ export class LLMService {
   private settings: LLMProviderSettings;
   private vault?: Vault;
   private settingsEventRef: EventRef | null = null;
+  private toolExecutor?: IToolExecutor;
 
-  constructor(settings: LLMProviderSettings, mcpConnector?: any, vault?: Vault) {
+  constructor(settings: LLMProviderSettings, vault?: Vault) {
     this.settings = settings;
     this.vault = vault;
     if (vault) {
@@ -68,8 +69,8 @@ export class LLMService {
       ConfigManager.setVaultAdapter(adapter);
       void ConfigManager.ensureVaultConfigLoaded();
     }
-    this.adapterRegistry = new AdapterRegistry(settings, mcpConnector, vault);
-    this.adapterRegistry.initialize(settings, mcpConnector, vault);
+    this.adapterRegistry = new AdapterRegistry(settings, vault);
+    this.adapterRegistry.initialize(settings, vault);
     this.modelDiscovery = new ModelDiscoveryService(this.adapterRegistry, settings);
 
     // Subscribe to settings changes for automatic adapter refresh (Obsidian Events API)
@@ -77,6 +78,15 @@ export class LLMService {
       console.log('[LLMService] Settings changed, updating adapters');
       this.updateSettings(newSettings);
     });
+  }
+
+  /**
+   * Set the tool executor for tool call handling
+   * This enables tools on ALL platforms (desktop + mobile)
+   */
+  setToolExecutor(executor: IToolExecutor): void {
+    this.toolExecutor = executor;
+    console.log('[LLMService] Tool executor configured');
   }
 
 
@@ -249,7 +259,8 @@ export class LLMService {
   ): AsyncGenerator<StreamYield, void, unknown> {
     const orchestrator = new StreamingOrchestrator(
       this.adapterRegistry,
-      this.settings
+      this.settings,
+      this.toolExecutor
     );
     yield* orchestrator.generateResponseStream(messages, options);
   }

@@ -27,15 +27,13 @@ export class LMStudioAdapter extends BaseAdapter {
   readonly baseUrl: string;
 
   private serverUrl: string;
-  mcpConnector?: any; // For tool execution support
 
-  constructor(serverUrl: string, mcpConnector?: any) {
+  constructor(serverUrl: string) {
     // LM Studio doesn't need an API key - set requiresApiKey to false
     super('', '', serverUrl, false);
 
     this.serverUrl = serverUrl;
     this.baseUrl = serverUrl;
-    this.mcpConnector = mcpConnector; // Store for MCPToolExecution
 
     this.initializeCache();
   }

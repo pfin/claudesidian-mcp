@@ -16,23 +16,21 @@ import {
   ModelPricing
 } from '../types';
 import { GROQ_MODELS, GROQ_DEFAULT_MODEL } from './GroqModels';
-import { MCPToolExecution, MCPCapableAdapter } from '../shared/MCPToolExecution';
+import { MCPToolExecution } from '../shared/MCPToolExecution';
 
-export class GroqAdapter extends BaseAdapter implements MCPCapableAdapter {
+export class GroqAdapter extends BaseAdapter {
   readonly name = 'groq';
   readonly baseUrl = 'https://api.groq.com/openai/v1';
-  
-  private client: Groq;
-  mcpConnector?: any;
 
-  constructor(apiKey: string, mcpConnector?: any, model?: string) {
+  private client: Groq;
+
+  constructor(apiKey: string, model?: string) {
     super(apiKey, model || GROQ_DEFAULT_MODEL);
-    
-    this.client = new Groq({ 
+
+    this.client = new Groq({
       apiKey: this.apiKey,
-      dangerouslyAllowBrowser: true 
+      dangerouslyAllowBrowser: true
     });
-    this.mcpConnector = mcpConnector;
     this.initializeCache();
   }
 

@@ -15,26 +15,24 @@ import {
   ModelPricing
 } from '../types';
 import { ANTHROPIC_MODELS, ANTHROPIC_DEFAULT_MODEL } from './AnthropicModels';
-import { MCPToolExecution, MCPCapableAdapter } from '../shared/MCPToolExecution';
 import { ThinkingEffortMapper } from '../../utils/ThinkingEffortMapper';
+import { MCPToolExecution } from '../shared/MCPToolExecution';
 
-export class AnthropicAdapter extends BaseAdapter implements MCPCapableAdapter {
+export class AnthropicAdapter extends BaseAdapter {
   readonly name = 'anthropic';
   readonly baseUrl = 'https://api.anthropic.com';
-  
-  private client: Anthropic;
-  mcpConnector?: any;
 
-  constructor(apiKey: string, mcpConnector?: any, model?: string) {
+  private client: Anthropic;
+
+  constructor(apiKey: string, model?: string) {
     super(apiKey, model || ANTHROPIC_DEFAULT_MODEL);
-    
+
     this.client = new Anthropic({
       apiKey: this.apiKey,
       baseURL: this.baseUrl,
       dangerouslyAllowBrowser: true
     });
-    
-    this.mcpConnector = mcpConnector;
+
     this.initializeCache();
   }
 

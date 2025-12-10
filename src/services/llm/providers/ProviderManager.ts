@@ -29,13 +29,11 @@ export class LLMProviderManager {
   private llmService: LLMService;
   private settings: LLMProviderSettings;
   private vault?: Vault;
-  private mcpConnector?: any;
 
-  constructor(settings: LLMProviderSettings, mcpConnector?: any, vault?: Vault) {
+  constructor(settings: LLMProviderSettings, vault?: Vault) {
     this.settings = settings;
     this.vault = vault;
-    this.mcpConnector = mcpConnector;
-    this.llmService = new LLMService(settings, mcpConnector, vault);
+    this.llmService = new LLMService(settings, vault);
   }
 
   /**

@@ -16,8 +16,8 @@ import {
   SearchResult
 } from '../types';
 import { PERPLEXITY_MODELS, PERPLEXITY_DEFAULT_MODEL } from './PerplexityModels';
-import { MCPToolExecution, MCPCapableAdapter } from '../shared/MCPToolExecution';
 import { WebSearchUtils } from '../../utils/WebSearchUtils';
+import { MCPToolExecution } from '../shared/MCPToolExecution';
 
 export interface PerplexityOptions extends GenerateOptions {
   webSearch?: boolean;
@@ -26,15 +26,12 @@ export interface PerplexityOptions extends GenerateOptions {
   searchContextSize?: 'low' | 'medium' | 'high';
 }
 
-export class PerplexityAdapter extends BaseAdapter implements MCPCapableAdapter {
+export class PerplexityAdapter extends BaseAdapter {
   readonly name = 'perplexity';
   readonly baseUrl = 'https://api.perplexity.ai';
-  
-  mcpConnector?: any;
 
-  constructor(apiKey: string, mcpConnector?: any, model?: string) {
+  constructor(apiKey: string, model?: string) {
     super(apiKey, model || PERPLEXITY_DEFAULT_MODEL);
-    this.mcpConnector = mcpConnector;
     this.initializeCache();
   }
 

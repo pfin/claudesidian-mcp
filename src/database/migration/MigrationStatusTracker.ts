@@ -5,7 +5,7 @@
  * Stores status in .nexus/migration-status.json
  */
 
-import { App, TFile } from 'obsidian';
+import { App } from 'obsidian';
 import { MigrationStatus, MigrationCategory } from './types';
 
 export class MigrationStatusTracker {
@@ -21,14 +21,19 @@ export class MigrationStatusTracker {
    */
   async load(): Promise<MigrationStatus | null> {
     try {
-      const file = this.app.vault.getAbstractFileByPath(this.statusPath);
-      if (!(file instanceof TFile)) {
+      // Use adapter directly for consistency with save()
+      const exists = await this.app.vault.adapter.exists(this.statusPath);
+      if (!exists) {
+        console.log(`[MigrationStatusTracker] Status file not found: ${this.statusPath}`);
         return null;
       }
 
-      const content = await this.app.vault.read(file);
-      return JSON.parse(content);
+      const content = await this.app.vault.adapter.read(this.statusPath);
+      const status = JSON.parse(content);
+      console.log(`[MigrationStatusTracker] Loaded status: legacyArchived=${status.legacyArchived}, migratedFiles.conversations=${status.migratedFiles?.conversations?.length ?? 0}`);
+      return status;
     } catch (error) {
+      console.error('[MigrationStatusTracker] Failed to load status:', error);
       return null;
     }
   }
@@ -39,25 +44,26 @@ export class MigrationStatusTracker {
   async save(status: MigrationStatus): Promise<void> {
     try {
       const content = JSON.stringify(status, null, 2);
-      const file = this.app.vault.getAbstractFileByPath(this.statusPath);
 
-      if (file instanceof TFile) {
-        await this.app.vault.modify(file, content);
+      // Ensure .nexus directory exists
+      const dirPath = '.nexus';
+      const dirExists = await this.app.vault.adapter.exists(dirPath);
+      if (!dirExists) {
+        console.log(`[MigrationStatusTracker] Creating directory: ${dirPath}`);
+        await this.app.vault.adapter.mkdir(dirPath);
+      }
+
+      // Check if file exists
+      const fileExists = await this.app.vault.adapter.exists(this.statusPath);
+
+      if (fileExists) {
+        // Modify existing file
+        await this.app.vault.adapter.write(this.statusPath, content);
+        console.log(`[MigrationStatusTracker] Updated status file`);
       } else {
-        // Handle race condition where file exists but isn't in metadata cache
-        try {
-          await this.app.vault.create(this.statusPath, content);
-        } catch (createError: any) {
-          if (createError?.message?.includes('already exists')) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            const retryFile = this.app.vault.getAbstractFileByPath(this.statusPath);
-            if (retryFile instanceof TFile) {
-              await this.app.vault.modify(retryFile, content);
-            }
-          } else {
-            throw createError;
-          }
-        }
+        // Create new file
+        await this.app.vault.adapter.write(this.statusPath, content);
+        console.log(`[MigrationStatusTracker] Created status file`);
       }
     } catch (error) {
       console.error('[MigrationStatusTracker] Failed to save migration status:', error);

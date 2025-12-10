@@ -54,7 +54,7 @@ export function createAdapter(provider: SupportedProvider, model?: string): Base
     case 'mistral':
       return new MistralAdapter(process.env.MISTRAL_API_KEY || '', model);
     case 'openrouter':
-      return new OpenRouterAdapter(process.env.OPENROUTER_API_KEY || '', model);
+      return new OpenRouterAdapter(process.env.OPENROUTER_API_KEY || '');
     case 'requesty':
       return new RequestyAdapter(process.env.REQUESTY_API_KEY || '', model);
     case 'groq':

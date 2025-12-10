@@ -130,12 +130,12 @@ export class ProvidersTab {
 
         // Initialize provider manager with vault for local provider support
         if (this.services.llmProviderSettings) {
-            this.providerManager = new LLMProviderManager(this.services.llmProviderSettings, undefined, this.services.app.vault);
+            this.providerManager = new LLMProviderManager(this.services.llmProviderSettings, this.services.app.vault);
         } else {
             this.providerManager = new LLMProviderManager({
                 providers: {},
                 defaultModel: { provider: '', model: '' }
-            }, undefined, this.services.app.vault);
+            }, this.services.app.vault);
         }
 
         this.render();

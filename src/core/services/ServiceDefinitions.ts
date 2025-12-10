@@ -10,6 +10,7 @@
  */
 
 import type { Plugin } from 'obsidian';
+import { Events } from 'obsidian';
 import type { ServiceManager } from '../ServiceManager';
 import type { Settings } from '../../settings';
 
@@ -180,9 +181,10 @@ export const CORE_SERVICE_DEFINITIONS: ServiceDefinition[] = [
     },
 
     // LLM services for chat functionality
+    // Note: Tool execution is now handled by DirectToolExecutor, not mcpConnector
     {
         name: 'llmService',
-        dependencies: ['vaultOperations'],
+        dependencies: ['vaultOperations', 'directToolExecutor'],
         create: async (context) => {
             const { LLMService } = await import('../../services/llm/core/LLMService');
             const { VaultOperations } = await import('../../core/VaultOperations');
@@ -192,12 +194,20 @@ export const CORE_SERVICE_DEFINITIONS: ServiceDefinition[] = [
                 throw new Error('Invalid LLM provider settings');
             }
 
-            const llmService = new LLMService(llmProviders, context.connector, context.app.vault); // Pass mcpConnector for tool execution and vault for WebLLM/Nexus
+            // Create LLMService without mcpConnector (tool execution handled separately)
+            const llmService = new LLMService(llmProviders, context.app.vault);
 
             // Inject VaultOperations for file reading
             const vaultOperations = await context.serviceManager.getService('vaultOperations') as InstanceType<typeof VaultOperations>;
             if (vaultOperations) {
                 llmService.setVaultOperations(vaultOperations);
+            }
+
+            // Inject DirectToolExecutor for tool execution (works on ALL platforms)
+            const directToolExecutor = await context.serviceManager.getService('directToolExecutor');
+            if (directToolExecutor) {
+                llmService.setToolExecutor(directToolExecutor as any);
+                console.log('[ServiceDefinitions] Tool executor configured for LLMService');
             }
 
             return llmService;
@@ -276,22 +286,79 @@ export const CORE_SERVICE_DEFINITIONS: ServiceDefinition[] = [
         }
     },
 
-    // Chat service with direct agent integration via MCPConnector
+    // Agent registration service - independent of MCP, works on ALL platforms
+    // This initializes agents without requiring the MCP connector
+    {
+        name: 'agentRegistrationService',
+        dependencies: ['memoryService', 'workspaceService'],
+        create: async (context) => {
+            const { AgentRegistrationService } = await import('../../services/agent/AgentRegistrationService');
+            const plugin = context.plugin as any; // NexusPlugin
+
+            // Create agent registration service (same as connector but standalone)
+            const agentService = new AgentRegistrationService(
+                context.app,
+                plugin,
+                plugin.events || new Events(),
+                context.serviceManager
+            );
+
+            // Initialize all agents
+            await agentService.initializeAllAgents();
+
+            console.log('[ServiceDefinitions] AgentRegistrationService initialized with agents');
+            return agentService;
+        }
+    },
+
+    // Direct tool executor - enables tool execution on ALL platforms (desktop + mobile)
+    // Bypasses MCP protocol for native chat, uses agents directly
+    {
+        name: 'directToolExecutor',
+        dependencies: ['agentRegistrationService', 'sessionContextManager'],
+        create: async (context) => {
+            const { DirectToolExecutor } = await import('../../services/chat/DirectToolExecutor');
+
+            const agentService = await context.serviceManager.getService('agentRegistrationService') as any;
+            // SessionContextManager type comes from DirectToolExecutor module - cast to any for simplicity
+            const sessionContextManager = context.serviceManager.getServiceIfReady('sessionContextManager') as any;
+
+            // Wrap agentService to match AgentProvider interface
+            const agentProvider = {
+                getAllAgents: () => agentService.getAllAgents(),
+                getAgent: (name: string) => agentService.getAgent(name),
+                hasAgent: (name: string) => agentService.getAgent(name) !== null,
+                agentSupportsMode: () => true // Let execution fail if mode not supported
+            };
+
+            const executor = new DirectToolExecutor({
+                agentProvider,
+                sessionContextManager
+            });
+
+            console.log('[ServiceDefinitions] DirectToolExecutor initialized (works on desktop + mobile)');
+            return executor;
+        }
+    },
+
+    // Chat service with direct agent integration
+    // Now uses DirectToolExecutor instead of MCPConnector for tool execution
     {
         name: 'chatService',
-        dependencies: ['conversationService', 'llmService'],
+        dependencies: ['conversationService', 'llmService', 'directToolExecutor'],
         create: async (context) => {
             const { ChatService } = await import('../../services/chat/ChatService');
 
             const conversationService = await context.serviceManager.getService('conversationService');
             const llmService = await context.serviceManager.getService('llmService');
+            const directToolExecutor = await context.serviceManager.getService('directToolExecutor');
 
-            return new ChatService(
+            const chatService = new ChatService(
                 {
                     conversationService,
                     llmService,
                     vaultName: context.app.vault.getName(),
-                    mcpConnector: context.connector
+                    mcpConnector: context.connector // Keep for backward compatibility, but not used for tool execution
                 },
                 {
                     maxToolIterations: 10,
@@ -299,6 +366,11 @@ export const CORE_SERVICE_DEFINITIONS: ServiceDefinition[] = [
                     enableToolChaining: true
                 }
             );
+
+            // Set up DirectToolExecutor for tool execution (works on ALL platforms)
+            chatService.setDirectToolExecutor(directToolExecutor as any);
+
+            return chatService;
         }
     }
 ];

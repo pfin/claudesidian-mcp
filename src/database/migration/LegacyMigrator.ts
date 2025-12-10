@@ -89,14 +89,28 @@ export class LegacyMigrator {
    */
   async isMigrationNeeded(): Promise<boolean> {
     try {
-      // Check if legacy folders have been archived
-      if (await this.statusTracker.isLegacyArchived()) {
-        console.log('[LegacyMigrator] Legacy folders already archived - migration not needed');
+      // Check if legacy folders have been archived (status file flag)
+      const isArchivedFlag = await this.statusTracker.isLegacyArchived();
+      console.log(`[LegacyMigrator] isLegacyArchived (flag)=${isArchivedFlag}`);
+      if (isArchivedFlag) {
+        console.log('[LegacyMigrator] Legacy folders already archived (status flag) - migration not needed');
+        return false;
+      }
+
+      // Also check if archive folders exist (in case status file is incomplete)
+      const archiveFoldersExist = await this.archiver.archiveFoldersExist();
+      console.log(`[LegacyMigrator] archiveFoldersExist=${archiveFoldersExist}`);
+      if (archiveFoldersExist) {
+        // Archive folders exist but flag not set - set it now and skip migration
+        console.log('[LegacyMigrator] Archive folders exist - marking as archived and skipping migration');
+        await this.statusTracker.markLegacyArchived();
         return false;
       }
 
       // Check if legacy folders exist
-      if (!(await this.archiver.hasLegacyFolders())) {
+      const hasLegacy = await this.archiver.hasLegacyFolders();
+      console.log(`[LegacyMigrator] hasLegacyFolders=${hasLegacy}`);
+      if (!hasLegacy) {
         console.log('[LegacyMigrator] No legacy folders found - migration not needed');
         return false;
       }
@@ -104,6 +118,10 @@ export class LegacyMigrator {
       // Check if there are unmigrated files
       const hasUnmigratedWorkspaces = await this.hasUnmigratedFiles('workspaces');
       const hasUnmigratedConversations = await this.hasUnmigratedFiles('conversations');
+
+      // Debug: log migrated files count
+      const migratedFiles = await this.statusTracker.getMigratedFiles();
+      console.log(`[LegacyMigrator] migratedFiles: workspaces=${migratedFiles.workspaces.length}, conversations=${migratedFiles.conversations.length}`);
 
       if (hasUnmigratedWorkspaces || hasUnmigratedConversations) {
         console.log(`[LegacyMigrator] Migration needed - unmigrated: workspaces=${hasUnmigratedWorkspaces}, conversations=${hasUnmigratedConversations}`);
@@ -192,7 +210,11 @@ export class LegacyMigrator {
       }
 
       // Record migration completion
-      await this.recordCompletion(startTime, stats, errors, archiveResult.archived.length > 0);
+      // Mark as archived if we archived anything, OR if archive folders already exist
+      // (meaning a previous migration already archived them)
+      const wasArchived = archiveResult.archived.length > 0 ||
+        await this.archiver.archiveFoldersExist();
+      await this.recordCompletion(startTime, stats, errors, wasArchived);
 
       const duration = Date.now() - startTime;
       const success = errors.length === 0;
@@ -263,6 +285,9 @@ export class LegacyMigrator {
     errors: string[],
     archived: boolean
   ): Promise<void> {
+    // Preserve existing migratedFiles when recording completion
+    const existingMigratedFiles = await this.statusTracker.getMigratedFiles();
+
     await this.statusTracker.save({
       completed: true,
       startedAt: startTime,
@@ -272,6 +297,7 @@ export class LegacyMigrator {
       deviceId: this.jsonlWriter.getDeviceId(),
       errors,
       legacyArchived: archived,
+      migratedFiles: existingMigratedFiles,
     });
   }
 

@@ -230,12 +230,23 @@ export class HybridStorageAdapter implements IStorageAdapter {
 
       // 4. Perform initial sync (rebuild cache from JSONL)
       const syncState = await this.sqliteCache.getSyncState(this.jsonlWriter.getDeviceId());
+      console.log(`[HybridStorageAdapter] syncState exists: ${!!syncState}, migrationNeeded: ${migrationNeeded}`);
       if (!syncState || migrationNeeded) {
         console.log('[HybridStorageAdapter] Performing full rebuild...');
-        await this.syncCoordinator.fullRebuild();
+        try {
+          const result = await this.syncCoordinator.fullRebuild();
+          console.log(`[HybridStorageAdapter] Full rebuild result: ${result.eventsApplied} events, ${result.errors.length} errors`);
+        } catch (rebuildError) {
+          console.error('[HybridStorageAdapter] Full rebuild failed:', rebuildError);
+          // Continue anyway - partial data is better than no data
+        }
       } else {
         console.log('[HybridStorageAdapter] Performing incremental sync...');
-        await this.syncCoordinator.sync();
+        try {
+          await this.syncCoordinator.sync();
+        } catch (syncError) {
+          console.error('[HybridStorageAdapter] Incremental sync failed:', syncError);
+        }
       }
 
       this.initialized = true;

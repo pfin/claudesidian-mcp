@@ -15,20 +15,18 @@ import {
   ModelPricing
 } from '../types';
 import { MISTRAL_MODELS, MISTRAL_DEFAULT_MODEL } from './MistralModels';
-import { MCPToolExecution, MCPCapableAdapter } from '../shared/MCPToolExecution';
+import { MCPToolExecution } from '../shared/MCPToolExecution';
 
-export class MistralAdapter extends BaseAdapter implements MCPCapableAdapter {
+export class MistralAdapter extends BaseAdapter {
   readonly name = 'mistral';
   readonly baseUrl = 'https://api.mistral.ai';
-  
-  private client: Mistral;
-  mcpConnector?: any;
 
-  constructor(apiKey: string, mcpConnector?: any, model?: string) {
+  private client: Mistral;
+
+  constructor(apiKey: string, model?: string) {
     super(apiKey, model || MISTRAL_DEFAULT_MODEL);
-    
+
     this.client = new Mistral({ apiKey: this.apiKey });
-    this.mcpConnector = mcpConnector;
     this.initializeCache();
   }
 

@@ -15,26 +15,23 @@ import {
   SearchResult
 } from '../types';
 import { ModelRegistry } from '../ModelRegistry';
-import { MCPToolExecution, MCPCapableAdapter } from '../shared/MCPToolExecution';
 import { ReasoningPreserver } from '../shared/ReasoningPreserver';
 import { WebSearchUtils } from '../../utils/WebSearchUtils';
 import { BRAND_NAME } from '../../../../constants/branding';
+import { MCPToolExecution } from '../shared/MCPToolExecution';
 
-export class OpenRouterAdapter extends BaseAdapter implements MCPCapableAdapter {
+export class OpenRouterAdapter extends BaseAdapter {
   readonly name = 'openrouter';
   readonly baseUrl = 'https://openrouter.ai/api/v1';
-  
-  mcpConnector?: any;
+
   private httpReferer: string;
   private xTitle: string;
 
   constructor(
     apiKey: string,
-    mcpConnector?: any,
     options?: { httpReferer?: string; xTitle?: string }
   ) {
     super(apiKey, 'anthropic/claude-3.5-sonnet');
-    this.mcpConnector = mcpConnector;
     this.httpReferer = options?.httpReferer?.trim() || 'https://synapticlabs.ai';
     this.xTitle = options?.xTitle?.trim() || BRAND_NAME;
     this.initializeCache();
@@ -706,8 +703,10 @@ export class OpenRouterAdapter extends BaseAdapter implements MCPCapableAdapter 
       }));
 
       // Execute tool calls directly using MCPToolExecution
+      // Note: This path is deprecated - tool execution now happens in StreamingOrchestrator
+      // Passing null will return error results for all tools
       const toolResults = await MCPToolExecution.executeToolCalls(
-        this,
+        null, // No toolExecutor available in adapter context
         mcpToolCalls,
         'openrouter',
         options?.onToolEvent

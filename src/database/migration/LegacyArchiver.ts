@@ -112,4 +112,13 @@ export class LegacyArchiver {
     const conversationsExists = await this.app.vault.adapter.exists(this.legacyConversationsPath);
     return workspacesExists || conversationsExists;
   }
+
+  /**
+   * Check if archive folders exist (indicates previous migration completed archiving)
+   */
+  async archiveFoldersExist(): Promise<boolean> {
+    const archivedWorkspacesExists = await this.app.vault.adapter.exists(this.archivedWorkspacesPath);
+    const archivedConversationsExists = await this.app.vault.adapter.exists(this.archivedConversationsPath);
+    return archivedWorkspacesExists || archivedConversationsExists;
+  }
 }
