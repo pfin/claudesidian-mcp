@@ -41,6 +41,15 @@ export interface AgentSummary {
   description: string;
 }
 
+/**
+ * Tool agent with modes for system prompt
+ */
+export interface ToolAgentInfo {
+  name: string;
+  description: string;
+  modes: string[];
+}
+
 export interface SystemPromptOptions {
   sessionId?: string;
   workspaceId?: string;
@@ -54,6 +63,8 @@ export interface SystemPromptOptions {
   vaultStructure?: VaultStructure | null;
   availableWorkspaces?: WorkspaceSummary[];
   availableAgents?: AgentSummary[];
+  // Tool agents with their modes (dynamically loaded from agent registry)
+  toolAgents?: ToolAgentInfo[];
 }
 
 export class SystemPromptBuilder {
@@ -69,7 +80,7 @@ export class SystemPromptBuilder {
     const sections: string[] = [];
 
     // 1. Session context (CRITICAL - must be first!)
-    const sessionSection = this.buildSessionContext(options.sessionId, options.workspaceId);
+    const sessionSection = this.buildSessionContext(options.sessionId, options.workspaceId, options.toolAgents);
     if (sessionSection) {
       sections.push(sessionSection);
     }
@@ -141,35 +152,48 @@ export class SystemPromptBuilder {
    * Build session context section for tool calls
    * Includes tools overview and context parameter instructions
    */
-  private buildSessionContext(sessionId?: string, workspaceId?: string): string | null {
+  private buildSessionContext(sessionId?: string, workspaceId?: string, toolAgents?: ToolAgentInfo[]): string | null {
     const effectiveSessionId = sessionId || `session_${Date.now()}`;
     const effectiveWorkspaceId = workspaceId || 'default';
 
     let prompt = '<tools_and_context>\n';
 
-    // Tools overview - so LLM knows what's available without calling get_tools
+    // Tools overview - dynamically built from registered agents
     prompt += `AVAILABLE TOOLS:
 You have access to the following agents via the get_tools function:
 
-- contentManager: Read, create, edit, and manage note content
-  Modes: readContent, createContent, appendContent, replaceContent, batchContent
+`;
 
-- vaultManager: File and folder operations
-  Modes: listFiles, listFolders, createFolder, moveNote, duplicateNote, deleteNote
-
-- vaultLibrarian: Advanced search capabilities
-  Modes: searchFiles, searchFolders, searchContent, universalSearch
-
-- memoryManager: Workspace and session management
-  Modes: createWorkspace, loadWorkspace, createSession, loadSession, createState
+    if (toolAgents && toolAgents.length > 0) {
+      // Dynamic list from agent registry
+      for (const agent of toolAgents) {
+        prompt += `- ${agent.name}: ${agent.description}\n`;
+        prompt += `  Modes: ${agent.modes.join(', ')}\n\n`;
+      }
+    } else {
+      // Fallback to static list if agents not available
+      prompt += `- agentManager: Custom AI agents and prompts
+  Modes: batchExecutePrompt, createAgent, deleteAgent, executePrompt, generateImage, getAgent, listAgents, listModels, toggleAgent, updateAgent
 
 - commandManager: Execute Obsidian commands
-  Modes: listCommands, executeCommand
+  Modes: executeCommand, listCommands
 
-- agentManager: Custom AI agents and prompts
-  Modes: listAgents, executePrompt, listModels
+- contentManager: Read, create, edit, and manage note content
+  Modes: appendContent, batchContent, createContent, deleteContent, findReplaceContent, prependContent, readContent, replaceByLine, replaceContent
 
-TO USE A TOOL: Call get_tools({ tools: ["agentName"] }) to get the full schema, then call the agent with mode and parameters.
+- memoryManager: Workspace and session management
+  Modes: createSession, createState, createWorkspace, listSessions, listStates, listWorkspaces, loadSession, loadState, loadWorkspace, updateSession, updateState, updateWorkspace
+
+- vaultLibrarian: Advanced search capabilities
+  Modes: batch, searchContent, searchDirectory, searchMemory
+
+- vaultManager: File and folder operations
+  Modes: createFolder, deleteFolder, deleteNote, duplicateNote, editFolder, listDirectory, moveFolder, moveNote, openNote
+
+`;
+    }
+
+    prompt += `TO USE A TOOL: Call get_tools({ tools: ["agentName"] }) to get the full schema, then call the agent with mode and parameters.
 
 `;
 

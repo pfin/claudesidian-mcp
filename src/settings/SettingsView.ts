@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, Notice, ButtonComponent, FileSystemAdapter } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, Notice, ButtonComponent, FileSystemAdapter, Platform } from 'obsidian';
 import { Settings } from '../settings';
 import { UnifiedTabs, UnifiedTabConfig } from '../components/UnifiedTabs';
 import { SettingsRouter, RouterState, SettingsTab } from './SettingsRouter';
@@ -19,7 +19,8 @@ import { DefaultsTab } from './tabs/DefaultsTab';
 import { WorkspacesTab } from './tabs/WorkspacesTab';
 import { AgentsTab } from './tabs/AgentsTab';
 import { ProvidersTab } from './tabs/ProvidersTab';
-import { GetStartedTab } from './tabs/GetStartedTab';
+// GetStartedTab is dynamically imported (desktop-only, requires Node.js)
+type GetStartedTabType = import('./tabs/GetStartedTab').GetStartedTab;
 // import { DataTab } from './tabs/DataTab'; // TODO: Re-enable when Data tab is ready
 
 /**
@@ -53,7 +54,7 @@ export class SettingsView extends PluginSettingTab {
     private workspacesTab: WorkspacesTab | undefined;
     private agentsTab: AgentsTab | undefined;
     private providersTab: ProvidersTab | undefined;
-    private getStartedTab: GetStartedTab | undefined;
+    private getStartedTab: GetStartedTabType | undefined;
     // private dataTab: DataTab | undefined; // TODO: Re-enable when Data tab is ready
 
     // Prefetched data cache
@@ -176,8 +177,12 @@ export class SettingsView extends PluginSettingTab {
             { key: 'agents', label: 'Agents' },
             { key: 'providers', label: 'Providers' },
             // { key: 'data', label: 'Data' }, // TODO: Re-enable when Data tab is ready
-            { key: 'getstarted', label: 'Get Started' }
         ];
+
+        // Get Started tab is desktop-only (MCP setup requires Node.js)
+        if (Platform.isDesktop) {
+            tabConfigs.push({ key: 'getstarted', label: 'Get Started' });
+        }
 
         this.tabs = new UnifiedTabs({
             containerEl,
@@ -448,8 +453,15 @@ export class SettingsView extends PluginSettingTab {
 
     /**
      * Render Get Started tab content
+     * Uses dynamic import to avoid loading Node.js modules on mobile
      */
-    private renderGetStartedTab(container: HTMLElement, services: any): void {
+    private async renderGetStartedTab(container: HTMLElement, services: any): Promise<void> {
+        // Desktop-only - don't render on mobile
+        if (!Platform.isDesktop) {
+            container.createEl('p', { text: 'MCP setup is only available on desktop.' });
+            return;
+        }
+
         // Destroy previous tab instance if exists
         this.getStartedTab?.destroy();
 
@@ -460,6 +472,9 @@ export class SettingsView extends PluginSettingTab {
             ? `${vaultBasePath}/.obsidian/plugins/${pluginDir}`
             : '';
         const vaultPath = vaultBasePath || '';
+
+        // Dynamic import to avoid loading Node.js modules on mobile
+        const { GetStartedTab } = await import('./tabs/GetStartedTab');
 
         // Create new GetStartedTab
         this.getStartedTab = new GetStartedTab(

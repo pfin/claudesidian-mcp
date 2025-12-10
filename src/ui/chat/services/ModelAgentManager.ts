@@ -7,7 +7,7 @@ import { ModelOption } from '../components/ModelSelector';
 import { AgentOption } from '../components/AgentSelector';
 import { WorkspaceContext } from '../../../database/types/workspace/WorkspaceTypes';
 import { MessageEnhancement } from '../components/suggesters/base/SuggesterInterfaces';
-import { SystemPromptBuilder, AgentSummary } from './SystemPromptBuilder';
+import { SystemPromptBuilder, AgentSummary, ToolAgentInfo } from './SystemPromptBuilder';
 import { ContextNotesManager } from './ContextNotesManager';
 import { ModelSelectionUtility } from '../utils/ModelSelectionUtility';
 import { AgentConfigurationUtility } from '../utils/AgentConfigurationUtility';
@@ -506,6 +506,7 @@ export class ModelAgentManager {
     const vaultStructure = this.workspaceIntegration.getVaultStructure();
     const availableWorkspaces = await this.workspaceIntegration.listAvailableWorkspaces();
     const availableAgents = await this.getAvailableAgentSummaries();
+    const toolAgents = this.getToolAgentInfo();
 
     return await this.systemPromptBuilder.build({
       sessionId,
@@ -518,7 +519,8 @@ export class ModelAgentManager {
       // Dynamic context (always loaded fresh)
       vaultStructure,
       availableWorkspaces,
-      availableAgents
+      availableAgents,
+      toolAgents
     });
   }
 
@@ -532,6 +534,59 @@ export class ModelAgentManager {
       name: agent.name,
       description: agent.description || 'Custom agent'
     }));
+  }
+
+  /**
+   * Get tool agents info from agent registry for system prompt
+   * Returns agent names, descriptions, and their available modes
+   */
+  private getToolAgentInfo(): ToolAgentInfo[] {
+    try {
+      // Access plugin from app
+      const plugin = (this.app as any).plugins?.plugins?.['claudesidian-mcp'];
+      if (!plugin) {
+        return [];
+      }
+
+      // Try agentRegistrationService first (works on both desktop and mobile)
+      const agentService = plugin.serviceManager?.getServiceIfReady?.('agentRegistrationService');
+      if (agentService) {
+        const agents = agentService.getAllAgents();
+        const agentMap = agents instanceof Map ? agents : new Map(agents.map((a: any) => [a.name, a]));
+
+        return Array.from(agentMap.entries()).map(([name, agent]: [string, any]) => {
+          const modes = agent.getModes?.() || [];
+          return {
+            name,
+            description: agent.description || '',
+            modes: modes.map((m: any) => m.slug || m.name || 'unknown')
+          };
+        });
+      }
+
+      // Fallback to connector's agentRegistry (desktop only)
+      const connector = plugin.connector;
+      if (connector?.agentRegistry) {
+        const agents = connector.agentRegistry.getAllAgents() as Map<string, any>;
+        const result: ToolAgentInfo[] = [];
+
+        for (const [name, agent] of agents) {
+          const modes = agent.getModes?.() || [];
+          result.push({
+            name,
+            description: agent.description || '',
+            modes: modes.map((m: any) => m.slug || m.name || 'unknown')
+          });
+        }
+
+        return result;
+      }
+
+      return [];
+    } catch (error) {
+      console.warn('[ModelAgentManager] Failed to get tool agent info:', error);
+      return [];
+    }
   }
 
   /**

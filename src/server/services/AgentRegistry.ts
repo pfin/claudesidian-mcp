@@ -4,7 +4,7 @@
  */
 
 import { IAgent } from '../../agents/interfaces/IAgent';
-import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+import { NexusError, NexusErrorCode } from '../../utils/errors';
 import { logger } from '../../utils/logger';
 
 /**
@@ -19,8 +19,8 @@ export class AgentRegistry {
      */
     registerAgent(agent: IAgent): void {
         if (this.agents.has(agent.name)) {
-            throw new McpError(
-                ErrorCode.InvalidParams,
+            throw new NexusError(
+                NexusErrorCode.InvalidParams,
                 `Agent ${agent.name} is already registered`
             );
         }
@@ -36,8 +36,8 @@ export class AgentRegistry {
         const agent = this.agents.get(name);
         
         if (!agent) {
-            throw new McpError(
-                ErrorCode.InvalidParams,
+            throw new NexusError(
+                NexusErrorCode.InvalidParams,
                 `Agent ${name} not found`
             );
         }
@@ -151,8 +151,8 @@ export class AgentRegistry {
      */
     validateAndGetAgent(name: string): IAgent {
         if (!name || typeof name !== 'string') {
-            throw new McpError(
-                ErrorCode.InvalidParams,
+            throw new NexusError(
+                NexusErrorCode.InvalidParams,
                 'Agent name must be a non-empty string'
             );
         }
@@ -168,8 +168,8 @@ export class AgentRegistry {
         const mode = agent.getMode(modeName);
 
         if (!mode) {
-            throw new McpError(
-                ErrorCode.InvalidParams,
+            throw new NexusError(
+                NexusErrorCode.InvalidParams,
                 `Mode ${modeName} not found in agent ${agentName}`
             );
         }

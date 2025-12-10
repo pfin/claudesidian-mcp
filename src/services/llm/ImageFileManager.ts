@@ -4,13 +4,36 @@
  */
 
 import { Vault, TFile, TFolder } from 'obsidian';
-import * as path from 'path';
-import { 
+import {
   ImageGenerationParams,
   ImageGenerationResponse,
   ImageSaveResult,
   ImageBuffer
 } from './types/ImageTypes';
+
+/**
+ * Pure JS path utilities to avoid Node.js 'path' module on mobile
+ */
+const pathUtils = {
+  basename(filePath: string): string {
+    const normalized = filePath.replace(/\\/g, '/');
+    const lastSlash = normalized.lastIndexOf('/');
+    return lastSlash === -1 ? normalized : normalized.substring(lastSlash + 1);
+  },
+  dirname(filePath: string): string {
+    const normalized = filePath.replace(/\\/g, '/');
+    const lastSlash = normalized.lastIndexOf('/');
+    return lastSlash === -1 ? '.' : normalized.substring(0, lastSlash);
+  },
+  extname(filePath: string): string {
+    const base = pathUtils.basename(filePath);
+    const lastDot = base.lastIndexOf('.');
+    return lastDot <= 0 ? '' : base.substring(lastDot);
+  },
+  normalize(filePath: string): string {
+    return filePath.replace(/\\/g, '/').replace(/\/+/g, '/');
+  }
+};
 
 export class ImageFileManager {
   private vault: Vault;
@@ -32,7 +55,7 @@ export class ImageFileManager {
       const finalPath = await this.ensureUniqueFileName(sanitizedPath, imageResponse.format);
 
       // Ensure directory exists
-      await this.ensureDirectoryExists(path.dirname(finalPath));
+      await this.ensureDirectoryExists(pathUtils.dirname(finalPath));
 
       // Save the image file
       const arrayBuffer = new ArrayBuffer(imageResponse.imageData.length);
@@ -43,7 +66,7 @@ export class ImageFileManager {
       return {
         success: true,
         filePath: finalPath,
-        fileName: path.basename(finalPath),
+        fileName: pathUtils.basename(finalPath),
         fileSize: imageResponse.imageData.length,
         dimensions: imageResponse.dimensions,
         format: imageResponse.format
@@ -52,7 +75,7 @@ export class ImageFileManager {
       return {
         success: false,
         filePath: params.savePath,
-        fileName: path.basename(params.savePath),
+        fileName: pathUtils.basename(params.savePath),
         fileSize: 0,
         dimensions: { width: 0, height: 0 },
         format: imageResponse.format,
@@ -72,11 +95,11 @@ export class ImageFileManager {
 
     for (let i = 0; i < imageResponses.length; i++) {
       const imageResponse = imageResponses[i];
-      
+
       // Create unique save path for each image
       const basePath = this.removeExtension(params.savePath);
       const extension = this.getFileExtension(imageResponse.format);
-      const indexedPath = imageResponses.length > 1 
+      const indexedPath = imageResponses.length > 1
         ? `${basePath}-${i + 1}.${extension}`
         : `${basePath}.${extension}`;
 
@@ -93,8 +116,8 @@ export class ImageFileManager {
    */
   private validatePath(filePath: string): boolean {
     // Normalize the path
-    const normalizedPath = path.normalize(filePath);
-    
+    const normalizedPath = pathUtils.normalize(filePath);
+
     // Check for directory traversal attempts
     if (normalizedPath.includes('..') || normalizedPath.startsWith('/')) {
       return false;
@@ -119,7 +142,7 @@ export class ImageFileManager {
 
     // Remove leading/trailing whitespace and normalize separators
     let sanitized = filePath.trim().replace(/\\/g, '/');
-    
+
     // Remove leading slash if present
     if (sanitized.startsWith('/')) {
       sanitized = sanitized.substring(1);
@@ -127,8 +150,8 @@ export class ImageFileManager {
 
     // Ensure the path has a valid image extension
     const validExtensions = ['png', 'jpg', 'jpeg', 'webp'];
-    const ext = path.extname(sanitized).toLowerCase().substring(1);
-    
+    const ext = pathUtils.extname(sanitized).toLowerCase().substring(1);
+
     if (!ext || !validExtensions.includes(ext)) {
       sanitized = this.removeExtension(sanitized) + '.png';
     }
@@ -144,8 +167,8 @@ export class ImageFileManager {
       return; // Root directory
     }
 
-    const folderPath = path.normalize(dirPath);
-    
+    const folderPath = pathUtils.normalize(dirPath);
+
     // Check if folder already exists
     const existingFolder = this.vault.getAbstractFileByPath(folderPath);
     if (existingFolder instanceof TFolder) {
@@ -202,7 +225,7 @@ export class ImageFileManager {
    * Remove file extension from path
    */
   private removeExtension(filePath: string): string {
-    const ext = path.extname(filePath);
+    const ext = pathUtils.extname(filePath);
     return ext ? filePath.substring(0, filePath.length - ext.length) : filePath;
   }
 
@@ -234,12 +257,12 @@ export class ImageFileManager {
     try {
       // Basic PNG validation (check PNG signature)
       const isPNG = buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]));
-      
+
       // Basic JPEG validation (check JPEG signature)
       const isJPEG = buffer.subarray(0, 2).equals(Buffer.from([0xFF, 0xD8]));
 
       // Basic WebP validation (check WebP signature)
-      const isWebP = buffer.subarray(0, 4).equals(Buffer.from('RIFF', 'ascii')) && 
+      const isWebP = buffer.subarray(0, 4).equals(Buffer.from('RIFF', 'ascii')) &&
                      buffer.subarray(8, 12).equals(Buffer.from('WEBP', 'ascii'));
 
       let format: 'png' | 'jpeg' | 'webp';

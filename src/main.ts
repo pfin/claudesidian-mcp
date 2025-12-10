@@ -3,7 +3,7 @@ import { Settings } from './settings';
 import { ServiceManager } from './core/ServiceManager';
 import { PluginLifecycleManager, type PluginLifecycleConfig } from './core/PluginLifecycleManager';
 import { BRAND_NAME } from './constants/branding';
-import { isMobile, supportsMCPBridge, getPlatformName } from './utils/platform';
+import { supportsMCPBridge } from './utils/platform';
 
 // MCPConnector type for desktop-only dynamic import
 type MCPConnectorType = import('./connector').MCPConnector;
@@ -57,9 +57,6 @@ export default class NexusPlugin extends Plugin {
 
     async onload() {
         try {
-            const platform = getPlatformName();
-            console.log(`[${BRAND_NAME}] Loading on ${platform}${isMobile() ? ' (mobile)' : ''}`);
-
             // Create service manager and settings
             this.settings = new Settings(this);
             this.serviceManager = new ServiceManager(this.app, this);
@@ -82,8 +79,6 @@ export default class NexusPlugin extends Plugin {
                     console.error(`[${BRAND_NAME}] Failed to initialize MCP connector:`, error);
                     // Continue without MCP - chat still works
                 }
-            } else {
-                console.log(`[${BRAND_NAME}] MCP server disabled on mobile - chat works with cloud LLM providers`);
             }
 
             // Create and initialize lifecycle manager

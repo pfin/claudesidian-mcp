@@ -18,7 +18,7 @@
 import { Vault } from 'obsidian';
 import { BaseAdapter } from '../adapters/BaseAdapter';
 import { LLMProviderSettings, LLMProviderConfig } from '../../../types';
-import { isProviderCompatible, isMobile, getPlatformName, getPlatformDebugInfo } from '../../../utils/platform';
+import { isMobile } from '../../../utils/platform';
 
 // Type imports for TypeScript (don't affect bundling)
 import type { WebLLMAdapter as WebLLMAdapterType } from '../adapters/webllm/WebLLMAdapter';
@@ -166,15 +166,7 @@ export class AdapterRegistry implements IAdapterRegistry {
       return;
     }
 
-    const platform = getPlatformName();
     const onMobile = isMobile();
-    const platformInfo = getPlatformDebugInfo();
-
-    console.log(`[AdapterRegistry] Platform: ${platform}, isMobile: ${onMobile}`, platformInfo);
-
-    if (onMobile) {
-      console.log(`[AdapterRegistry] Mobile mode - only fetch-based providers available (OpenRouter, Requesty, Perplexity)`);
-    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // MOBILE-COMPATIBLE PROVIDERS (use fetch, no SDK dependencies)
@@ -227,15 +219,6 @@ export class AdapterRegistry implements IAdapterRegistry {
         const { GroqAdapter } = await import('../adapters/groq/GroqAdapter');
         return new GroqAdapter(config.apiKey);
       });
-    } else {
-      // Log which providers are skipped on mobile
-      const skippedProviders = ['openai', 'anthropic', 'google', 'mistral', 'groq'];
-      for (const providerId of skippedProviders) {
-        const config = providers[providerId as keyof typeof providers];
-        if (config?.enabled && config?.apiKey) {
-          console.log(`[AdapterRegistry] Skipping ${providerId} on mobile (requires Node.js SDK)`);
-        }
-      }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

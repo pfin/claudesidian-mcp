@@ -1224,8 +1224,8 @@
 
 .chat-textarea {
     width: 100%;
-    min-height: 48px;
-    max-height: 120px;
+    min-height: 72px; /* Taller to fit ~3 lines and give send button room */
+    max-height: 200px;
     padding: 12px 48px 12px 14px; /* Right padding for embedded button */
     border: 1px solid var(--background-modifier-border);
     border-radius: 12px;
@@ -1319,11 +1319,12 @@
     color: rgb(100, 181, 246);
 }
 
-/* Send button - circular, embedded in bottom-right of input */
+/* Send button - circular, embedded and vertically centered in input */
 .chat-send-button {
     position: absolute;
-    bottom: 8px;
+    top: 50%;
     right: 8px;
+    transform: translateY(-50%);
     width: 32px;
     height: 32px;
     padding: 0;
@@ -1335,16 +1336,16 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background-color 0.2s, transform 0.15s, opacity 0.2s;
+    transition: background-color 0.2s, opacity 0.2s;
 }
 
 .chat-send-button:hover:not(:disabled) {
     background: var(--interactive-accent-hover);
-    transform: scale(1.05);
+    transform: translateY(-50%) scale(1.05);
 }
 
 .chat-send-button:active:not(:disabled) {
-    transform: scale(0.95);
+    transform: translateY(-50%) scale(0.95);
 }
 
 .chat-send-button:disabled {
@@ -5398,21 +5399,6 @@ a:hover {
  * - Material Design: 48×48dp
  */
 
-/* Mobile Provider Notice in Settings */
-.nexus-mobile-provider-notice {
-    margin-bottom: 1rem;
-}
-
-.nexus-mobile-notice-text {
-    font-size: var(--font-ui-small);
-    color: var(--text-muted);
-    font-style: italic;
-    padding: 0.75rem 1rem;
-    background: var(--background-secondary);
-    border-radius: var(--radius-s);
-    border-left: 3px solid var(--text-warning);
-}
-
 /* ------------------------------ */
 /* TOUCH TARGET SIZES (Mobile)    */
 /* ------------------------------ */
@@ -5421,8 +5407,8 @@ a:hover {
 body.is-mobile .chat-send-button {
     width: 44px;
     height: 44px;
-    bottom: 6px;
     right: 6px;
+    /* Inherits top: 50% and transform: translateY(-50%) from base style */
     --icon-size: 18px;
 }
 
@@ -5561,7 +5547,8 @@ body.is-mobile .chat-input-container {
 
 body.is-mobile .chat-textarea {
     font-size: 16px; /* Prevents iOS zoom on focus */
-    min-height: 44px;
+    min-height: 64px; /* Taller for better touch UX */
+    max-height: 160px;
     padding: 12px 52px 12px 14px; /* More room for send button */
 }
 

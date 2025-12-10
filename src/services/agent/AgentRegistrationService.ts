@@ -13,7 +13,7 @@ import NexusPlugin from '../../main';
 import { AgentManager } from '../AgentManager';
 import type { ServiceManager } from '../../core/ServiceManager';
 import { AgentFactoryRegistry } from '../../core/ServiceFactory';
-import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
+import { NexusError, NexusErrorCode } from '../../utils/errors';
 import { logger } from '../../utils/logger';
 import { CustomPromptStorageService } from "../../agents/agentManager/services/CustomPromptStorageService";
 import { AgentInitializationService } from './AgentInitializationService';
@@ -140,8 +140,8 @@ export class AgentRegistrationService implements AgentRegistrationServiceInterfa
     } catch (error) {
       this.registrationStatus.registrationDuration = Date.now() - startTime;
       logger.systemError(error as Error, 'Agent Registration with ServiceManager');
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new NexusError(
+        NexusErrorCode.InternalError,
         'Failed to initialize agents with ServiceManager',
         error
       );
@@ -241,8 +241,8 @@ export class AgentRegistrationService implements AgentRegistrationServiceInterfa
       this.registrationStatus.registrationDuration = Date.now() - startTime;
 
       logger.systemError(error as Error, 'Agent Registration');
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new NexusError(
+        NexusErrorCode.InternalError,
         'Failed to initialize agents',
         error
       );
@@ -294,8 +294,8 @@ export class AgentRegistrationService implements AgentRegistrationServiceInterfa
       logger.systemLog(`Registered ${agents.length} agents with server`);
     } catch (error) {
       logger.systemError(error as Error, 'Agent Server Registration');
-      throw new McpError(
-        ErrorCode.InternalError,
+      throw new NexusError(
+        NexusErrorCode.InternalError,
         'Failed to register agents with server',
         error
       );

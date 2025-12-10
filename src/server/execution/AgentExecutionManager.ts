@@ -5,7 +5,7 @@
 
 import { AgentRegistry } from '../services/AgentRegistry';
 import { SessionContextManager } from '../../services/SessionContextManager';
-import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+import { NexusError, NexusErrorCode } from '../../utils/errors';
 import { logger } from '../../utils/logger';
 import { getErrorMessage } from '../../utils/errorUtils';
 import { generateModeHelp, formatModeHelp } from '../../utils/parameterHintUtils';
@@ -40,11 +40,11 @@ export class AgentExecutionManager {
             // Add session instructions if needed
             return this.addSessionInstructions(processedParams, result);
         } catch (error) {
-            if (error instanceof McpError) {
+            if (error instanceof NexusError) {
                 throw error;
             }
-            throw new McpError(
-                ErrorCode.InternalError,
+            throw new NexusError(
+                NexusErrorCode.InternalError,
                 `Failed to execute agent ${agentName} in mode ${mode}`,
                 error
             );
@@ -63,8 +63,8 @@ export class AgentExecutionManager {
             const mode = agent.getMode(modeName);
 
             if (!mode) {
-                throw new McpError(
-                    ErrorCode.InvalidParams,
+                throw new NexusError(
+                    NexusErrorCode.InvalidParams,
                     `Mode ${modeName} not found in agent ${agentName}`
                 );
             }
@@ -82,11 +82,11 @@ export class AgentExecutionManager {
             // Format and return the help
             return formatModeHelp(help);
         } catch (error) {
-            if (error instanceof McpError) {
+            if (error instanceof NexusError) {
                 throw error;
             }
-            throw new McpError(
-                ErrorCode.InternalError,
+            throw new NexusError(
+                NexusErrorCode.InternalError,
                 `Failed to get help for agent ${agentName} mode ${modeName}`,
                 error
             );
@@ -268,8 +268,8 @@ export class AgentExecutionManager {
         const validation = this.validateExecutionParameters(agentName, mode, params);
         
         if (!validation.isValid) {
-            throw new McpError(
-                ErrorCode.InvalidParams,
+            throw new NexusError(
+                NexusErrorCode.InvalidParams,
                 `Invalid execution parameters: ${validation.errors.join(', ')}`
             );
         }
@@ -291,8 +291,8 @@ export class AgentExecutionManager {
         const mode = agent.getMode(modeName);
 
         if (!mode) {
-            throw new McpError(
-                ErrorCode.InvalidParams,
+            throw new NexusError(
+                NexusErrorCode.InvalidParams,
                 `Mode ${modeName} not found in agent ${agentName}`
             );
         }
