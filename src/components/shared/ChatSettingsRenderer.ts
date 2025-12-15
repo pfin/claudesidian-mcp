@@ -16,6 +16,7 @@ import { LLMProviderManager } from '../../services/llm/providers/ProviderManager
 import { StaticModelsService } from '../../services/StaticModelsService';
 import { LLMProviderSettings, ThinkingEffort } from '../../types/llm/ProviderTypes';
 import { FilePickerRenderer } from '../workspace/FilePickerRenderer';
+import { isDesktop, isProviderCompatible } from '../../utils/platform';
 
 /**
  * Current settings state
@@ -136,7 +137,9 @@ export class ChatSettingsRenderer {
     return Object.keys(llmSettings.providers).filter(id => {
       const config = llmSettings.providers[id];
       if (!config?.enabled) return false;
-      return !!config.apiKey || id === 'ollama' || id === 'lmstudio';
+      if (!isProviderCompatible(id)) return false;
+      // Local providers store the server URL in apiKey
+      return !!config.apiKey;
     });
   }
 
@@ -152,6 +155,21 @@ export class ChatSettingsRenderer {
       .setName('Provider')
       .addDropdown(dropdown => {
         const providers = this.getEnabledProviders();
+
+        // If the currently-selected provider isn't usable on this platform (e.g. desktop-only
+        // providers on mobile), fall back to the first available option.
+        if (providers.length > 0 && !providers.includes(this.settings.provider)) {
+          const nextProvider = providers[0];
+          this.settings.provider = nextProvider;
+          this.settings.model = '';
+          void this.getDefaultModelForProvider(nextProvider).then((modelId) => {
+            // Avoid stomping if user changed provider during async load
+            if (this.settings.provider !== nextProvider) return;
+            this.settings.model = modelId;
+            this.notifyChange();
+            this.render();
+          });
+        }
 
         if (providers.length === 0) {
           dropdown.addOption('', 'No providers enabled');
@@ -287,8 +305,21 @@ export class ChatSettingsRenderer {
     new Setting(content)
       .setName('Provider')
       .addDropdown(dropdown => {
-        dropdown.addOption('google', 'Google AI');
-        dropdown.addOption('openrouter', 'OpenRouter');
+        const providers: Array<{ id: 'google' | 'openrouter'; name: string }> = isDesktop()
+          ? [
+            { id: 'google', name: 'Google AI' },
+            { id: 'openrouter', name: 'OpenRouter' }
+          ]
+          : [{ id: 'openrouter', name: 'OpenRouter' }];
+
+        // If current selection isn't supported on this platform, fall back.
+        if (!providers.some(p => p.id === this.settings.imageProvider)) {
+          this.settings.imageProvider = providers[0].id;
+          this.settings.imageModel = IMAGE_MODELS[this.settings.imageProvider]?.[0]?.id || '';
+          this.notifyChange();
+        }
+
+        providers.forEach(p => dropdown.addOption(p.id, p.name));
 
         dropdown.setValue(this.settings.imageProvider);
         dropdown.onChange((value) => {

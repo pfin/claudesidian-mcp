@@ -18,7 +18,7 @@ import { LLMProviderManager } from '../../services/llm/providers/ProviderManager
 import { Settings } from '../../settings';
 import { Card, CardConfig } from '../../components/Card';
 import { LLMSettingsNotifier } from '../../services/llm/LLMSettingsNotifier';
-import { supportsLocalLLM } from '../../utils/platform';
+import { isDesktop, supportsLocalLLM, MOBILE_COMPATIBLE_PROVIDERS } from '../../utils/platform';
 
 /**
  * Provider display configuration
@@ -180,13 +180,24 @@ export class ProvidersTab {
     private renderProviderGroups(): void {
         const settings = this.getSettings();
 
-        // Local providers - only show on desktop (require localhost servers)
-        if (supportsLocalLLM()) {
-            this.container.createDiv('nexus-provider-group-title').setText('LOCAL PROVIDERS');
-            this.renderProviderList(['webllm', 'ollama', 'lmstudio'], settings);
+        // Mobile: Only fetch-based providers work (no Node.js/Electron SDKs)
+        if (!isDesktop()) {
+            this.container.createEl('p', {
+                cls: 'setting-item-description',
+                text: 'On mobile, only OpenRouter, Requesty, and Perplexity are supported. Configure local providers and SDK-based providers on desktop.'
+            });
+            this.container.createDiv('nexus-provider-group-title').setText('MOBILE PROVIDERS');
+            this.renderProviderList([...MOBILE_COMPATIBLE_PROVIDERS], settings);
+            return;
         }
 
-        // Cloud providers - available on all platforms
+        // Desktop: Local providers (require localhost servers)
+        if (supportsLocalLLM()) {
+            this.container.createDiv('nexus-provider-group-title').setText('LOCAL PROVIDERS');
+            this.renderProviderList(['ollama', 'lmstudio'], settings);
+        }
+
+        // Desktop: Cloud providers (SDK + fetch-based)
         this.container.createDiv('nexus-provider-group-title').setText('CLOUD PROVIDERS');
         this.renderProviderList(
             ['openai', 'anthropic', 'google', 'mistral', 'groq', 'openrouter', 'requesty', 'perplexity'],

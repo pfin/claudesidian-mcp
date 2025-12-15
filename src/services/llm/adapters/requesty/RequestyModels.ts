@@ -12,12 +12,12 @@ export const REQUESTY_MODELS: ModelSpec[] = [
   // OpenAI models via Requesty
   {
     provider: 'requesty',
-    name: 'GPT-4o',
-    apiName: 'openai/gpt-4o',
-    contextWindow: 128000,
-    maxTokens: 16384,
-    inputCostPerMillion: 2.50,
-    outputCostPerMillion: 10.00,
+    name: 'GPT-5.2',
+    apiName: 'openai/gpt-5.2',
+    contextWindow: 200000,
+    maxTokens: 65536,
+    inputCostPerMillion: 5.00,
+    outputCostPerMillion: 15.00,
     capabilities: {
       supportsJSON: true,
       supportsImages: true,
@@ -28,12 +28,28 @@ export const REQUESTY_MODELS: ModelSpec[] = [
   },
   {
     provider: 'requesty',
-    name: 'GPT-4.1',
-    apiName: 'openai/gpt-4.1',
-    contextWindow: 1047576,
-    maxTokens: 32768,
-    inputCostPerMillion: 2.00,
-    outputCostPerMillion: 8.00,
+    name: 'GPT-5.2 Pro',
+    apiName: 'openai/gpt-5.2-pro',
+    contextWindow: 200000,
+    maxTokens: 65536,
+    inputCostPerMillion: 15.00,
+    outputCostPerMillion: 60.00,
+    capabilities: {
+      supportsJSON: true,
+      supportsImages: true,
+      supportsFunctions: true,
+      supportsStreaming: false, // Pro model does not support streaming
+      supportsThinking: true
+    }
+  },
+  {
+    provider: 'requesty',
+    name: 'GPT-5.2 Mini',
+    apiName: 'openai/gpt-5.2-mini',
+    contextWindow: 200000,
+    maxTokens: 65536,
+    inputCostPerMillion: 0.25,
+    outputCostPerMillion: 1.00,
     capabilities: {
       supportsJSON: true,
       supportsImages: true,
@@ -44,28 +60,12 @@ export const REQUESTY_MODELS: ModelSpec[] = [
   },
   {
     provider: 'requesty',
-    name: 'GPT-4.1 Mini',
-    apiName: 'openai/gpt-4.1-mini',
-    contextWindow: 1047576,
-    maxTokens: 32768,
-    inputCostPerMillion: 0.40,
-    outputCostPerMillion: 1.60,
-    capabilities: {
-      supportsJSON: true,
-      supportsImages: true,
-      supportsFunctions: true,
-      supportsStreaming: true,
-      supportsThinking: false
-    }
-  },
-  {
-    provider: 'requesty',
-    name: 'GPT-4.1 Nano',
-    apiName: 'openai/gpt-4.1-nano',
-    contextWindow: 1047576,
-    maxTokens: 32768,
-    inputCostPerMillion: 0.10,
-    outputCostPerMillion: 0.40,
+    name: 'GPT-5 Nano',
+    apiName: 'openai/gpt-5-nano',
+    contextWindow: 200000,
+    maxTokens: 65536,
+    inputCostPerMillion: 0.05,
+    outputCostPerMillion: 0.20,
     capabilities: {
       supportsJSON: true,
       supportsImages: false,

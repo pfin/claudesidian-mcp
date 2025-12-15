@@ -1,8 +1,9 @@
-import { App, Plugin, PluginSettingTab, Setting, Notice, ButtonComponent, FileSystemAdapter, Platform } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, Notice, ButtonComponent, FileSystemAdapter } from 'obsidian';
 import { Settings } from '../settings';
 import { UnifiedTabs, UnifiedTabConfig } from '../components/UnifiedTabs';
 import { SettingsRouter, RouterState, SettingsTab } from './SettingsRouter';
 import { UpdateManager } from '../utils/UpdateManager';
+import { supportsMCPBridge } from '../utils/platform';
 
 // Services
 import { WorkspaceService } from '../services/WorkspaceService';
@@ -180,7 +181,7 @@ export class SettingsView extends PluginSettingTab {
         ];
 
         // Get Started tab is desktop-only (MCP setup requires Node.js)
-        if (Platform.isDesktop) {
+        if (supportsMCPBridge()) {
             tabConfigs.push({ key: 'getstarted', label: 'Get Started' });
         }
 
@@ -457,7 +458,7 @@ export class SettingsView extends PluginSettingTab {
      */
     private async renderGetStartedTab(container: HTMLElement, services: any): Promise<void> {
         // Desktop-only - don't render on mobile
-        if (!Platform.isDesktop) {
+        if (!supportsMCPBridge()) {
             container.createEl('p', { text: 'MCP setup is only available on desktop.' });
             return;
         }

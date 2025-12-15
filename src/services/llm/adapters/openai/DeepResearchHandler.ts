@@ -15,7 +15,7 @@ export class DeepResearchHandler {
    * Check if a model is a deep research model
    */
   isDeepResearchModel(model: string): boolean {
-    return model.includes('deep-research');
+    return model.includes('deep-research') || model.includes('gpt-5.2-pro');
   }
 
   /**
@@ -47,9 +47,13 @@ export class DeepResearchHandler {
       model,
       input,
       reasoning: { summary: 'auto' },
-      tools: [{ type: 'web_search_preview' }], // Default tool for deep research
       background: true // Enable async processing
     };
+
+    // Add tools if specified, default to web_search_preview for deep research models
+    if (model.includes('deep-research')) {
+        requestParams.tools = [{ type: 'web_search_preview' }];
+    }
 
     // Add optional tools if specified
     if (options?.tools && options.tools.length > 0) {
@@ -60,7 +64,7 @@ export class DeepResearchHandler {
         }
         return { type: tool.type };
       });
-      requestParams.tools = [...requestParams.tools, ...drTools];
+      requestParams.tools = [...(requestParams.tools || []), ...drTools];
     }
 
     try {
@@ -105,7 +109,7 @@ export class DeepResearchHandler {
    */
   private async pollForCompletion(responseId: string, model: string, maxWaitTime = 300000): Promise<any> {
     const startTime = Date.now();
-    const pollInterval = model.includes('o4-mini') ? 2000 : 5000; // Faster polling for mini model
+    const pollInterval = (model.includes('o4-mini') || model.includes('gpt-5.2-pro')) ? 2000 : 5000; // Faster polling for mini model and pro model
     
     console.log(`[DeepResearchHandler] Polling for completion of ${responseId} with ${pollInterval}ms intervals`);
     

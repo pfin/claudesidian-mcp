@@ -63,9 +63,9 @@ export class OpenAIImageAdapter extends BaseImageAdapter {
       console.log(`[OpenAI] Generating image with model: ${this.imageModel}, size: ${params.size || '1024x1024'}`);
       
       const response = await this.withRetry(async () => {
-        // Use a supported model for Responses API (gpt-4.1 supports image_generation tool)
+        // Use a supported model for Responses API (gpt-5.2 supports image_generation tool)
         const requestParams = {
-          model: 'gpt-4.1', // Model that supports image_generation tool
+          model: 'gpt-5.2', // Model that supports image_generation tool
           input: params.prompt,
           tools: [{
             type: 'image_generation' as const,

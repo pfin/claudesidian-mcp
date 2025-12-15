@@ -34,20 +34,6 @@ const context = await esbuild.context({
     // Node.js built-ins (both with and without node: prefix)
     ...builtins,
     ...nodeBuiltinsWithPrefix,
-    // SDKs with Node.js dependencies - marked external for mobile compatibility
-    // These are dynamically imported and will fail gracefully on mobile
-    "@google/genai",
-    "@modelcontextprotocol/sdk",
-    "@modelcontextprotocol/sdk/types.js",
-    "@modelcontextprotocol/sdk/server/index.js",
-    "@modelcontextprotocol/sdk/server/stdio.js",
-    "@modelcontextprotocol/sdk/server/streamableHttp.js",
-    "groq-sdk",
-    "@anthropic-ai/sdk",
-    "openai",
-    "@mistralai/mistralai",
-    "express",
-    "raw-body"
   ],
   loader: {
     ".node": "file",

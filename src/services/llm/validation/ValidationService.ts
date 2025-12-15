@@ -161,7 +161,7 @@ export class LLMValidationService {
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'gpt-4.1-nano',
+          model: 'gpt-5-nano',
           messages: [{ role: 'user', content: 'Hi' }],
           max_tokens: 5
         })
@@ -320,7 +320,7 @@ export class LLMValidationService {
   private static async validateOpenRouter(apiKey: string): Promise<{ success: boolean; error?: string }> {
     try {
       const requestBody = {
-        model: 'openai/gpt-4o-mini',
+        model: 'openai/gpt-5-nano',
         messages: [{ role: 'user', content: 'Hi' }],
         max_tokens: 5
       };
@@ -400,7 +400,7 @@ export class LLMValidationService {
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'openai/gpt-4.1-nano',
+          model: 'openai/gpt-5-nano',
           messages: [{ role: 'user', content: 'Hi' }],
           max_tokens: 5
         })

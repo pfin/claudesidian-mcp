@@ -143,7 +143,7 @@ export interface ImageBuffer {
 // OpenAI specific types (available but not active)
 export namespace OpenAI {
   export interface ImageGenerationRequest {
-    model: 'gpt-4.1'; // Model that supports image_generation tool
+    model: 'gpt-5.2'; // Model that supports image_generation tool
     input: string;
     tools: Array<{
       type: 'image_generation';

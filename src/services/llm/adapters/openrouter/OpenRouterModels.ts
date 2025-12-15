@@ -9,6 +9,40 @@ import { ModelSpec } from '../modelTypes';
 // OpenRouter provides access to models from other providers
 // Each model has its own specific API name in OpenRouter
 export const OPENROUTER_MODELS: ModelSpec[] = [
+  // OpenAI GPT-5.2 models via OpenRouter
+  {
+    provider: 'openrouter',
+    name: 'GPT-5.2',
+    apiName: 'openai/gpt-5.2',
+    contextWindow: 400000,
+    maxTokens: 128000,
+    inputCostPerMillion: 1.75,
+    outputCostPerMillion: 14.00,
+    capabilities: {
+      supportsJSON: true,
+      supportsImages: true,
+      supportsFunctions: true,
+      supportsStreaming: true,
+      supportsThinking: true
+    }
+  },
+  {
+    provider: 'openrouter',
+    name: 'GPT-5.2 Pro',
+    apiName: 'openai/gpt-5.2-pro',
+    contextWindow: 400000,
+    maxTokens: 128000,
+    inputCostPerMillion: 21.00,
+    outputCostPerMillion: 168.00,
+    capabilities: {
+      supportsJSON: true,
+      supportsImages: true,
+      supportsFunctions: true,
+      supportsStreaming: true,
+      supportsThinking: true
+    }
+  },
+
   // OpenAI GPT-5 models via OpenRouter
   {
     provider: 'openrouter',
@@ -72,72 +106,6 @@ export const OPENROUTER_MODELS: ModelSpec[] = [
       supportsFunctions: true,
       supportsStreaming: true,
       supportsThinking: true
-    }
-  },
-
-  // OpenAI GPT-4 models via OpenRouter
-  {
-    provider: 'openrouter',
-    name: 'GPT-4o',
-    apiName: 'openai/gpt-4o-2024-11-20',
-    contextWindow: 128000,
-    maxTokens: 16384,
-    inputCostPerMillion: 2.50,
-    outputCostPerMillion: 10.00,
-    capabilities: {
-      supportsJSON: true,
-      supportsImages: true,
-      supportsFunctions: true,
-      supportsStreaming: true,
-      supportsThinking: false
-    }
-  },
-  {
-    provider: 'openrouter',
-    name: 'GPT-4.1',
-    apiName: 'openai/gpt-4.1',
-    contextWindow: 1047576,
-    maxTokens: 32768,
-    inputCostPerMillion: 8.00,
-    outputCostPerMillion: 8.00,
-    capabilities: {
-      supportsJSON: true,
-      supportsImages: true,
-      supportsFunctions: true,
-      supportsStreaming: true,
-      supportsThinking: false
-    }
-  },
-  {
-    provider: 'openrouter',
-    name: 'GPT-4.1 Mini',
-    apiName: 'openai/gpt-4.1-mini',
-    contextWindow: 1047576,
-    maxTokens: 32768,
-    inputCostPerMillion: 0.10,
-    outputCostPerMillion: 1.60,
-    capabilities: {
-      supportsJSON: true,
-      supportsImages: true,
-      supportsFunctions: true,
-      supportsStreaming: true,
-      supportsThinking: false
-    }
-  },
-  {
-    provider: 'openrouter',
-    name: 'GPT-4.1 Nano',
-    apiName: 'openai/gpt-4.1-nano',
-    contextWindow: 1047576,
-    maxTokens: 32768,
-    inputCostPerMillion: 0.10,
-    outputCostPerMillion: 0.40,
-    capabilities: {
-      supportsJSON: true,
-      supportsImages: false,
-      supportsFunctions: true,
-      supportsStreaming: true,
-      supportsThinking: false
     }
   },
 

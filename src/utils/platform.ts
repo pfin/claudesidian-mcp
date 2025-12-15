@@ -22,7 +22,25 @@ export const isMobile = (): boolean => {
  * Check if running on desktop (Mac, Windows, Linux)
  */
 export const isDesktop = (): boolean => {
-    return Platform.isDesktop;
+    // Platform.isMobile can be true on some macOS Catalyst/simulator environments.
+    // For feature gating (Node/Electron-only APIs), we treat those as "mobile-like".
+    return Platform.isDesktop && !Platform.isMobile;
+};
+
+/**
+ * Check if Node.js runtime APIs are available.
+ * Obsidian desktop (Electron) provides Node; mobile does not.
+ */
+export const hasNodeRuntime = (): boolean => {
+    return typeof process !== 'undefined' && !!(process as any)?.versions?.node;
+};
+
+/**
+ * Check if running inside Electron.
+ * Helpful for gating features that depend on Electron/Node integration.
+ */
+export const isElectron = (): boolean => {
+    return typeof process !== 'undefined' && !!(process as any)?.versions?.electron;
 };
 
 /**
@@ -65,7 +83,7 @@ export const isLinux = (): boolean => {
  * These require localhost servers which only work on desktop.
  */
 export const supportsLocalLLM = (): boolean => {
-    return Platform.isDesktop;
+    return isDesktop() && hasNodeRuntime();
 };
 
 /**
@@ -73,7 +91,7 @@ export const supportsLocalLLM = (): boolean => {
  * MCP requires Node.js HTTP server (Express) which is not available on mobile.
  */
 export const supportsMCPBridge = (): boolean => {
-    return Platform.isDesktop;
+    return isDesktop() && hasNodeRuntime();
 };
 
 /**
@@ -157,8 +175,16 @@ export const DESKTOP_ONLY_PROVIDERS = [
  * Check if a provider is compatible with the current platform
  */
 export const isProviderCompatible = (providerId: string): boolean => {
+    // Explicit feature gating for special providers
+    if (providerId === 'webllm') {
+        return supportsWebLLM();
+    }
+    if (providerId === 'ollama' || providerId === 'lmstudio') {
+        return supportsLocalLLM();
+    }
+
     if (isDesktop()) {
-        return true; // All providers work on desktop
+        return true; // All non-special providers work on desktop
     }
 
     // On mobile, only allow fetch-based providers
@@ -169,8 +195,9 @@ export const isProviderCompatible = (providerId: string): boolean => {
  * Get list of providers available on current platform
  */
 export const getAvailableProviders = (): string[] => {
-    if (isDesktop()) {
-        return [...MOBILE_COMPATIBLE_PROVIDERS, ...DESKTOP_ONLY_PROVIDERS];
-    }
-    return [...MOBILE_COMPATIBLE_PROVIDERS];
+    const candidates = isDesktop()
+        ? [...MOBILE_COMPATIBLE_PROVIDERS, ...DESKTOP_ONLY_PROVIDERS]
+        : [...MOBILE_COMPATIBLE_PROVIDERS];
+
+    return candidates.filter(isProviderCompatible);
 };

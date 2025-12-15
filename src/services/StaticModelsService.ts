@@ -188,20 +188,20 @@ export class StaticModelsService {
           model.capabilities.supportsFunctions || 
           model.id.includes('code') || 
           model.provider === 'mistral' ||
-          model.id.includes('gpt-4')
+          model.id.includes('gpt-5')
         );
       
       case 'writing':
         return allModels.filter(model => 
           model.provider === 'anthropic' || 
-          model.id.includes('gpt-4') ||
+          model.id.includes('gpt-5') ||
           model.contextWindow > 32000
         );
       
       case 'analysis':
         return allModels.filter(model => 
           model.provider === 'anthropic' ||
-          model.id.includes('gpt-4') ||
+          model.id.includes('gpt-5') ||
           model.contextWindow > 100000
         );
       

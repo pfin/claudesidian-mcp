@@ -11,6 +11,7 @@
 import { ModelOption } from '../components/ModelSelector';
 import { ProviderUtils } from '../utils/ProviderUtils';
 import { getNexusPlugin } from '../../../utils/pluginLocator';
+import { getAvailableProviders } from '../../../utils/platform';
 
 /**
  * Utility class for model selection and management
@@ -34,7 +35,7 @@ export class ModelSelectionUtility {
       }
 
       // Allowed providers for chat view
-      const allowedProviders = ['openai', 'openrouter', 'anthropic', 'google', 'ollama', 'lmstudio', 'webllm'];
+      const allowedProviders = getAvailableProviders();
 
       // Get all available models from ModelDiscoveryService (via LLMService)
       const allModels = await llmService.getAvailableModels();

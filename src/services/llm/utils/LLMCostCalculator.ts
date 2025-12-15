@@ -80,8 +80,8 @@ export class LLMCostCalculator {
       return 0.1;
     }
 
-    // GPT-4.1 family: 75% off cached tokens (pay 25%)
-    if (model.startsWith('gpt-4.1')) {
+    // GPT-5.2 family: 75% off cached tokens (pay 25%)
+    if (model.startsWith('gpt-5.2')) {
       return 0.25;
     }
 
