@@ -97,53 +97,24 @@ npm install @dao-xyz/sqlite3-vec
 - MIT licensed
 - ~5-6MB WASM bundle
 
-### 2.3 Basic Usage (Actual Implementation - Dec 2025)
+### 2.3 Basic Usage (Obsidian Renderer - Current Implementation, Dec 2025)
+
+Nexus runs sqlite3-vec in Obsidian’s Electron renderer using the **WASM build** (no native Node bindings). The low-level WASM bootstrapping is encapsulated by `SQLiteCacheManager`.
 
 ```typescript
-import sqlite3Vec from '@dao-xyz/sqlite3-vec';
-const { createDatabase } = sqlite3Vec;
+// Current approach: sqlite3-vec WASM + manual persistence (export/deserialize)
+// See: src/database/storage/SQLiteCacheManager.ts
+import sqlite3InitModule from '@dao-xyz/sqlite3-vec/wasm';
 
-// Create file-based database (Node/Electron uses better-sqlite3)
-const db = await createDatabase({ database: '/path/to/.nexus/cache.db' });
-await db.open();
-
-// Schema creation with exec (no params)
-db.exec(`CREATE TABLE notes (id TEXT PRIMARY KEY, content TEXT)`);
-db.exec(`CREATE VIRTUAL TABLE embeddings USING vec0(embedding float[384])`);
-
-// Parameterized queries use prepare() + stmt
-const stmt = await db.prepare('INSERT INTO notes(id, content) VALUES(?, ?)');
-stmt.run(['note-1', 'Hello world']);
-
-// Vec0 inserts - rowid auto-generated, use Buffer for blob
-const vecStmt = await db.prepare('INSERT INTO embeddings(embedding) VALUES(?)');
-vecStmt.run([Buffer.from(float32Array.buffer)]);
-
-// Get auto-generated rowid
-const idStmt = await db.prepare('SELECT last_insert_rowid() as id');
-const result = idStmt.get([]);
-
-// KNN search with vec_distance_l2
-const searchStmt = await db.prepare(`
-  SELECT rowid, vec_distance_l2(embedding, ?) as distance
-  FROM embeddings
-  ORDER BY distance
-  LIMIT 10
-`);
-const results = searchStmt.all([Buffer.from(queryBuffer)]);
-
-// Auto-persists on close (no manual save needed)
-await db.close();
+// sqlite3.wasm is loaded via Obsidian's vault adapter (readBinary) and passed
+// to sqlite3InitModule via instantiateWasm. The DB is kept in memory and
+// persisted to `.nexus/cache.db` inside the vault.
 ```
 
-**Key API Notes:**
-- Node version uses `better-sqlite3` which auto-persists to file
-- Use `prepare()` + `stmt.get()/all()/run()` for parameterized queries
-- Use `exec()` only for schema creation (no params supported)
-- Anonymous placeholders (`?`) work; numbered (`?1, ?2`) have issues
-- Vec0 tables auto-generate rowid - can't set it explicitly via parameters
-- Pass `Buffer.from(float32Array.buffer)` for blob binding
-- Use `vec_distance_l2()` for KNN search, not `MATCH` syntax
+**Key API Notes (Current):**
+- Use the sqlite3-vec **WASM** build in Obsidian (renderer-safe); do not rely on `better-sqlite3`
+- Vec0 tables auto-generate `rowid` (metadata stored separately and joined by rowid)
+- Bind embeddings as BLOBs (`Buffer`/`Uint8Array`) and use `vec_distance_l2()` for KNN ranking
 
 ---
 
@@ -1111,27 +1082,10 @@ No explicit checkpoint file needed.
 - Use Obsidian's vault adapter for persistence
 
 ```typescript
-// Database persistence with vault adapter
-class VaultDatabaseManager {
-  private readonly DB_PATH = '.nexus/cache.db';
-
-  async loadDatabase(): Promise<Database> {
-    const db = await createDatabase();  // In-memory initially
-
-    // Load existing data if present
-    if (await this.app.vault.adapter.exists(this.DB_PATH)) {
-      const data = await this.app.vault.adapter.readBinary(this.DB_PATH);
-      await db.deserialize(new Uint8Array(data));
-    }
-
-    return db;
-  }
-
-  async saveDatabase(db: Database): Promise<void> {
-    const data = db.serialize();  // Export as binary
-    await this.app.vault.adapter.writeBinary(this.DB_PATH, data);
-  }
-}
+// In Nexus, SQLiteCacheManager handles vault persistence for sqlite3-vec WASM.
+// See: src/database/storage/SQLiteCacheManager.ts
+await sqliteCache.initialize(); // loads sqlite3.wasm + deserializes .nexus/cache.db
+await sqliteCache.save();       // exports and writes .nexus/cache.db
 ```
 
 **SharedArrayBuffer:** Electron typically enables this by default, but if issues arise:
@@ -1545,31 +1499,31 @@ class EmbeddingErrorHandler {
 
 | Component | File | Status |
 |-----------|------|--------|
-| **SQLiteCacheManager** | `src/database/storage/SQLiteCacheManager.ts` | ✅ Rewritten for @dao-xyz/sqlite3-vec API |
-| **EmbeddingEngine** | `src/services/embeddings/EmbeddingEngine.ts` | ✅ Transformers.js CDN loading |
+| **SQLiteCacheManager** | `src/database/storage/SQLiteCacheManager.ts` | ✅ sqlite3-vec WASM + vault persistence |
+| **EmbeddingEngine** | `src/services/embeddings/EmbeddingEngine.ts` | ✅ Iframe sandbox (Transformers.js) |
 | **EmbeddingService** | `src/services/embeddings/EmbeddingService.ts` | ✅ Note + trace embeddings |
 | **EmbeddingWatcher** | `src/services/embeddings/EmbeddingWatcher.ts` | ✅ 10-second debounce |
 | **IndexingQueue** | `src/services/embeddings/IndexingQueue.ts` | ✅ Background indexing with progress |
 | **EmbeddingStatusBar** | `src/services/embeddings/EmbeddingStatusBar.ts` | ✅ Desktop-only progress display |
 | **EmbeddingManager** | `src/services/embeddings/EmbeddingManager.ts` | ✅ High-level coordinator |
-| **Native Extension** | `node_modules/@dao-xyz/sqlite3-vec/dist/native/` | ✅ darwin-arm64 binary |
+| **WASM Asset** | `sqlite3.wasm` | ✅ Bundled with plugin output |
 
 ### Pending Integration ⏳
 
 | Task | Description |
 |------|-------------|
-| **VaultLibrarian Integration** | Add `semantic: boolean` param to searchContent/searchMemory modes |
-| **Diagnostic Logging** | Add startup logging to track initialization flow |
 | **Settings UI** | Add enable/disable toggle for embeddings |
-| **Trace Embedding Hook** | Wire EmbeddingService.embedTrace() to trace creation |
+| **Semantic trace tool** | Expose `EmbeddingService.semanticTraceSearch()` via an MCP mode (optional) |
+| **Memory semantic search** | If desired, wire `searchMemory` to trace vector search (optional) |
 
 ### Key Implementation Details
 
-1. **Native sqlite-vec**: Using better-sqlite3 with prebuilt darwin-arm64 extension (v0.1.7-alpha.2)
-2. **File-based DB**: Auto-persists to `.nexus/cache.db` via better-sqlite3 (no manual save)
-3. **Vec0 rowid quirk**: Auto-generates rowid, use `last_insert_rowid()` after insert
-4. **Buffer binding**: Pass `Buffer.from(float32Array.buffer)` for embedding blobs
-5. **Search syntax**: Use `vec_distance_l2()` function, NOT `MATCH` syntax
+1. **Renderer-safe SQLite**: sqlite3-vec WASM (`@dao-xyz/sqlite3-vec/wasm`) loaded from bundled `sqlite3.wasm`
+2. **Vault persistence**: In-memory DB persisted to `.nexus/cache.db` via export/deserialize APIs
+3. **Vec0 rowid quirk**: Auto-generates rowid; store metadata separately and join by rowid
+4. **Buffer binding**: Bind embeddings as BLOBs (`Buffer`/`Uint8Array`)
+5. **Search syntax**: Use `vec_distance_l2()` for KNN ranking (not `MATCH`)
+6. **Embedding generation**: Transformers.js runs in an iframe sandbox and caches the model in IndexedDB
 
 ---
 
@@ -1582,7 +1536,7 @@ class EmbeddingErrorHandler {
 4. Use `Transformers.js` with `Xenova/all-MiniLM-L6-v2` for embeddings
 5. Store vectors in `vec0` virtual tables with native KNN search
 6. Watch vault changes with 10-second debounce
-7. Embed traces on creation (synchronous)
+7. Embed traces on creation when embedding service is available (plus backfill)
 8. One embedding per note (no chunking), one per trace
 
 **Data Flow:**
@@ -1594,9 +1548,9 @@ Old JSON → LegacyMigrator → JSONL (source of truth)
                          Embeddings (generated from vault content)
 ```
 
-**Semantic Search Flag:**
+**Semantic Search Flag (Current):**
 - `searchContent` with `semantic: true` → returns ranked paths only (no content)
-- `searchMemory` with `semantic: true` → returns ranked traces WITH content
+- `searchMemory` → keyword/FTS search (semantic trace search is not exposed as a tool yet)
 - `searchDirectory` → no semantic option (path matching only)
 
 **Benefits:**

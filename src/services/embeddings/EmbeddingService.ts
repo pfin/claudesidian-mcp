@@ -206,6 +206,7 @@ export class EmbeddingService {
 
   /**
    * Semantic search for notes by query text
+   * Applies heuristic re-ranking (Recency + Title Match)
    *
    * @param query - Search query
    * @param limit - Maximum number of results (default: 10)
@@ -219,18 +220,64 @@ export class EmbeddingService {
       const queryEmbedding = await this.engine.generateEmbedding(query);
       const queryBuffer = Buffer.from(queryEmbedding.buffer);
 
-      // Use vec_distance_l2 for KNN search with vec0 tables
-      const results = await this.db.query<SimilarNote>(`
+      // 1. FETCH CANDIDATES
+      // Fetch 3x the limit to allow for re-ranking
+      // We also need the 'updated' timestamp for recency scoring
+      const candidateLimit = limit * 3;
+      
+      const candidates = await this.db.query<{ notePath: string; distance: number; updated: number }>(`
         SELECT
           em.notePath,
+          em.updated,
           vec_distance_l2(ne.embedding, ?) as distance
         FROM note_embeddings ne
         JOIN embedding_metadata em ON em.rowid = ne.rowid
         ORDER BY distance
         LIMIT ?
-      `, [queryBuffer, limit]);
+      `, [queryBuffer, candidateLimit]);
 
-      return results;
+      // 2. RE-RANKING LOGIC
+      const now = Date.now();
+      const oneDayMs = 1000 * 60 * 60 * 24;
+      const queryLower = query.toLowerCase();
+      const queryTerms = queryLower.split(/\s+/).filter(t => t.length > 2);
+
+      const ranked = candidates.map(item => {
+        let score = item.distance;
+
+        // --- A. Recency Boost ---
+        // Boost notes modified in the last 30 days
+        const daysSinceUpdate = (now - item.updated) / oneDayMs;
+        if (daysSinceUpdate < 30) {
+          // Linear decay: 0 days = 15% boost, 30 days = 0% boost
+          const recencyBoost = 0.15 * (1 - (daysSinceUpdate / 30));
+          score = score * (1 - recencyBoost);
+        }
+
+        // --- B. Title/Path Boost ---
+        // If query terms appear in the file path, give a significant boost
+        const pathLower = item.notePath.toLowerCase();
+        
+        // Exact filename match (strongest)
+        if (pathLower.includes(queryLower)) {
+          score = score * 0.8; // 20% boost
+        } 
+        // Partial term match
+        else if (queryTerms.some(term => pathLower.includes(term))) {
+          score = score * 0.9; // 10% boost
+        }
+
+        return {
+          notePath: item.notePath,
+          distance: score,
+          originalDistance: item.distance // Keep for debugging if needed
+        };
+      });
+
+      // 3. SORT & SLICE
+      ranked.sort((a, b) => a.distance - b.distance);
+
+      return ranked.slice(0, limit);
     } catch (error) {
       console.error('[EmbeddingService] Semantic search failed:', error);
       return [];
@@ -357,6 +404,7 @@ export class EmbeddingService {
 
   /**
    * Semantic search for traces by query text
+   * Applies heuristic re-ranking (Recency)
    *
    * @param query - Search query
    * @param workspaceId - Filter by workspace
@@ -375,21 +423,60 @@ export class EmbeddingService {
       const queryEmbedding = await this.engine.generateEmbedding(query);
       const queryBuffer = Buffer.from(queryEmbedding.buffer);
 
+      // 1. FETCH CANDIDATES
+      // Fetch 3x limit for re-ranking
+      const candidateLimit = limit * 3;
+
       // Use vec_distance_l2 for KNN search with vec0 tables
-      const results = await this.db.query<TraceSearchResult>(`
+      const candidates = await this.db.query<{ 
+        traceId: string; 
+        workspaceId: string; 
+        sessionId: string | null; 
+        distance: number;
+        created: number;
+      }>(`
         SELECT
           tem.traceId,
           tem.workspaceId,
           tem.sessionId,
+          tem.created,
           vec_distance_l2(te.embedding, ?) as distance
         FROM trace_embeddings te
         JOIN trace_embedding_metadata tem ON tem.rowid = te.rowid
         WHERE tem.workspaceId = ?
         ORDER BY distance
         LIMIT ?
-      `, [queryBuffer, workspaceId, limit]);
+      `, [queryBuffer, workspaceId, candidateLimit]);
 
-      return results;
+      // 2. RE-RANKING LOGIC
+      const now = Date.now();
+      const oneDayMs = 1000 * 60 * 60 * 24;
+
+      const ranked = candidates.map(item => {
+        let score = item.distance;
+
+        // Recency Boost for Traces
+        // Traces are memories; recent ones are often more relevant context
+        const daysOld = (now - item.created) / oneDayMs;
+        
+        if (daysOld < 14) { // Boost last 2 weeks
+           // Linear decay: 0 days = 20% boost
+           const recencyBoost = 0.20 * (1 - (daysOld / 14));
+           score = score * (1 - recencyBoost);
+        }
+
+        return {
+          traceId: item.traceId,
+          workspaceId: item.workspaceId,
+          sessionId: item.sessionId,
+          distance: score
+        };
+      });
+
+      // 3. SORT & SLICE
+      ranked.sort((a, b) => a.distance - b.distance);
+
+      return ranked.slice(0, limit);
     } catch (error) {
       console.error('[EmbeddingService] Semantic trace search failed:', error);
       return [];

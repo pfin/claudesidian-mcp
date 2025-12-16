@@ -77,6 +77,32 @@ export class SQLiteCacheManager implements IStorageBackend, ISQLiteCacheManager 
   }
 
   /**
+   * Resolve the sqlite3.wasm path for the currently-installed plugin folder.
+   *
+   * Nexus supports legacy installs under `.obsidian/plugins/claudesidian-mcp/`
+   * as well as the current `.obsidian/plugins/nexus/` folder.
+   */
+  private async resolveSqliteWasmPath(): Promise<string> {
+    const configDir = (this.app.vault as any)?.configDir || '.obsidian';
+    const candidatePluginFolders = ['nexus', 'claudesidian-mcp'];
+    const candidates = candidatePluginFolders.map(folder => `${configDir}/plugins/${folder}/sqlite3.wasm`);
+
+    for (const candidate of candidates) {
+      try {
+        if (await this.app.vault.adapter.exists(candidate)) {
+          return candidate;
+        }
+      } catch (error) {
+        // Ignore adapter errors and continue trying other candidates.
+      }
+    }
+
+    throw new Error(
+      `[SQLiteCacheManager] sqlite3.wasm not found. Looked in: ${candidates.join(', ')}`
+    );
+  }
+
+  /**
    * Initialize sqlite3 WASM and create/open database
    * Uses in-memory database with manual file persistence
    */
@@ -91,7 +117,7 @@ export class SQLiteCacheManager implements IStorageBackend, ISQLiteCacheManager 
 
       // Load WASM binary using Obsidian's vault adapter
       // The WASM file is copied to the plugin directory by esbuild
-      const wasmPath = '.obsidian/plugins/claudesidian-mcp/sqlite3.wasm';
+      const wasmPath = await this.resolveSqliteWasmPath();
 
       console.log('[SQLiteCacheManager] Loading WASM from:', wasmPath);
 
