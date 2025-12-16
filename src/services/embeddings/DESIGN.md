@@ -757,14 +757,62 @@ No explicit checkpoint file needed.
 
 ## 8. Obsidian/Electron Considerations
 
-### 8.1 CDN Loading
+### 8.1 WASM Pitfalls & Electron Context
+
+**Most browser WASM pitfalls don't apply to Obsidian (Electron):**
+
+| Pitfall | Browser | Obsidian/Electron |
+|---------|---------|-------------------|
+| COOP/COEP headers | Required for SharedArrayBuffer | ❌ Not applicable - no HTTP |
+| MIME types | Server must serve correctly | ❌ Local file loading |
+| OPFS storage | Browser file system API | ⚠️ Use vault adapter instead |
+| Module workers | May need polyfill | ⚠️ Use Blob URL pattern |
+| Bundler config | Vite needs exclusions | ✅ Already external in esbuild |
+
+**Key consideration: Storage location**
+
+`@dao-xyz/sqlite3-vec` may default to OPFS or in-memory. For Obsidian, we need:
+- Database in `.nexus/cache.db` (syncable with vault)
+- Use Obsidian's vault adapter for persistence
+
+```typescript
+// Database persistence with vault adapter
+class VaultDatabaseManager {
+  private readonly DB_PATH = '.nexus/cache.db';
+
+  async loadDatabase(): Promise<Database> {
+    const db = await createDatabase();  // In-memory initially
+
+    // Load existing data if present
+    if (await this.app.vault.adapter.exists(this.DB_PATH)) {
+      const data = await this.app.vault.adapter.readBinary(this.DB_PATH);
+      await db.deserialize(new Uint8Array(data));
+    }
+
+    return db;
+  }
+
+  async saveDatabase(db: Database): Promise<void> {
+    const data = db.serialize();  // Export as binary
+    await this.app.vault.adapter.writeBinary(this.DB_PATH, data);
+  }
+}
+```
+
+**SharedArrayBuffer:** Electron typically enables this by default, but if issues arise:
+```typescript
+// In Electron main process (if needed)
+app.commandLine.appendSwitch('enable-features', 'SharedArrayBuffer');
+```
+
+### 8.2 CDN Loading
 
 Load Transformers.js from CDN (same pattern as WebLLM):
 ```typescript
 const module = await import('https://esm.run/@huggingface/transformers');
 ```
 
-### 8.2 Startup Sequence
+### 8.3 Startup Sequence
 
 ```typescript
 // In plugin onload()
@@ -780,7 +828,7 @@ setTimeout(async () => {
 }, 3000);
 ```
 
-### 8.3 Platform Support
+### 8.4 Platform Support
 
 | Platform | Status | Notes |
 |----------|--------|-------|
@@ -792,7 +840,7 @@ setTimeout(async () => {
 
 ---
 
-## 8. Summary
+## 9. Summary
 
 **Approach:**
 1. Replace `sql.js` with `@dao-xyz/sqlite3-vec` (single database)
