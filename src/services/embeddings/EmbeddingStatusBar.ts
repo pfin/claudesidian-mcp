@@ -27,6 +27,7 @@ export class EmbeddingStatusBar {
   private statusBarItem: HTMLElement | null = null;
   private textEl: HTMLSpanElement | null = null;
   private controlEl: HTMLSpanElement | null = null;
+  private currentIconName: string | null = null;
   private isEnabled: boolean;
 
   constructor(
@@ -48,6 +49,8 @@ export class EmbeddingStatusBar {
     if (!this.isEnabled) {
       return;
     }
+
+    this.currentIconName = null;
 
     // Create status bar item (returns HTMLElement)
     this.statusBarItem = this.plugin.addStatusBarItem();
@@ -138,6 +141,13 @@ export class EmbeddingStatusBar {
   private setControlIcon(iconName: string, onClick?: () => void): void {
     if (!this.controlEl) return;
 
+    // Optimization: Don't update if icon hasn't changed
+    // This prevents DOM thrashing which can break click events
+    if (this.currentIconName === iconName) {
+      return;
+    }
+    this.currentIconName = iconName;
+
     // Clear existing content
     this.controlEl.empty();
 
@@ -183,6 +193,7 @@ export class EmbeddingStatusBar {
       this.statusBarItem = null;
       this.textEl = null;
       this.controlEl = null;
+      this.currentIconName = null;
     }
   }
 }
