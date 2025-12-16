@@ -469,8 +469,11 @@ export class SettingsView extends PluginSettingTab {
         // Get plugin path for MCP config
         const vaultBasePath = this.getVaultBasePath();
         const pluginDir = (this.plugin as any).manifest?.dir;
-        const pluginPath = vaultBasePath && pluginDir
-            ? `${vaultBasePath}/.obsidian/plugins/${pluginDir}`
+        // Extract just the folder name in case manifest.dir contains a full path
+        // (e.g., ".obsidian/plugins/claudesidian-mcp" instead of just "claudesidian-mcp")
+        const pluginFolderName = pluginDir ? pluginDir.split('/').pop() || pluginDir : '';
+        const pluginPath = vaultBasePath && pluginFolderName
+            ? `${vaultBasePath}/.obsidian/plugins/${pluginFolderName}`
             : '';
         const vaultPath = vaultBasePath || '';
 
