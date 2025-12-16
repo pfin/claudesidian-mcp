@@ -111,9 +111,90 @@ CREATE INDEX IF NOT EXISTS idx_embeddings_path ON note_embeddings(notePath);
 CREATE INDEX IF NOT EXISTS idx_embeddings_hash ON note_embeddings(contentHash);
 ```
 
-### 2.2 Option B: sqlite-vec with Custom sql.js Build
+### 2.2 Option B: Pre-built SQLite+sqlite-vec WASM Packages (Recommended for Native Vector Search)
 
-For maximum performance with large note collections:
+**Good news!** Pre-built packages exist with sqlite-vec already compiled into SQLite WASM:
+
+#### Option B1: `@dao-xyz/sqlite3-vec` (Best for Unified Browser/Node)
+
+```bash
+npm install @dao-xyz/sqlite3-vec
+```
+
+**Features:**
+- SQLite + sqlite-vec pre-compiled for browser WASM
+- Works in both browser and Node.js with same API
+- No build step required
+- MIT licensed
+
+**Usage:**
+```typescript
+import { createDatabase } from '@dao-xyz/sqlite3-vec';
+
+// Create in-memory database with sqlite-vec already loaded
+const db = await createDatabase(':memory:');
+
+// Create vector table - sqlite-vec is already available!
+db.exec(`
+  CREATE VIRTUAL TABLE note_embeddings USING vec0(
+    embedding float[384]
+  );
+`);
+
+// Insert embedding (as JSON array string)
+db.run(
+  'INSERT INTO note_embeddings(rowid, embedding) VALUES (?, ?)',
+  [1, JSON.stringify(Array.from(embeddingFloat32Array))]
+);
+
+// KNN query - native vector similarity!
+const results = db.exec(`
+  SELECT rowid, distance
+  FROM note_embeddings
+  WHERE embedding MATCH ?
+  ORDER BY distance
+  LIMIT 10
+`, [JSON.stringify(Array.from(queryEmbedding))]);
+```
+
+#### Option B2: `sqlite-vec-wasm-demo` (Official Demo Package)
+
+```bash
+npm install sqlite-vec-wasm-demo
+```
+
+**Features:**
+- Official SQLite WASM build with sqlite-vec statically compiled
+- From Alex Garcia (sqlite-vec author)
+- ~5.9MB WASM file
+- Demo/alpha status (API may change)
+
+**Usage:**
+```typescript
+// Load from CDN or npm
+import sqlite3InitModule from 'sqlite-vec-wasm-demo';
+
+const sqlite3 = await sqlite3InitModule();
+const db = new sqlite3.oo1.DB(':memory:');
+
+// sqlite-vec functions are available
+db.exec(`CREATE VIRTUAL TABLE vecs USING vec0(embedding float[384])`);
+```
+
+#### Option B3: `@sqliteai/sqlite-wasm` (With sqlite-vector extension)
+
+```bash
+npm install @sqliteai/sqlite-wasm
+```
+
+**Features:**
+- SQLite WASM with sqlite-vector (similar to sqlite-vec) pre-compiled
+- Auto-initialized extensions
+- Latest version: 3.50.4
+
+### 2.3 Option C: Custom sql.js Build (Most Complex)
+
+For maximum control:
 1. Build custom sql.js with sqlite-vec compiled in
 2. Use native vector similarity operations
 
@@ -121,6 +202,38 @@ For maximum performance with large note collections:
 - Custom Emscripten build process
 - Maintaining a forked sql.js build
 - More complex deployment
+
+**Not recommended unless you have specific requirements.**
+
+### 2.4 Architecture Decision: Dual Database Approach
+
+Since Nexus already uses sql.js for the main cache database, the cleanest approach is:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Nexus Storage Layer                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────────────┐    ┌──────────────────────────┐   │
+│  │   sql.js (existing)   │    │  @dao-xyz/sqlite3-vec   │   │
+│  │                       │    │                          │   │
+│  │  • Conversations      │    │  • note_embeddings       │   │
+│  │  • Messages           │    │  • vec0 virtual table    │   │
+│  │  • Workspaces         │    │  • Native KNN search     │   │
+│  │  • FTS4 search        │    │                          │   │
+│  │                       │    │  .nexus/embeddings.db    │   │
+│  │  .nexus/cache.db      │    │                          │   │
+│  └──────────────────────┘    └──────────────────────────┘   │
+│                                                              │
+│            ↕ Linked by notePath/messageId                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Benefits:**
+- No changes to existing sql.js setup
+- Native sqlite-vec performance for vector operations
+- Clean separation of concerns
+- Can be added incrementally
 
 ---
 
