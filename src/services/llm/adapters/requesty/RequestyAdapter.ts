@@ -47,8 +47,6 @@ export class RequestyAdapter extends BaseAdapter {
    */
   async* generateStreamAsync(prompt: string, options?: GenerateOptions): AsyncGenerator<StreamChunk, void, unknown> {
     try {
-      console.log('[RequestyAdapter] Starting streaming response');
-
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -83,8 +81,6 @@ export class RequestyAdapter extends BaseAdapter {
         extractFinishReason: (parsed) => parsed.choices[0]?.finish_reason || null,
         extractUsage: (parsed) => parsed.usage || null
       });
-
-      console.log('[RequestyAdapter] Streaming completed');
     } catch (error) {
       console.error('[RequestyAdapter] Streaming error:', error);
       throw error;
@@ -189,10 +185,8 @@ export class RequestyAdapter extends BaseAdapter {
     const usage = this.extractUsage(data);
     let finishReason = choice.finish_reason || 'stop';
 
-    // If tools were provided and we got tool calls, we need to handle them
-    // For now, just return the response as-is since tool execution is complex
+    // If tools were provided and we got tool calls, return placeholder text
     if (options?.tools && choice.message?.toolCalls && choice.message.toolCalls.length > 0) {
-      console.log(`[Requesty Adapter] Received ${choice.message.toolCalls.length} tool calls, but tool execution not implemented in basic mode`);
       text = text || '[AI requested tool calls but tool execution not available]';
     }
 

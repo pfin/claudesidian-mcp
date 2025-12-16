@@ -178,11 +178,9 @@ export class SSEStreamProcessor {
               // Preserve reasoning data for OpenRouter Gemini and Google models
               if (toolCall.reasoning_details) {
                 accumulated.reasoning_details = toolCall.reasoning_details;
-                console.log('[SSEStreamProcessor:3] ✅ Preserved reasoning_details on new tool call');
               }
               if (toolCall.thought_signature) {
                 accumulated.thought_signature = toolCall.thought_signature;
-                console.log('[SSEStreamProcessor:3] ✅ Preserved thought_signature on new tool call');
               }
 
               toolCallsAccumulator.set(index, accumulated);
@@ -203,11 +201,9 @@ export class SSEStreamProcessor {
               // Also preserve reasoning data if it arrives in later chunks
               if (toolCall.reasoning_details && !existing.reasoning_details) {
                 existing.reasoning_details = toolCall.reasoning_details;
-                console.log('[SSEStreamProcessor:3] ✅ Preserved reasoning_details on existing tool call');
               }
               if (toolCall.thought_signature && !existing.thought_signature) {
                 existing.thought_signature = toolCall.thought_signature;
-                console.log('[SSEStreamProcessor:3] ✅ Preserved thought_signature on existing tool call');
               }
             }
           }
@@ -227,10 +223,7 @@ export class SSEStreamProcessor {
         if (options.extractUsage) {
           const extractedUsage = options.extractUsage(parsed);
           if (extractedUsage) {
-            console.log(`[${debugLabel} SSE Debug] Usage extracted from stream event:`, extractedUsage);
             usage = extractedUsage;
-          } else if (parsed.usage) {
-            console.log(`[${debugLabel} SSE Debug] Event has usage but extractUsage returned null:`, parsed.usage);
           }
         }
 
@@ -247,12 +240,6 @@ export class SSEStreamProcessor {
             completionTokens: usage.completion_tokens || 0,
             totalTokens: usage.total_tokens || 0
           } : undefined;
-
-          console.log(`[${debugLabel} SSE Debug] Yielding completion chunk with usage:`, {
-            hasUsage: !!finalUsageFormatted,
-            usage: finalUsageFormatted,
-            rawUsage: usage
-          });
 
           eventQueue.push({
             content: '',

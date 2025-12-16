@@ -167,11 +167,9 @@ export class ReasoningPreserver {
         // CRITICAL: Preserve reasoning data on each tool call (Gemini requires this)
         if (tc.reasoning_details) {
           toolCall.reasoning_details = tc.reasoning_details;
-          console.log('[ReasoningPreserver:5] ✅ Preserved reasoning_details on tool_call in message');
         }
         if (tc.thought_signature) {
           toolCall.thought_signature = tc.thought_signature;
-          console.log('[ReasoningPreserver:5] ✅ Preserved thought_signature on tool_call in message');
         }
 
         return toolCall;

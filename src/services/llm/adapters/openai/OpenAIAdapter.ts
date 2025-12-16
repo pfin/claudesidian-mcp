@@ -136,7 +136,6 @@ export class OpenAIAdapter extends BaseAdapter {
         // Enable reasoning for GPT-5/o-series models if thinking is enabled
         // This enables chain-of-thought reasoning that streams to the UI
         if (options?.enableThinking && this.supportsReasoning(model)) {
-          console.log('[OpenAI] Enabling reasoning for model:', model, 'effort:', options.thinkingEffort || 'medium');
           responseParams.reasoning = {
             effort: options.thinkingEffort || 'medium',  // Use user-selected effort level
             summary: 'auto'    // Can be 'auto', 'concise', or 'detailed'
@@ -144,8 +143,6 @@ export class OpenAIAdapter extends BaseAdapter {
           // Include encrypted_content for multi-turn conversations
           responseParams.include = responseParams.include || [];
           responseParams.include.push('reasoning.encrypted_content');
-        } else if (options?.enableThinking) {
-          console.log('[OpenAI] Thinking requested but model does not support reasoning:', model);
         }
 
         // Create Responses API stream
@@ -180,11 +177,6 @@ export class OpenAIAdapter extends BaseAdapter {
 
     try {
       for await (const event of stream) {
-        // Debug: Log all event types to understand stream structure
-        if (event.type && event.type.includes('reasoning')) {
-          console.log('[OpenAI Reasoning] Event:', event.type, JSON.stringify(event).substring(0, 300));
-        }
-
         // Extract response ID from events
         if (event.response?.id && !currentResponseId) {
           currentResponseId = event.response.id;
@@ -206,13 +198,11 @@ export class OpenAIAdapter extends BaseAdapter {
 
           case 'response.output_item.added':
             // New output item added (could be message, function call, or reasoning)
-            console.log('[OpenAI] output_item.added:', event.item?.type, event.item?.id);
             if (event.item) {
               const item = event.item;
 
               // Handle reasoning item (GPT-5/o-series chain-of-thought)
               if (item.type === 'reasoning') {
-                console.log('[OpenAI Reasoning] Reasoning item started:', item.id);
                 currentReasoningId = item.id;
                 yield {
                   content: '',
@@ -240,9 +230,7 @@ export class OpenAIAdapter extends BaseAdapter {
 
           case 'response.content_part.added':
             // Content part added - check for reasoning_text
-            console.log('[OpenAI] content_part.added:', event.part?.type);
             if (event.part?.type === 'reasoning_text') {
-              console.log('[OpenAI Reasoning] reasoning_text part added:', event.part.text?.substring(0, 100));
               isInReasoningPart = true;
               if (event.part.text) {
                 yield {

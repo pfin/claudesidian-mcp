@@ -197,17 +197,6 @@ export class OpenRouterAdapter extends BaseAdapter {
               parsed.choices?.[0]?.reasoning_details ||
               ReasoningPreserver.extractFromStreamChunk(parsed);
 
-            if (capturedReasoning) {
-              console.log('[OpenRouter:1] ✅ Captured reasoning_details from stream:',
-                JSON.stringify(capturedReasoning).substring(0, 150) + '...');
-              // DEBUG: Check what else is in the chunk that has reasoning_details
-              const delta = parsed.choices?.[0]?.delta;
-              console.log('[OpenRouter DEBUG] Chunk with reasoning_details:', {
-                parsed_keys: Object.keys(parsed),
-                delta_keys: delta ? Object.keys(delta) : 'no delta',
-                delta_full: JSON.stringify(delta).substring(0, 500)
-              });
-            }
           }
 
           // Capture thought_signature for Gemini models (OpenAI compatibility format)
@@ -230,10 +219,6 @@ export class OpenRouterAdapter extends BaseAdapter {
               parsed.thought_signature ||
               parsed.thoughtSignature;
 
-            if (capturedThoughtSignature) {
-              console.log('[OpenRouter:1b] ✅ Captured thought_signature from stream:',
-                capturedThoughtSignature.substring(0, 50) + '...');
-            }
           }
 
           // Process all available choices - reasoning models may use multiple choices
@@ -262,7 +247,6 @@ export class OpenRouterAdapter extends BaseAdapter {
                     for (const tc of toolCalls) {
                       if (tc.id === entry.id || tc.id?.startsWith(entry.id?.split('_').slice(0, -1).join('_'))) {
                         tc.thought_signature = entry.data;
-                        console.log('[OpenRouter:1c] ✅ Extracted thought_signature from reasoning.encrypted for tool:', tc.id);
                       }
                     }
                     // Also store as fallback
@@ -288,7 +272,6 @@ export class OpenRouterAdapter extends BaseAdapter {
                   tc.extra_content?.google?.thought_signature;
                 if (tcThoughtSig && !tc.thought_signature) {
                   tc.thought_signature = tcThoughtSig;
-                  console.log('[OpenRouter:1c] ✅ Found direct thought_signature on tool_call');
                 }
               }
 
@@ -326,9 +309,6 @@ export class OpenRouterAdapter extends BaseAdapter {
                   parsed.thought_signature ||
                   choice?.thought_signature;
 
-                if (capturedThoughtSignature) {
-                  console.log('[OpenRouter:1d] ✅ Captured thought_signature from FINAL chunk!');
-                }
               }
 
               // When we detect completion, trigger async usage fetch (only once)
@@ -492,14 +472,6 @@ export class OpenRouterAdapter extends BaseAdapter {
         const currency = 'USD';
 
         if (promptTokens > 0 || completionTokens > 0) {
-          console.log('[OpenRouter] generation stats fetched', {
-            generationId,
-            promptTokens,
-            completionTokens,
-            totalTokens: promptTokens + completionTokens,
-            finishReason: data.data?.native_finish_reason || data.data?.finish_reason,
-            totalCost
-          });
           return {
             promptTokens,
             completionTokens,

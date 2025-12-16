@@ -59,9 +59,7 @@ export class OpenAIImageAdapter extends BaseImageAdapter {
   async generateImage(params: ImageGenerationParams): Promise<ImageGenerationResponse> {
     try {
       this.validateConfiguration();
-      
-      console.log(`[OpenAI] Generating image with model: ${this.imageModel}, size: ${params.size || '1024x1024'}`);
-      
+
       const response = await this.withRetry(async () => {
         // Use a supported model for Responses API (gpt-5.2 supports image_generation tool)
         const requestParams = {
@@ -74,14 +72,7 @@ export class OpenAIImageAdapter extends BaseImageAdapter {
           }]
         };
 
-        console.log(`[OpenAI] Sending request to OpenAI Responses API with gpt-image-1...`);
-        const startTime = Date.now();
-        
         const result = await this.client.responses.create(requestParams);
-        
-        const requestTime = Date.now() - startTime;
-        console.log(`[OpenAI] Responses API request completed in ${requestTime}ms`);
-        
         return result;
       }, 2); // Reduced retry count for faster failure detection
 
@@ -226,7 +217,6 @@ export class OpenAIImageAdapter extends BaseImageAdapter {
 
     // Convert base64 to buffer
     const buffer = Buffer.from(imageBase64, 'base64');
-    console.log(`[OpenAI] Received base64 image data (${buffer.length} bytes)`);
 
     // Extract dimensions from size parameter or use default
     const size = params.size || '1024x1024';

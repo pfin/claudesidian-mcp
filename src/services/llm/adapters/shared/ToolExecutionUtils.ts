@@ -67,7 +67,6 @@ export class ToolExecutionUtils {
     }
 
     try {
-      console.log(`[ToolExecutionUtils] Executing ${toolCalls.length} tool calls for ${provider}`);
       return await toolExecutor.executeToolCalls(toolCalls, context, onToolEvent);
     } catch (error) {
       console.error(`[ToolExecutionUtils] Tool execution failed:`, error);

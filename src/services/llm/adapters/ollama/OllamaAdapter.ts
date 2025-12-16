@@ -429,17 +429,12 @@ export class OllamaAdapter extends BaseAdapter {
   }
 
   async getModelPricing(modelId: string): Promise<ModelPricing | null> {
-    console.log('OllamaAdapter: getModelPricing called for model:', modelId);
-    
     // Local models are free - zero rates
-    const pricing: ModelPricing = {
+    return {
       rateInputPerMillion: 0,
       rateOutputPerMillion: 0,
       currency: 'USD'
     };
-    
-    console.log('OllamaAdapter: returning free pricing:', pricing);
-    return pricing;
   }
 
   async isAvailable(): Promise<boolean> {

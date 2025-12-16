@@ -133,8 +133,6 @@ export abstract class BaseAdapter {
 
     if (isSdkStream) {
       // Process SDK stream (OpenAI SDK, Groq, Mistral)
-      console.log(`[${debugLabel}] Processing SDK stream with tool call accumulation`);
-
       const toolCallsAccumulator: Map<number, any> = new Map();
       let usage: any = undefined;
 
@@ -170,8 +168,6 @@ export abstract class BaseAdapter {
       };
     } else {
       // Process SSE stream (Requesty, Perplexity, OpenRouter via Response object)
-      console.log(`[${debugLabel}] Processing SSE stream with tool call accumulation`);
-
       yield* this.processSSEStream(stream as Response, {
         ...options,
         accumulateToolCalls: true,

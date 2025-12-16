@@ -48,10 +48,8 @@ export abstract class BaseImageAdapter extends BaseAdapter {
    */
   async generateImageSafely(params: ImageGenerationParams): Promise<ImageGenerationResult> {
     const startTime = Date.now();
-    
+
     try {
-      console.log(`[${this.name}] Starting image generation for prompt: "${params.prompt.substring(0, 50)}..."`);
-      
       // Validate parameters first
       const validation = this.validateImageParams(params);
       if (!validation.isValid) {
@@ -72,7 +70,6 @@ export abstract class BaseImageAdapter extends BaseAdapter {
       ]);
 
       const generationTime = Date.now() - startTime;
-      console.log(`[${this.name}] Image generation completed in ${generationTime}ms`);
 
       // Calculate costs
       const cost = await this.calculateImageCost(response, finalParams.model || this.currentModel);

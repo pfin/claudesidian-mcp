@@ -52,8 +52,6 @@ export class MistralAdapter extends BaseAdapter {
    */
   async* generateStreamAsync(prompt: string, options?: GenerateOptions): AsyncGenerator<StreamChunk, void, unknown> {
     try {
-      console.log('[MistralAdapter] Starting streaming response');
-
       const result = await this.client.chat.stream({
         model: options?.model || this.currentModel,
         messages: this.buildMessages(prompt, options?.systemPrompt),
@@ -73,8 +71,6 @@ export class MistralAdapter extends BaseAdapter {
         extractFinishReason: (chunk) => chunk.data?.choices[0]?.finish_reason || null,
         extractUsage: (chunk) => chunk.data?.usage || null
       });
-
-      console.log('[MistralAdapter] Streaming completed');
     } catch (error) {
       console.error('[MistralAdapter] Streaming error:', error);
       throw error;
@@ -160,10 +156,8 @@ export class MistralAdapter extends BaseAdapter {
     const usage = this.extractUsage(response);
     let finishReason = choice.finishReason || 'stop';
 
-    // If tools were provided and we got tool calls, we need to handle them
-    // For now, just return the response as-is since tool execution is complex
+    // If tools were provided and we got tool calls, return placeholder text
     if (options?.tools && choice.message?.toolCalls && choice.message.toolCalls.length > 0) {
-      console.log(`[Mistral Adapter] Received ${choice.message.toolCalls.length} tool calls, but tool execution not implemented in basic mode`);
       text = text || '[AI requested tool calls but tool execution not available]';
     }
 

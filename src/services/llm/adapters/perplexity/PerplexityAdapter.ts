@@ -51,7 +51,6 @@ export class PerplexityAdapter extends BaseAdapter {
       }
 
       // Use standard chat completions (Perplexity's strength is web search, not tool calling)
-      console.log('[Perplexity Adapter] Using chat completions with web search capabilities');
       return await this.generateWithChatCompletions(prompt, options);
     } catch (error) {
       throw this.handleError(error, 'generation');
@@ -64,8 +63,6 @@ export class PerplexityAdapter extends BaseAdapter {
    */
   async* generateStreamAsync(prompt: string, options?: PerplexityOptions): AsyncGenerator<StreamChunk, void, unknown> {
     try {
-      console.log('[PerplexityAdapter] Starting streaming response');
-
       const requestBody = {
         model: options?.model || this.currentModel,
         messages: this.buildMessages(prompt, options?.systemPrompt),
@@ -107,8 +104,6 @@ export class PerplexityAdapter extends BaseAdapter {
         extractFinishReason: (parsed) => parsed.choices?.[0]?.finish_reason || null,
         extractUsage: (parsed) => parsed.usage || null
       });
-
-      console.log('[PerplexityAdapter] Streaming completed');
     } catch (error) {
       console.error('[PerplexityAdapter] Streaming error:', error);
       throw error;
@@ -218,10 +213,8 @@ export class PerplexityAdapter extends BaseAdapter {
     const usage = this.extractUsage(data);
     let finishReason = choice.finish_reason || 'stop';
 
-    // If tools were provided and we got tool calls, we need to handle them
-    // For now, just return the response as-is since tool execution is complex
+    // If tools were provided and we got tool calls, return placeholder text
     if (options?.tools && choice.message?.toolCalls && choice.message.toolCalls.length > 0) {
-      console.log(`[Perplexity Adapter] Received ${choice.message.toolCalls.length} tool calls, but tool execution not implemented in basic mode`);
       text = text || '[AI requested tool calls but tool execution not available]';
     }
 

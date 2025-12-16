@@ -79,11 +79,9 @@ export class StreamChunkProcessor {
           // Preserve reasoning data for OpenRouter Gemini and Google models
           if (toolCall.reasoning_details) {
             accumulated.reasoning_details = toolCall.reasoning_details;
-            console.log('[StreamChunkProcessor:3] ✅ Preserved reasoning_details on new tool call');
           }
           if (toolCall.thought_signature) {
             accumulated.thought_signature = toolCall.thought_signature;
-            console.log('[StreamChunkProcessor:3] ✅ Preserved thought_signature on new tool call');
           }
 
           toolCallsAccumulator.set(index, accumulated);
@@ -98,11 +96,9 @@ export class StreamChunkProcessor {
           // Also preserve reasoning data if it arrives in later chunks
           if (toolCall.reasoning_details && !existing.reasoning_details) {
             existing.reasoning_details = toolCall.reasoning_details;
-            console.log('[StreamChunkProcessor:3] ✅ Preserved reasoning_details on existing tool call');
           }
           if (toolCall.thought_signature && !existing.thought_signature) {
             existing.thought_signature = toolCall.thought_signature;
-            console.log('[StreamChunkProcessor:3] ✅ Preserved thought_signature on existing tool call');
           }
         }
       }

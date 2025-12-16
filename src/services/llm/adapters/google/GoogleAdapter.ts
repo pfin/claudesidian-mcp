@@ -261,7 +261,6 @@ export class GoogleAdapter extends BaseAdapter {
             const thoughtSignature = ReasoningPreserver.extractThoughtSignatureFromPart(part);
             if (thoughtSignature) {
               toolCall.thought_signature = thoughtSignature;
-              console.log('[Google] ✅ Thought signature captured for:', part.functionCall.name);
             }
 
             toolCallAccumulator.set(toolId, toolCall);
