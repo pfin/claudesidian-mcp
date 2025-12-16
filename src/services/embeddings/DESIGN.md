@@ -600,7 +600,287 @@ const extractor = await pipeline(
 
 ---
 
-## 9. Summary
+## 9. Obsidian/Electron-Specific Considerations
+
+Based on patterns established in your WebLLM implementation, here are critical considerations for running Transformers.js in Obsidian's Electron environment:
+
+### 9.1 Module Loading Strategy
+
+**Challenge:** Obsidian's sandboxed Electron environment has restrictions on bundling large WASM-based libraries.
+
+**Solution:** Load Transformers.js from CDN at runtime (following WebLLM pattern):
+
+```typescript
+// src/services/embeddings/EmbeddingEngine.ts
+
+// Type imports for TypeScript (erased at runtime)
+import type * as TransformersTypes from '@huggingface/transformers';
+
+// Lazy-loaded module
+let transformers: typeof TransformersTypes | null = null;
+
+/**
+ * Load Transformers.js from CDN at runtime
+ * Uses jsDelivr's esm.run for browser-compatible ESM
+ */
+async function loadTransformers(): Promise<typeof TransformersTypes> {
+  if (transformers) return transformers;
+
+  console.log('[EmbeddingEngine] Loading Transformers.js from CDN...');
+
+  try {
+    // Dynamic import from CDN - works in Electron's renderer
+    // @ts-ignore - TypeScript doesn't understand CDN URLs
+    const module = await import('https://esm.run/@huggingface/transformers');
+
+    transformers = module as typeof TransformersTypes;
+
+    if (!transformers.pipeline) {
+      throw new Error('pipeline not found in module');
+    }
+
+    console.log('[EmbeddingEngine] Transformers.js loaded from CDN');
+    return transformers;
+  } catch (error) {
+    console.error('[EmbeddingEngine] CDN load failed:', error);
+    throw new Error(`Failed to load Transformers.js: ${error}`);
+  }
+}
+```
+
+**esbuild Configuration:** Already configured in your `esbuild.config.mjs`:
+```javascript
+external: [
+  // ... existing externals
+  "@xenova/transformers"  // Already marked external!
+]
+```
+
+### 9.2 Web Workers Limitations
+
+**Challenge:** Obsidian's sandboxed Electron blocks local module bundling in workers.
+
+**Two Options:**
+
+**Option A: Main Thread (Simpler, Recommended for Embeddings)**
+```typescript
+// Embeddings are less compute-intensive than LLM inference
+// Main thread execution is acceptable for small models like all-MiniLM-L6-v2
+// WASM runs in its own thread anyway
+
+class EmbeddingEngine {
+  private extractor: any = null;
+
+  async initialize(): Promise<void> {
+    const tf = await loadTransformers();
+
+    // This blocks briefly but WASM inference is fast (~50-100ms per note)
+    this.extractor = await tf.pipeline(
+      'feature-extraction',
+      'Xenova/all-MiniLM-L6-v2',
+      { quantized: true }
+    );
+  }
+}
+```
+
+**Option B: Blob URL Worker (For UI Responsiveness)**
+```typescript
+// Following WebLLMWorkerService pattern
+class EmbeddingWorkerService {
+  private worker: Worker | null = null;
+
+  async initialize(): Promise<void> {
+    const workerCode = this.buildWorkerCode();
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    const workerUrl = URL.createObjectURL(blob);
+
+    this.worker = new Worker(workerUrl);
+    URL.revokeObjectURL(workerUrl); // Clean up after worker starts
+  }
+
+  private buildWorkerCode(): string {
+    return `
+// Embedding Worker - loads Transformers.js from CDN
+importScripts('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3/dist/transformers.min.js');
+
+let extractor = null;
+
+self.onmessage = async function(event) {
+  const { type, id, payload } = event.data;
+
+  if (type === 'init') {
+    extractor = await transformers.pipeline(
+      'feature-extraction',
+      'Xenova/all-MiniLM-L6-v2',
+      { quantized: true }
+    );
+    self.postMessage({ type: 'ready', id });
+  }
+
+  if (type === 'embed') {
+    const output = await extractor(payload.text, {
+      pooling: 'mean',
+      normalize: true
+    });
+    self.postMessage({
+      type: 'result',
+      id,
+      payload: { embedding: Array.from(output.data) }
+    });
+  }
+};
+`;
+  }
+}
+```
+
+### 9.3 Model Caching Location
+
+**Challenge:** Where to store downloaded ONNX model files?
+
+**Transformers.js Default Behavior:**
+- Uses browser's Cache API (IndexedDB)
+- Model persists across sessions
+- No need for custom caching logic
+
+**Alternative for Vault Storage:**
+```typescript
+// Store model in vault's .nexus folder (like cache.db)
+const MODEL_CACHE_PATH = '.nexus/models/all-MiniLM-L6-v2';
+
+// Check if model exists locally before CDN download
+async function getModelFromCache(): Promise<ArrayBuffer | null> {
+  try {
+    const exists = await app.vault.adapter.exists(MODEL_CACHE_PATH);
+    if (exists) {
+      return await app.vault.adapter.readBinary(MODEL_CACHE_PATH);
+    }
+  } catch (e) {
+    console.warn('Model cache read failed:', e);
+  }
+  return null;
+}
+```
+
+### 9.4 Memory Management
+
+**Electron-Specific Concerns:**
+- Electron renderer has memory limits (~512MB-2GB depending on system)
+- Model stays in memory once loaded (~50-100MB for all-MiniLM-L6-v2)
+- Embedding vectors are small (~1.5KB each)
+
+**Best Practices:**
+```typescript
+class EmbeddingEngine {
+  private extractor: any = null;
+  private isDisposed = false;
+
+  /**
+   * Dispose of the model to free GPU/WASM memory
+   * Call when plugin unloads
+   */
+  async dispose(): Promise<void> {
+    if (this.extractor) {
+      // Transformers.js models can be garbage collected
+      // by removing references
+      this.extractor = null;
+      this.isDisposed = true;
+
+      // Force garbage collection hint (Electron-specific)
+      if (global.gc) {
+        global.gc();
+      }
+    }
+  }
+}
+```
+
+### 9.5 Background Processing
+
+**Follow existing BackgroundProcessor pattern:**
+```typescript
+// Prevent blocking Obsidian startup
+startBackgroundIndexing(): void {
+  // Wait for Obsidian to be fully loaded (like BackgroundProcessor)
+  setTimeout(async () => {
+    try {
+      await this.embeddingService.initialize();
+
+      // Index notes in background with UI yields
+      const allNotes = this.app.vault.getMarkdownFiles();
+      await this.embeddingQueue.enqueue(allNotes.map(f => f.path));
+    } catch (error) {
+      console.error('Background indexing failed:', error);
+    }
+  }, 3000); // 3s delay like other background tasks
+}
+```
+
+### 9.6 Platform-Specific Notes
+
+| Platform | Consideration |
+|----------|---------------|
+| **macOS (Apple Silicon)** | WebGPU available but WASM is sufficient for embeddings |
+| **macOS (Intel)** | WASM works well, no WebGPU |
+| **Windows** | WASM works, WebGPU depends on GPU drivers |
+| **Linux** | WASM works, WebGPU limited support |
+| **Mobile (iOS/Android)** | WASM works but memory constrained, consider lazy loading |
+
+### 9.7 Vault Events Integration
+
+**Use Obsidian's event system (already in place):**
+```typescript
+// From CacheManager.ts pattern
+class EmbeddingWatcher {
+  registerEvents(vault: Vault): void {
+    // These are the same events used by your existing sync system
+    vault.on('create', (file) => this.onFileCreated(file));
+    vault.on('modify', (file) => this.onFileModified(file));
+    vault.on('delete', (file) => this.onFileDeleted(file));
+    vault.on('rename', (file, oldPath) => this.onFileRenamed(file, oldPath));
+  }
+
+  // Debounce to avoid re-embedding during active typing
+  private onFileModified = debounce((file: TFile) => {
+    if (file.extension === 'md') {
+      this.scheduleReembedding(file.path);
+    }
+  }, 2000);
+}
+```
+
+### 9.8 Error Handling for Network Issues
+
+**Handle offline scenarios gracefully:**
+```typescript
+async initialize(): Promise<void> {
+  try {
+    await loadTransformers();
+  } catch (error) {
+    if (error.message.includes('fetch') || error.message.includes('network')) {
+      // CDN unavailable - try offline mode
+      console.warn('[EmbeddingEngine] CDN unavailable, embeddings disabled');
+      this.isOffline = true;
+      return;
+    }
+    throw error;
+  }
+}
+
+async embedNote(path: string): Promise<void> {
+  if (this.isOffline) {
+    // Queue for later when online
+    this.offlineQueue.push(path);
+    return;
+  }
+  // ... normal embedding logic
+}
+```
+
+---
+
+## 10. Summary
 
 **Recommended Approach:**
 1. Use **Transformers.js** with `Xenova/all-MiniLM-L6-v2` for local embedding generation
