@@ -15,6 +15,8 @@ The utilities provide the foundational infrastructure that powers the entire fra
 
 Centralized configuration management with environment variables, config files, and validation.
 
+> Note: In Obsidian/mobile-safe builds, file-backed config is loaded/saved via the vault adapter (not Node `fs`). Call `ConfigManager.setVaultAdapter(app.vault.adapter)` to enable `.nexus/config/lab-kit.config.json`.
+
 ### Quick Setup
 ```typescript
 import { ConfigManager, quickSetup } from './utils';
@@ -63,7 +65,7 @@ if (config.isDatabaseConfigured()) {
 The ConfigManager loads configuration from multiple sources in order of priority:
 
 1. **Environment Variables** (highest priority)
-2. **Config Files** (`lab-kit.config.json`, `.labkitrc`)
+2. **Vault-backed config file** (`.nexus/config/lab-kit.config.json`, when `ConfigManager.setVaultAdapter(...)` is used)
 3. **Default Values** (lowest priority)
 
 ```typescript
@@ -73,7 +75,7 @@ GOOGLE_API_KEY=AIza...
 SUPABASE_URL=https://project.supabase.co
 LAB_KIT_LOG_LEVEL=debug
 
-// Config file (lab-kit.config.json)
+// Vault-backed config file (.nexus/config/lab-kit.config.json)
 {
   "defaults": {
     "timeout": 30000,
@@ -94,7 +96,6 @@ const summary = config.getConfigSummary();
 console.log({
   providers: summary.providers.configured,     // ['openai', 'anthropic']
   database: summary.database.configured,      // true/false
-    // ['openai', 'voyage']
   readyForTesting: summary.providers.configured.length > 0
 });
 
@@ -161,14 +162,18 @@ logger.performance('prompt_optimization', 45000, {
 
 ### File Logging & Configuration
 ```typescript
-// Enable file logging
-logger.enableFileLogging('./logs');
+import { Logger, logger } from './utils';
+
+// In Obsidian, enable vault-backed file logging (writes into the vault)
+Logger.setVaultAdapter(app.vault.adapter, '.nexus/logs');
+logger.enableFileLogging();
 
 // Configure logging levels and outputs
 logger.configure({
   level: 'debug',
   enableFile: true,
-  logDirectory: './app-logs',
+  // logDirectory is treated as vault-relative when using the vault adapter
+  logDirectory: '.nexus/logs',
   maxFileSize: 10 * 1024 * 1024, // 10MB
   maxFiles: 5
 });
@@ -476,7 +481,6 @@ console.log(report);
 ## Configuration Summary
 **LLM Providers:** openai, anthropic, google
 **Database:** Configured
-** voyage
 **Log Level:** info
 
 ## Readiness Status

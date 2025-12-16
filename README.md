@@ -9,7 +9,7 @@
 
 Nexus turns your Obsidian vault into an MCP-enabled workspace. It exposes safe, structured tools (agents + modes) that AI copilots can call to read/write notes, manage folders, run searches, and maintain long‑term memory—all while keeping data local to your vault.
 
-> Nexus is the successor to Claudesidian. Backward compatibility is preserved: existing `claudesidian-mcp` folders, server keys, and pipes will still work.
+> Nexus is the successor to Claudesidian. Legacy installs in `.obsidian/plugins/claudesidian-mcp/` still work, but Nexus uses the `nexus_mcp_` socket/pipe prefix (so older Claudesidian connectors need to be updated).
 
 ---
 
@@ -21,7 +21,11 @@ Nexus turns your Obsidian vault into an MCP-enabled workspace. It exposes safe, 
 - **Full Vault Operations** – Create/read/update/delete notes, folders, frontmatter, and batch content edits.
 - **Agent-Mode Architecture** – Domain-specific agents with typed modes for predictable tool calling.
 - **Multi-vault support** – Independent MCP instances per vault, keyed by sanitized vault name.
-- **Local + cloud models** – WebLLM (Nexus 7B) plus Anthropic, OpenAI, Google, Groq, Mistral, Ollama, LM Studio, OpenRouter, Perplexity, Requesty.
+- **Cloud + local providers** – Anthropic, OpenAI, Google, Groq, Mistral, OpenRouter, Perplexity, Requesty, plus desktop-local servers (Ollama, LM Studio). _(WebLLM is currently disabled.)_
+
+**Platform notes**
+- **Desktop:** Internal chat + external MCP bridge (Claude Desktop) + local providers (Ollama/LM Studio).
+- **Mobile:** Internal chat works, but only fetch-based providers (OpenRouter/Requesty/Perplexity); no external MCP bridge.
 
 ---
 
@@ -42,15 +46,15 @@ Nexus turns your Obsidian vault into an MCP-enabled workspace. It exposes safe, 
 ## Upgrade from Claudesidian
 
 - **Plugin folder/id:** New default folder is `nexus`; legacy `claudesidian-mcp` remains valid.
-- **Server keys:** New format `nexus-[sanitized-vault-name]`; legacy `claudesidian-mcp-[sanitized-vault-name]` is auto-detected and migrated when possible.
-- **Pipes/sockets:** New prefix `nexus_mcp_`; legacy `claudesidian_mcp_` still accepted.
-- **Config generator:** The settings modal `.mcp.json` generator writes Nexus keys but will remove stale legacy entries only if they point to the same vault.
+- **Server keys:** Recommended `nexus-[sanitized-vault-name]`; legacy `claudesidian-mcp-[sanitized-vault-name]` entries can be kept (the key is just a client label).
+- **Pipes/sockets:** Nexus uses the `nexus_mcp_` prefix. If you’re upgrading, re-point clients to the current `connector.js` (see setup below).
+- **Setup helper:** On desktop, use **Settings → Nexus → Get Started → MCP Integration** for one-click Claude Desktop configuration.
 
 ---
 
 ## Configure Claude Desktop (or any MCP client)
 
-Add/merge the Nexus server entry into your `claude_desktop_config.json` (or `.mcp.json` for other clients):
+Add/merge the Nexus server entry into your MCP client config (Claude Desktop uses `claude_desktop_config.json`):
 
 ```json
 {
@@ -66,17 +70,17 @@ Add/merge the Nexus server entry into your `claude_desktop_config.json` (or `.mc
 ```
 
 - Replace the path with your vault location. On macOS/Linux use `/Users/you/Vault/.obsidian/plugins/nexus/connector.js`.
-- If you still have the old folder, `claudesidian-mcp` keys remain valid; Nexus resolves both.
-- In Obsidian → Nexus settings, use **Generate MCP Config** to update `.mcp.json` in the vault root without overwriting other servers.
+- If you still have the old folder, keep the path pointing at `.obsidian/plugins/claudesidian-mcp/connector.js`.
+- For Claude Desktop, Nexus can write this automatically via **Settings → Nexus → Get Started → MCP Integration**.
 
 ---
 
 ## Using the Native Chat View
 
-1. Enable **Settings → Nexus MCP → Agent Management → AI Chat**.
-2. Open the chat via ribbon icon or command palette (“Open AI Chat”).
+1. Configure at least one provider in **Settings → Nexus → Providers**.
+2. Open the chat via the ribbon icon or command palette (**Nexus: Open Nexus Chat**).
 3. Type `/` to browse tools, `@` to pick custom agents, and `[[` to link notes. Tool calls stream live with results.
-4. Model switching (cloud/local) happens inside the chat UI; Nexus preloads the WebLLM model when selected.
+4. Choose your provider/model in the chat UI (desktop-only providers won’t appear on mobile).
 
 ---
 
@@ -100,8 +104,7 @@ Add/merge the Nexus server entry into your `claude_desktop_config.json` (or `.mc
 
 - MCP server binds locally; no remote listeners are opened.
 - All file operations stay inside the active vault.
-- Network calls happen only when you use remote LLM providers (per provider API keys).
-- Local WebLLM Nexus model runs entirely on-device with WebGPU.
+- Network calls happen only when you use remote LLM providers (per provider API keys) or local providers running on `localhost`.
 
 ---
 
@@ -115,8 +118,8 @@ Add/merge the Nexus server entry into your `claude_desktop_config.json` (or `.mc
 
 ## Troubleshooting
 
-- **Server not found:** Re-run “Generate MCP Config” in the Nexus settings tab; confirm the connector path matches your vault.
+- **Server not found:** In Obsidian, go to **Settings → Nexus → Get Started → MCP Integration** and click **Add Nexus to Claude**, then restart Claude Desktop.
 - **Pipes not created:** Ensure Obsidian is open for that vault; Windows named pipes use the `nexus_mcp_<vault>` prefix.
-- **Legacy clients:** Keep `claudesidian-mcp` entries if existing clients reference them; Nexus will serve both ids.
+- **Legacy installs:** If your config still points at `.obsidian/plugins/claudesidian-mcp/connector.js`, that’s OK as long as it’s the current connector.
 
-Enjoy building with Nexus! If you hit issues, open a GitHub issue on the Nexus repo with your OS, Obsidian version, and any console logs.
+Enjoy building with Nexus! If you hit issues, open a GitHub issue on this repo with your OS, Obsidian version, and any console logs.
