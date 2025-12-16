@@ -17,7 +17,6 @@ import { StreamingOrchestrator, StreamingOptions, StreamYield } from './Streamin
 import { VaultOperations } from '../../../core/VaultOperations';
 import { CacheManager } from '../utils/CacheManager';
 import { Logger } from '../utils/Logger';
-import { ConfigManager } from '../utils/ConfigManager';
 import { LLMSettingsNotifier } from '../LLMSettingsNotifier';
 
 export interface LLMExecutionOptions extends GenerateOptions {
@@ -66,8 +65,6 @@ export class LLMService {
       const adapter = vault.adapter as any;
       CacheManager.configureVaultAdapter(adapter);
       Logger.setVaultAdapter(adapter);
-      ConfigManager.setVaultAdapter(adapter);
-      void ConfigManager.ensureVaultConfigLoaded();
     }
     this.adapterRegistry = new AdapterRegistry(settings, vault);
     this.adapterRegistry.initialize(settings, vault);
