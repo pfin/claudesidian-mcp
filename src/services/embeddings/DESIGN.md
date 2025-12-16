@@ -6,7 +6,24 @@ This document outlines a strategy for integrating vector embeddings into Nexus u
 - **`@dao-xyz/sqlite3-vec`** - Pre-built SQLite WASM with sqlite-vec (replaces sql.js)
 - **Transformers.js** - Local WASM-based embedding generation
 - **Note-level embeddings** - One embedding per note, no chunking
+- **Trace-level embeddings** - One embedding per memory trace
 - **Single database** - All data in one SQLite file with native vector search
+
+## Key Design Decisions
+
+### Semantic Search Flag Behavior
+
+The `semantic: boolean` parameter is added to existing search modes (not a separate mode):
+
+| Mode | `semantic: false` (default) | `semantic: true` |
+|------|----------------------------|------------------|
+| **searchContent** | Fuzzy + keyword search, returns **snippets** | Vector search, returns **ranked paths only** (no content) |
+| **searchMemory** | Fuzzy/exact search, returns traces with content | Vector search, returns **ranked traces WITH content** |
+| **searchDirectory** | Fuzzy path matching | ❌ Not applicable (path matching only) |
+
+**Rationale:**
+- **Notes**: Whole-note embeddings don't tell us WHERE in the note is relevant. Return paths only; LLM uses `contentManager.readContent` to get full content.
+- **Traces**: No "read trace" tool exists in MemoryManager, so we must include content. Traces are small/structured, so this is acceptable.
 
 ---
 
@@ -80,29 +97,53 @@ npm install @dao-xyz/sqlite3-vec
 - MIT licensed
 - ~5-6MB WASM bundle
 
-### 2.3 Basic Usage
+### 2.3 Basic Usage (Actual Implementation - Dec 2025)
 
 ```typescript
-import { createDatabase } from '@dao-xyz/sqlite3-vec';
+import sqlite3Vec from '@dao-xyz/sqlite3-vec';
+const { createDatabase } = sqlite3Vec;
 
-// Create/open database
-const db = await createDatabase(':memory:');
+// Create file-based database (Node/Electron uses better-sqlite3)
+const db = await createDatabase({ database: '/path/to/.nexus/cache.db' });
+await db.open();
 
-// Standard SQL works
+// Schema creation with exec (no params)
 db.exec(`CREATE TABLE notes (id TEXT PRIMARY KEY, content TEXT)`);
-
-// Vector tables work
 db.exec(`CREATE VIRTUAL TABLE embeddings USING vec0(embedding float[384])`);
 
-// KNN search
-const results = db.exec(`
-  SELECT rowid, distance
+// Parameterized queries use prepare() + stmt
+const stmt = await db.prepare('INSERT INTO notes(id, content) VALUES(?, ?)');
+stmt.run(['note-1', 'Hello world']);
+
+// Vec0 inserts - rowid auto-generated, use Buffer for blob
+const vecStmt = await db.prepare('INSERT INTO embeddings(embedding) VALUES(?)');
+vecStmt.run([Buffer.from(float32Array.buffer)]);
+
+// Get auto-generated rowid
+const idStmt = await db.prepare('SELECT last_insert_rowid() as id');
+const result = idStmt.get([]);
+
+// KNN search with vec_distance_l2
+const searchStmt = await db.prepare(`
+  SELECT rowid, vec_distance_l2(embedding, ?) as distance
   FROM embeddings
-  WHERE embedding MATCH ?
   ORDER BY distance
   LIMIT 10
-`, [JSON.stringify(queryVector)]);
+`);
+const results = searchStmt.all([Buffer.from(queryBuffer)]);
+
+// Auto-persists on close (no manual save needed)
+await db.close();
 ```
+
+**Key API Notes:**
+- Node version uses `better-sqlite3` which auto-persists to file
+- Use `prepare()` + `stmt.get()/all()/run()` for parameterized queries
+- Use `exec()` only for schema creation (no params supported)
+- Anonymous placeholders (`?`) work; numbered (`?1, ?2`) have issues
+- Vec0 tables auto-generate rowid - can't set it explicitly via parameters
+- Pass `Buffer.from(float32Array.buffer)` for blob binding
+- Use `vec_distance_l2()` for KNN search, not `MATCH` syntax
 
 ---
 
@@ -131,34 +172,58 @@ CREATE TABLE IF NOT EXISTS embedding_metadata (
 
 CREATE INDEX IF NOT EXISTS idx_embedding_meta_path ON embedding_metadata(notePath);
 CREATE INDEX IF NOT EXISTS idx_embedding_meta_hash ON embedding_metadata(contentHash);
+
+-- ==================== TRACE EMBEDDINGS ====================
+
+-- Vector storage for memory traces
+CREATE VIRTUAL TABLE IF NOT EXISTS trace_embeddings USING vec0(
+  embedding float[384]
+);
+
+-- Metadata linked to vec0 by rowid
+CREATE TABLE IF NOT EXISTS trace_embedding_metadata (
+  rowid INTEGER PRIMARY KEY,  -- Matches trace_embeddings rowid
+  traceId TEXT NOT NULL UNIQUE,
+  workspaceId TEXT NOT NULL,
+  sessionId TEXT,
+  model TEXT NOT NULL,
+  contentHash TEXT NOT NULL,
+  created INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_trace_embed_id ON trace_embedding_metadata(traceId);
+CREATE INDEX IF NOT EXISTS idx_trace_embed_workspace ON trace_embedding_metadata(workspaceId);
+CREATE INDEX IF NOT EXISTS idx_trace_embed_session ON trace_embedding_metadata(sessionId);
 ```
 
-### 3.2 Querying Embeddings with Metadata
+### 3.2 Querying Embeddings with Metadata (Updated Dec 2025)
 
 ```sql
--- Find similar notes with full metadata
+-- Find similar notes using vec_distance_l2 (NOT MATCH syntax)
+-- Pass query embedding as Buffer parameter
 SELECT
   em.notePath,
   em.model,
-  ne.distance
+  vec_distance_l2(ne.embedding, ?) as distance
 FROM note_embeddings ne
 JOIN embedding_metadata em ON em.rowid = ne.rowid
-WHERE ne.embedding MATCH ?
-ORDER BY ne.distance
+ORDER BY distance
 LIMIT 10;
 
--- Find notes similar to a specific note
+-- Find notes similar to a specific note (two-step query)
+-- Step 1: Get source embedding
+SELECT ne.embedding FROM note_embeddings ne
+JOIN embedding_metadata em ON em.rowid = ne.rowid
+WHERE em.notePath = ?;
+
+-- Step 2: Find similar notes using that embedding
 SELECT
-  em2.notePath,
-  ne.distance
+  em.notePath,
+  vec_distance_l2(ne.embedding, ?) as distance
 FROM note_embeddings ne
-JOIN embedding_metadata em1 ON em1.notePath = ?
-JOIN embedding_metadata em2 ON em2.rowid = ne.rowid
-WHERE ne.embedding MATCH (
-  SELECT embedding FROM note_embeddings WHERE rowid = em1.rowid
-)
-AND em2.notePath != ?
-ORDER BY ne.distance
+JOIN embedding_metadata em ON em.rowid = ne.rowid
+WHERE em.notePath != ?
+ORDER BY distance
 LIMIT 10;
 ```
 
@@ -355,6 +420,117 @@ export class EmbeddingService {
     }
   }
 
+  // ==================== TRACE EMBEDDINGS ====================
+
+  /**
+   * Embed a memory trace (called on trace creation)
+   * Traces are small, so this is synchronous with trace creation
+   */
+  async embedTrace(
+    traceId: string,
+    workspaceId: string,
+    sessionId: string | undefined,
+    content: string
+  ): Promise<void> {
+    const contentHash = this.hashContent(content);
+
+    // Check if already exists
+    const existing = this.db.exec(
+      'SELECT rowid, contentHash FROM trace_embedding_metadata WHERE traceId = ?',
+      [traceId]
+    );
+
+    if (existing.length && existing[0].contentHash === contentHash) {
+      return; // Already current
+    }
+
+    // Generate embedding
+    const embedding = await this.engine.generateEmbedding(content);
+    const embeddingJson = JSON.stringify(Array.from(embedding));
+
+    if (existing.length) {
+      // Update existing
+      const rowid = existing[0].rowid;
+      this.db.run(
+        'UPDATE trace_embeddings SET embedding = ? WHERE rowid = ?',
+        [embeddingJson, rowid]
+      );
+      this.db.run(
+        'UPDATE trace_embedding_metadata SET contentHash = ? WHERE rowid = ?',
+        [contentHash, rowid]
+      );
+    } else {
+      // Insert new
+      this.db.run(
+        'INSERT INTO trace_embeddings(embedding) VALUES (?)',
+        [embeddingJson]
+      );
+      const rowid = this.db.exec('SELECT last_insert_rowid() as id')[0].id;
+      this.db.run(
+        `INSERT INTO trace_embedding_metadata(rowid, traceId, workspaceId, sessionId, model, contentHash, created)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [rowid, traceId, workspaceId, sessionId, 'all-MiniLM-L6-v2', contentHash, Date.now()]
+      );
+    }
+  }
+
+  /**
+   * Semantic search for similar traces (returns full trace content)
+   * Used by searchMemory when semantic: true
+   */
+  async semanticTraceSearch(
+    query: string,
+    workspaceId: string,
+    limit = 20
+  ): Promise<TraceSearchResult[]> {
+    const queryEmbedding = await this.engine.generateEmbedding(query);
+    const embeddingJson = JSON.stringify(Array.from(queryEmbedding));
+
+    // Query with workspace filter
+    return this.db.exec(`
+      SELECT
+        tem.traceId,
+        tem.workspaceId,
+        tem.sessionId,
+        te.distance
+      FROM trace_embeddings te
+      JOIN trace_embedding_metadata tem ON tem.rowid = te.rowid
+      WHERE te.embedding MATCH ?
+        AND tem.workspaceId = ?
+      ORDER BY te.distance
+      LIMIT ?
+    `, [embeddingJson, workspaceId, limit]);
+  }
+
+  /**
+   * Remove trace embedding when trace/session/workspace deleted
+   */
+  async removeTraceEmbedding(traceId: string): Promise<void> {
+    const existing = this.db.exec(
+      'SELECT rowid FROM trace_embedding_metadata WHERE traceId = ?',
+      [traceId]
+    );
+    if (existing.length) {
+      this.db.run('DELETE FROM trace_embeddings WHERE rowid = ?', [existing[0].rowid]);
+      this.db.run('DELETE FROM trace_embedding_metadata WHERE rowid = ?', [existing[0].rowid]);
+    }
+  }
+
+  /**
+   * Remove all trace embeddings for a workspace
+   */
+  async removeWorkspaceTraceEmbeddings(workspaceId: string): Promise<number> {
+    const traces = this.db.exec(
+      'SELECT rowid FROM trace_embedding_metadata WHERE workspaceId = ?',
+      [workspaceId]
+    );
+    for (const trace of traces) {
+      this.db.run('DELETE FROM trace_embeddings WHERE rowid = ?', [trace.rowid]);
+      this.db.run('DELETE FROM trace_embedding_metadata WHERE rowid = ?', [trace.rowid]);
+    }
+    return traces.length;
+  }
+
   private hashContent(content: string): string {
     let hash = 0;
     for (let i = 0; i < content.length; i++) {
@@ -363,6 +539,13 @@ export class EmbeddingService {
     }
     return hash.toString(36);
   }
+}
+
+interface TraceSearchResult {
+  traceId: string;
+  workspaceId: string;
+  sessionId: string | null;
+  distance: number;
 }
 ```
 
@@ -373,7 +556,9 @@ export class EmbeddingService {
 
 export class EmbeddingWatcher {
   private debounceTimers = new Map<string, NodeJS.Timeout>();
-  private readonly DEBOUNCE_MS = 2000;
+  // 10-second debounce: prevents re-embedding on every keystroke
+  // but short enough to not lose changes if vault closes unexpectedly
+  private readonly DEBOUNCE_MS = 10000; // 10 seconds
 
   constructor(
     private embeddingService: EmbeddingService,
@@ -430,9 +615,27 @@ export class EmbeddingWatcher {
 
 ---
 
-## 6. Migration Path
+## 6. Implementation Path (Fresh Build - No Legacy sql.js)
 
-### 6.1 Replace sql.js with @dao-xyz/sqlite3-vec
+### 6.1 Context: No Migration Needed
+
+**Important:** No users are on the current sql.js implementation yet. We have the luxury of building this fresh:
+
+```
+Old JSON files (.workspaces/, .conversations/)
+        ↓
+    LegacyMigrator (existing)
+        ↓
+JSONL (.nexus/) + @dao-xyz/sqlite3-vec cache (with embeddings)
+```
+
+- **JSONL** = source of truth (syncs via Obsidian Sync)
+- **SQLite cache** = rebuilt from JSONL on startup (includes embeddings)
+- **Embeddings** = generated fresh from vault content
+
+No sql.js → sqlite3-vec migration code needed. Just replace sql.js entirely.
+
+### 6.2 Implementation Steps
 
 1. **Update package.json:**
    ```json
@@ -445,15 +648,20 @@ export class EmbeddingWatcher {
    ```
    Remove: `"sql.js": "^1.13.0"`
 
-2. **Update SQLiteCacheManager:**
-   - Change import from `sql.js` to `@dao-xyz/sqlite3-vec`
-   - API should be similar, test thoroughly
+2. **Replace SQLiteCacheManager:**
+   - Rewrite to use `@dao-xyz/sqlite3-vec` API
+   - Include embedding tables in schema from the start
+   - No migration logic needed - cache rebuilds from JSONL
 
-3. **Add embedding tables to schema.ts**
+3. **Create EmbeddingEngine** (Transformers.js CDN loading)
 
-4. **Create EmbeddingService and EmbeddingWatcher**
+4. **Create EmbeddingService** (note + trace embedding methods)
 
-5. **Wire into plugin lifecycle**
+5. **Create EmbeddingWatcher** (vault change events)
+
+6. **Create IndexingQueue** (background initial indexing with progress)
+
+7. **Integrate with VaultLibrarian** (add `semantic` param to modes)
 
 ---
 
@@ -1200,7 +1408,7 @@ async checkModelVersion(): Promise<boolean> {
 | **Low memory** | Reduce batch size | Monitor memory if possible |
 | **Very slow device** | Longer timeouts | Adaptive yield intervals |
 | **User closes Obsidian mid-index** | Resume on restart | Content hash check resumes |
-| **Many concurrent edits** | Debounce | 2s debounce per file |
+| **Many concurrent edits** | Debounce | 10-second debounce per file |
 
 ```typescript
 // Adaptive performance based on device
@@ -1331,21 +1539,74 @@ class EmbeddingErrorHandler {
 
 ---
 
-## 10. Summary
+## 10. Implementation Status (Dec 16, 2025)
 
-**Approach:**
-1. Replace `sql.js` with `@dao-xyz/sqlite3-vec` (single database)
-2. Use `Transformers.js` with `Xenova/all-MiniLM-L6-v2` for embeddings
-3. Store vectors in `vec0` virtual table with native KNN search
-4. Watch vault changes to keep embeddings in sync
-5. One embedding per note (no chunking)
+### Completed Components ✅
+
+| Component | File | Status |
+|-----------|------|--------|
+| **SQLiteCacheManager** | `src/database/storage/SQLiteCacheManager.ts` | ✅ Rewritten for @dao-xyz/sqlite3-vec API |
+| **EmbeddingEngine** | `src/services/embeddings/EmbeddingEngine.ts` | ✅ Transformers.js CDN loading |
+| **EmbeddingService** | `src/services/embeddings/EmbeddingService.ts` | ✅ Note + trace embeddings |
+| **EmbeddingWatcher** | `src/services/embeddings/EmbeddingWatcher.ts` | ✅ 10-second debounce |
+| **IndexingQueue** | `src/services/embeddings/IndexingQueue.ts` | ✅ Background indexing with progress |
+| **EmbeddingStatusBar** | `src/services/embeddings/EmbeddingStatusBar.ts` | ✅ Desktop-only progress display |
+| **EmbeddingManager** | `src/services/embeddings/EmbeddingManager.ts` | ✅ High-level coordinator |
+| **Native Extension** | `node_modules/@dao-xyz/sqlite3-vec/dist/native/` | ✅ darwin-arm64 binary |
+
+### Pending Integration ⏳
+
+| Task | Description |
+|------|-------------|
+| **VaultLibrarian Integration** | Add `semantic: boolean` param to searchContent/searchMemory modes |
+| **Diagnostic Logging** | Add startup logging to track initialization flow |
+| **Settings UI** | Add enable/disable toggle for embeddings |
+| **Trace Embedding Hook** | Wire EmbeddingService.embedTrace() to trace creation |
+
+### Key Implementation Details
+
+1. **Native sqlite-vec**: Using better-sqlite3 with prebuilt darwin-arm64 extension (v0.1.7-alpha.2)
+2. **File-based DB**: Auto-persists to `.nexus/cache.db` via better-sqlite3 (no manual save)
+3. **Vec0 rowid quirk**: Auto-generates rowid, use `last_insert_rowid()` after insert
+4. **Buffer binding**: Pass `Buffer.from(float32Array.buffer)` for embedding blobs
+5. **Search syntax**: Use `vec_distance_l2()` function, NOT `MATCH` syntax
+
+---
+
+## 11. Summary
+
+**Fresh Build Approach (No Legacy Migration):**
+1. Replace `sql.js` with `@dao-xyz/sqlite3-vec` directly (no migration code)
+2. Existing LegacyMigrator handles JSON → JSONL conversion
+3. SQLite cache (with embeddings) rebuilds from JSONL on startup
+4. Use `Transformers.js` with `Xenova/all-MiniLM-L6-v2` for embeddings
+5. Store vectors in `vec0` virtual tables with native KNN search
+6. Watch vault changes with 10-second debounce
+7. Embed traces on creation (synchronous)
+8. One embedding per note (no chunking), one per trace
+
+**Data Flow:**
+```
+Old JSON → LegacyMigrator → JSONL (source of truth)
+                              ↓
+                         SQLite cache (rebuilt on startup)
+                              ↓
+                         Embeddings (generated from vault content)
+```
+
+**Semantic Search Flag:**
+- `searchContent` with `semantic: true` → returns ranked paths only (no content)
+- `searchMemory` with `semantic: true` → returns ranked traces WITH content
+- `searchDirectory` → no semantic option (path matching only)
 
 **Benefits:**
+- Clean implementation without legacy baggage
 - Native vector search (no JS similarity calculations)
 - JOINs across embeddings and existing tables
 - Single database file
 - Works offline, privacy-preserving
-- ~50-100ms per note embedding time
+- ~50-100ms per note/trace embedding time
+- Token-efficient: notes return paths only, LLM reads what it needs
 
 ---
 

@@ -235,9 +235,9 @@ export class SearchDirectoryMode extends BaseMode<SearchDirectoryParams, SearchD
       properties: {
         query: {
           type: 'string',
-          description: '🔍 REQUIRED: The search term to find in file/folder names and paths. Use simple text without wildcards (fuzzy matching is automatic). Examples: "fallujah", "project", "meeting notes"',
+          description: '🔍 REQUIRED: The search term to find in file/folder names and paths. Use simple text without wildcards (fuzzy matching is automatic). Examples: "summary", "project", "meeting notes"',
           minLength: 1,
-          examples: ['fallujah', 'project', 'meeting notes', 'config', 'README']
+          examples: ['summary', 'project', 'meeting notes', 'config', 'README']
         },
         paths: {
           type: 'array',
@@ -307,8 +307,8 @@ export class SearchDirectoryMode extends BaseMode<SearchDirectoryParams, SearchD
       required: ['query', 'paths'],
       additionalProperties: true,
       errorHelp: {
-        missingQuery: 'The "query" parameter is required. Do NOT use "filter" - use "query" instead. Example: { "query": "fallujah", "paths": ["/"] }',
-        missingPaths: 'The "paths" parameter is required and must be a non-empty array. Specify directories to search. Example: { "query": "fallujah", "paths": ["/"] }',
+        missingQuery: 'The "query" parameter is required. Do NOT use "filter" - use "query" instead. Example: { "query": "summary", "paths": ["/"] }',
+        missingPaths: 'The "paths" parameter is required and must be a non-empty array. Specify directories to search. Example: { "query": "summary", "paths": ["/"] }',
         emptyPaths: 'The "paths" array cannot be empty. Provide at least one directory path to search within.',
         commonMistakes: [
           'Using "filter" instead of "query" - always use "query"',
