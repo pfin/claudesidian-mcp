@@ -213,7 +213,6 @@ export class MemoryManagerAgent extends BaseAgent {
             });
             
             sessionId = newSession.id;
-            console.log(`Created new session ${sessionId} for workspace ${workspaceId}`);
           }
           
           if (sessionId) {

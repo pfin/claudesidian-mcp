@@ -97,7 +97,6 @@ export class JSONLWriter {
     if (!deviceId) {
       deviceId = uuidv4();
       localStorage.setItem(storageKey, deviceId);
-      console.log(`[JSONLWriter] Created new device ID: ${deviceId}`);
     }
     return deviceId;
   }

@@ -74,9 +74,8 @@ export class DirectToolExecutor {
         for (const agent of agents) {
             try {
                 this.internalRegistry.registerAgent(agent);
-            } catch (e) {
+            } catch {
                 // Agent may already be registered (e.g., if provider is an AgentRegistry)
-                console.log(`[DirectToolExecutor] Agent ${agent.name} already registered or error:`, e);
             }
         }
 
@@ -171,7 +170,6 @@ After getting the schema, call the agent directly: contentManager({ mode: "readC
                 }
             }));
 
-            console.log(`[DirectToolExecutor] Generated ${this.cachedTools.length} tools from ${agents.length} agents`);
             return this.cachedTools;
         } catch (error) {
             console.error('[DirectToolExecutor] Failed to get available tools:', error);

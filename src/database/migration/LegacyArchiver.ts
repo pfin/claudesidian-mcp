@@ -68,15 +68,12 @@ export class LegacyArchiver {
       // Check if destination already exists
       const destExists = await this.app.vault.adapter.exists(destPath);
       if (destExists) {
-        // Already archived - skip
-        console.log(`[LegacyArchiver] ${destPath} already exists, skipping archive`);
-        return;
+        return; // Already archived
       }
 
       // Rename folder
       await this.app.vault.adapter.rename(sourcePath, destPath);
       result.archived.push(sourcePath);
-      console.log(`[LegacyArchiver] Archived ${sourcePath} → ${destPath}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       result.errors.push(`Failed to archive ${sourcePath}: ${message}`);

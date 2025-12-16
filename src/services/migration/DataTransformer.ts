@@ -13,26 +13,17 @@ export class DataTransformer {
     conversations: IndividualConversation[];
     workspaces: IndividualWorkspace[];
   } {
-    console.log('[DataTransformer] Starting transformation to split-file structure...');
-
-    // Transform conversations to individual file format
     const conversations = this.transformConversations(chromaData.conversations);
-
-    // Transform workspaces to individual file format
     const workspaces = this.transformWorkspaceHierarchy(
       chromaData.workspaces,
       chromaData.sessions,
       chromaData.memoryTraces,
       chromaData.snapshots
     );
-
-    console.log('[DataTransformer] Transformation completed');
     return { conversations, workspaces };
   }
 
   private transformConversations(conversations: any[]): IndividualConversation[] {
-    console.log(`[DataTransformer] Transforming ${conversations.length} conversations...`);
-
     const result: IndividualConversation[] = [];
 
     for (const conv of conversations) {
@@ -51,7 +42,6 @@ export class DataTransformer {
         };
 
         result.push(transformed);
-        console.log(`[DataTransformer] Transformed conversation: ${conv.id}`);
       } catch (error) {
         console.error(`[DataTransformer] Error transforming conversation ${conv.id}:`, error);
       }
@@ -81,12 +71,6 @@ export class DataTransformer {
     memoryTraces: any[],
     snapshots: any[]
   ): IndividualWorkspace[] {
-    console.log(`[DataTransformer] Transforming workspace hierarchy...`);
-    console.log(`  - ${workspaces.length} workspaces`);
-    console.log(`  - ${sessions.length} sessions`);
-    console.log(`  - ${memoryTraces.length} memory traces`);
-    console.log(`  - ${snapshots.length} snapshots`);
-
     // Group data by relationships
     const sessionsByWorkspace = this.groupBy(sessions, s => s.metadata?.workspaceId || 'unknown');
     const tracesBySession = this.groupBy(memoryTraces, t => t.metadata?.sessionId || 'orphan');
@@ -137,12 +121,9 @@ export class DataTransformer {
             memoryTraces: this.transformTraces(sessionTraces, workspaceId, session.id),
             states: this.transformStates(sessionStates)
           };
-
-          console.log(`[DataTransformer] Processed session ${session.id}: ${sessionTraces.length} traces, ${sessionStates.length} states`);
         }
 
         result.push(workspace);
-        console.log(`[DataTransformer] Processed workspace ${workspaceId}: ${workspaceSessions.length} sessions`);
       } catch (error) {
         console.error(`[DataTransformer] Error processing workspace ${workspaceId}:`, error);
       }
@@ -256,7 +237,6 @@ export class DataTransformer {
           agentId: firstAgent.id || firstAgent.name,
           agentName: firstAgent.name
         };
-        console.log(`[DataTransformer] Migrated agent '${firstAgent.name}' to dedicatedAgent structure`);
       }
       delete migratedContext.agents;
     }
@@ -274,7 +254,6 @@ export class DataTransformer {
         }
       });
       migratedContext.keyFiles = simpleKeyFiles;
-      console.log(`[DataTransformer] Migrated ${simpleKeyFiles.length} key files to simple array format`);
     }
 
     // Migrate preferences from array to string
@@ -283,12 +262,10 @@ export class DataTransformer {
         .filter((pref: any) => typeof pref === 'string' && pref.trim())
         .join('. ') + (context.preferences.length > 0 ? '.' : '');
       migratedContext.preferences = preferencesString;
-      console.log(`[DataTransformer] Migrated ${context.preferences.length} preferences to string format`);
     }
 
     // Remove status field
     if (context.status) {
-      console.log(`[DataTransformer] Removed status field: '${context.status}' (replaced by active toggle)`);
       delete migratedContext.status;
     }
 

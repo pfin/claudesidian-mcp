@@ -200,8 +200,6 @@ export class CacheManager {
 
     // Cache warming
     async warmCache(workspaceId?: string): Promise<void> {
-        console.log('Warming cache...');
-
         // If a specific workspace is provided, preload it
         if (workspaceId) {
             await this.preloadWorkspace(workspaceId);
@@ -213,8 +211,6 @@ export class CacheManager {
             const keyFilePaths = keyFiles.map((f: any) => f.path);
             await this.vaultFileIndex.warmup(keyFilePaths);
         }
-
-        console.log('Cache warming complete');
     }
 
     // Cache management
@@ -258,8 +254,6 @@ export class CacheManager {
 
     // Cleanup resources
     cleanup(): void {
-        console.log('Cleaning up CacheManager...');
-
         // Unregister vault event listeners
         for (const ref of this.vaultEventRefs) {
             this.vault.offref(ref);
@@ -293,6 +287,5 @@ export class CacheManager {
         }
 
         this.isInitialized = false;
-        console.log('CacheManager cleanup complete');
     }
 }

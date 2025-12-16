@@ -155,14 +155,12 @@ export class AgentManagerAgent extends BaseAgent {
 
     if (shouldHaveGenerateImage && !hasGenerateImage) {
       // Register the mode - API key now available
-      console.log('[AgentManagerAgent] Registering generateImage mode - API key now configured');
       this.registerMode(new GenerateImageMode({
         vault: this.vault,
         llmSettings: settings
       }));
     } else if (!shouldHaveGenerateImage && hasGenerateImage) {
       // Unregister the mode - API key removed
-      console.log('[AgentManagerAgent] Unregistering generateImage mode - API key removed');
       this.unregisterMode('generateImage');
     } else if (shouldHaveGenerateImage && hasGenerateImage) {
       // Update the existing mode with new settings

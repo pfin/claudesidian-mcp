@@ -56,8 +56,6 @@ export class GroqAdapter extends BaseAdapter {
    */
   async* generateStreamAsync(prompt: string, options?: GenerateOptions): AsyncGenerator<StreamChunk, void, unknown> {
     try {
-      console.log('[GroqAdapter] Starting streaming response');
-
       const stream = await this.client.chat.completions.create({
         model: options?.model || this.currentModel,
         messages: this.buildMessages(prompt, options?.systemPrompt),
@@ -87,8 +85,6 @@ export class GroqAdapter extends BaseAdapter {
           return null;
         }
       });
-
-      console.log('[GroqAdapter] Streaming completed');
     } catch (error) {
       console.error('[GroqAdapter] Streaming error:', error);
       throw error;
@@ -181,7 +177,6 @@ export class GroqAdapter extends BaseAdapter {
     // If tools were provided and we got tool calls, we need to handle them
     // For now, just return the response as-is since tool execution is complex
     if (options?.tools && choice.message?.tool_calls && choice.message.tool_calls.length > 0) {
-      console.log(`[Groq Adapter] Received ${choice.message.tool_calls.length} tool calls, but tool execution not implemented in basic mode`);
       text = text || '[AI requested tool calls but tool execution not available]';
     }
 

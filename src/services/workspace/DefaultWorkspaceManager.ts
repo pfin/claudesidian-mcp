@@ -83,7 +83,6 @@ export class DefaultWorkspaceManager {
     
     this.defaultWorkspaceId = workspaceId.trim();
     this.defaultConfig.id = this.defaultWorkspaceId;
-    console.log('[DefaultWorkspaceManager] Default workspace updated to:', this.defaultWorkspaceId);
   }
 
   /**
@@ -123,8 +122,6 @@ export class DefaultWorkspaceManager {
       }
 
       // Create default workspace JSON
-      console.log('[DefaultWorkspaceManager] Creating default workspace JSON...');
-
       await this.workspaceService.createWorkspace({
         id: this.defaultWorkspaceId,
         name: this.defaultConfig.name,
@@ -133,10 +130,8 @@ export class DefaultWorkspaceManager {
         created: Date.now(),
         lastAccessed: Date.now(),
         isActive: true,
-        sessions: {} // Empty sessions object to start
+        sessions: {}
       });
-
-      console.log('[DefaultWorkspaceManager] Default workspace created successfully');
 
     } catch (error) {
       console.error('[DefaultWorkspaceManager] Failed to create default workspace:', error);

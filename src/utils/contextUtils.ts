@@ -23,10 +23,9 @@ export function parseWorkspaceContext(
 ): WorkspaceContext | null {
   // First, try to get workspaceId from context parameter if available
   let workspaceId: string | undefined;
-  
+
   if (contextParam?.workspaceId) {
     workspaceId = contextParam.workspaceId;
-    console.log('[parseWorkspaceContext] Using workspaceId from context:', workspaceId);
   }
 
   if (!workspaceContext) {

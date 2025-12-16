@@ -74,7 +74,6 @@ export class ConversationMigrator extends BaseMigrator<ConversationMigrationResu
       const sortedMessages = [...conversation.messages].sort(
         (a, b) => a.timestamp - b.timestamp
       );
-      console.log(`[ConversationMigrator]   → ${sortedMessages.length} messages`);
 
       for (let i = 0; i < sortedMessages.length; i++) {
         const message = sortedMessages[i];
@@ -121,7 +120,6 @@ export class ConversationMigrator extends BaseMigrator<ConversationMigrationResu
 
     // Write all events in a single operation
     const jsonlPath = `conversations/conv_${conversation.id}.jsonl`;
-    console.log(`[ConversationMigrator]   → Writing ${events.length} events to ${jsonlPath}`);
     await this.jsonlWriter.appendEvents(jsonlPath, events);
   }
 }

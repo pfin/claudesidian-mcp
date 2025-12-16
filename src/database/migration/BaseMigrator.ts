@@ -57,33 +57,22 @@ export abstract class BaseMigrator<TResult extends BaseMigrationResult> {
 
     try {
       const files = await this.listFiles();
-      console.log(`[${this.constructor.name}] Found ${files.length} ${this.category} files to check`);
-
-      let skipped = 0;
-      let migrated = 0;
 
       for (const filePath of files) {
         // Skip if already migrated (duplicate prevention)
         if (await this.statusTracker.isFileMigrated(this.category, filePath)) {
-          skipped++;
           continue;
         }
 
         try {
-          console.log(`[${this.constructor.name}] Migrating: ${filePath}`);
           await this.migrateFile(filePath, result);
-
-          // Mark as migrated after successful migration
           await this.statusTracker.markFileMigrated(this.category, filePath);
-          migrated++;
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           result.errors.push(`Failed to migrate ${filePath}: ${message}`);
           console.error(`[${this.constructor.name}] Error migrating ${filePath}:`, error);
         }
       }
-
-      console.log(`[${this.constructor.name}] Complete: ${migrated} migrated, ${skipped} skipped (already done)`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       result.errors.push(`Failed to list ${this.category} files: ${message}`);

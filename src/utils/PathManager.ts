@@ -49,15 +49,10 @@ export class PathManager {
     try {
       const adapter = this.app.vault.adapter;
       if (adapter instanceof FileSystemAdapter) {
-        const basePath = adapter.getBasePath();
-        console.log(`[PathManager] Detected vault base path: ${basePath}`);
-        return basePath;
+        return adapter.getBasePath();
       }
-      
-      console.warn('[PathManager] FileSystemAdapter not available - running on mobile?');
-      return null;
-    } catch (error) {
-      console.error('[PathManager] Failed to detect vault base path:', error);
+      return null; // Mobile or non-FileSystemAdapter
+    } catch {
       return null;
     }
   }

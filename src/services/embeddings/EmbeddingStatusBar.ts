@@ -91,28 +91,16 @@ export class EmbeddingStatusBar {
 
       case 'indexing':
         this.show();
-        const pct = progress.totalNotes > 0
-          ? Math.round((progress.processedNotes / progress.totalNotes) * 100)
-          : 0;
-
-        const eta = progress.estimatedTimeRemaining
-          ? this.formatETA(progress.estimatedTimeRemaining)
-          : '';
-
         this.setText(
-          `Indexing: ${pct}% (${progress.processedNotes}/${progress.totalNotes}) ${eta}`
+          `Indexing: ${progress.processedNotes}/${progress.totalNotes}`
         );
         this.setControlIcon('pause', () => this.indexingQueue.pause());
         break;
 
       case 'paused':
         this.show();
-        const pausedPct = progress.totalNotes > 0
-          ? Math.round((progress.processedNotes / progress.totalNotes) * 100)
-          : 0;
-
         this.setText(
-          `Paused: ${pausedPct}% (${progress.processedNotes}/${progress.totalNotes})`
+          `Paused: ${progress.processedNotes}/${progress.totalNotes}`
         );
         this.setControlIcon('play', () => this.indexingQueue.resume());
         break;
@@ -132,22 +120,6 @@ export class EmbeddingStatusBar {
       case 'idle':
         this.hide();
         break;
-    }
-  }
-
-  /**
-   * Format ETA in human-readable form
-   */
-  private formatETA(seconds: number): string {
-    if (seconds < 60) {
-      return `~${seconds}s`;
-    } else if (seconds < 3600) {
-      const minutes = Math.ceil(seconds / 60);
-      return `~${minutes}m`;
-    } else {
-      const hours = Math.floor(seconds / 3600);
-      const minutes = Math.ceil((seconds % 3600) / 60);
-      return `~${hours}h ${minutes}m`;
     }
   }
 

@@ -167,8 +167,6 @@ export class SyncCoordinator {
 
       options.onProgress?.('Complete', 1, 1);
 
-      console.log(`[SyncCoordinator] Rebuilt cache: ${eventsApplied} events from ${filesProcessed.length} files (${Date.now() - startTime}ms)`);
-
       return this.createResult(errors.length === 0, eventsApplied, 0, errors, startTime, filesProcessed);
     } catch (error) {
       console.error('[SyncCoordinator] Full rebuild failed:', error);
@@ -176,7 +174,6 @@ export class SyncCoordinator {
       try {
         await this.sqliteCache.updateSyncState(this.deviceId, Date.now(), {});
         await this.sqliteCache.save();
-        console.log('[SyncCoordinator] Saved partial sync state despite errors');
       } catch (saveError) {
         console.error('[SyncCoordinator] Failed to save sync state:', saveError);
       }

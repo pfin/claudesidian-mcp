@@ -100,8 +100,6 @@ export class WorkspaceMigrator extends BaseMigrator<WorkspaceMigrationResult> {
     // Collect session, state, and trace events
     if (workspace.sessions) {
       const sessionEntries = Object.entries(workspace.sessions);
-      console.log(`[WorkspaceMigrator]   → ${sessionEntries.length} sessions`);
-
       for (const [sessionId, sessionData] of sessionEntries) {
         this.collectSessionEvents(workspace.id, sessionId, sessionData, events, result);
       }
@@ -109,7 +107,6 @@ export class WorkspaceMigrator extends BaseMigrator<WorkspaceMigrationResult> {
 
     // Write all events in a single operation
     const jsonlPath = `workspaces/ws_${workspace.id}.jsonl`;
-    console.log(`[WorkspaceMigrator]   → Writing ${events.length} events to ${jsonlPath}`);
     await this.jsonlWriter.appendEvents(jsonlPath, events);
   }
 
@@ -139,9 +136,6 @@ export class WorkspaceMigrator extends BaseMigrator<WorkspaceMigrationResult> {
     // Collect states
     if (sessionData.states) {
       const stateEntries = Object.entries(sessionData.states);
-      if (stateEntries.length > 0) {
-        console.log(`[WorkspaceMigrator]     → ${stateEntries.length} states`);
-      }
       for (const [stateId, stateData] of stateEntries) {
         events.push({
           type: 'state_saved',
@@ -161,9 +155,6 @@ export class WorkspaceMigrator extends BaseMigrator<WorkspaceMigrationResult> {
     // Collect traces
     if (sessionData.memoryTraces) {
       const traceEntries = Object.entries(sessionData.memoryTraces);
-      if (traceEntries.length > 0) {
-        console.log(`[WorkspaceMigrator]     → ${traceEntries.length} traces`);
-      }
       for (const [traceId, traceData] of traceEntries) {
         events.push({
           type: 'trace_added',

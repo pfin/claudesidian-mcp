@@ -22,8 +22,6 @@ export class ChromaDataLoader {
   }
 
   async loadAllCollections(): Promise<ChromaCollectionData> {
-    console.log(`[${BRAND_NAME}] Loading all ChromaDB collections...`);
-
     const [memoryTraces, sessions, conversations, workspaces, snapshots] = await Promise.all([
       this.fileSystem.readChromaCollection('memory_traces'),
       this.fileSystem.readChromaCollection('sessions'),
@@ -32,59 +30,22 @@ export class ChromaDataLoader {
       this.fileSystem.readChromaCollection('snapshots')
     ]);
 
-    const result = {
+    return {
       memoryTraces,
       sessions,
       conversations,
       workspaces,
       snapshots
     };
-
-      console.log(`[${BRAND_NAME}] Collection counts:`, {
-      memoryTraces: memoryTraces.length,
-      sessions: sessions.length,
-      conversations: conversations.length,
-      workspaces: workspaces.length,
-      snapshots: snapshots.length
-    });
-
-      console.log(`[${BRAND_NAME}] Loaded collections:`, {
-      memoryTraces: result.memoryTraces.length,
-      sessions: result.sessions.length,
-      conversations: result.conversations.length,
-      workspaces: result.workspaces.length,
-      snapshots: result.snapshots.length
-    });
-
-    return result;
   }
 
   async detectLegacyData(): Promise<boolean> {
-    console.log('[ChromaDataLoader] ========== LEGACY DATA DETECTION START ==========');
-    console.log('[ChromaDataLoader] Detecting legacy ChromaDB data...');
-
     try {
       const collections = await this.loadAllCollections();
-
-      // Check if any collection has data
-      console.log('[ChromaDataLoader] Checking collection data counts...');
-      const hasData = Object.values(collections).some(collection =>
+      return Object.values(collections).some(collection =>
         Array.isArray(collection) && collection.length > 0
       );
-
-      console.log(`[ChromaDataLoader] Legacy data detection result: ${hasData}`);
-      console.log(`[ChromaDataLoader] Collection summary:`, {
-        memoryTraces: collections.memoryTraces.length,
-        sessions: collections.sessions.length,
-        conversations: collections.conversations.length,
-        workspaces: collections.workspaces.length,
-        snapshots: collections.snapshots.length
-      });
-      console.log('[ChromaDataLoader] ========== LEGACY DATA DETECTION END ==========');
-      return hasData;
-    } catch (error) {
-      console.error('[ChromaDataLoader] Error detecting legacy data:', error);
-      console.log('[ChromaDataLoader] ========== LEGACY DATA DETECTION END (ERROR) ==========');
+    } catch {
       return false;
     }
   }
