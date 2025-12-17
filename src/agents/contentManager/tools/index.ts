@@ -6,4 +6,3 @@ export { ReplaceContentTool } from './replaceContent';
 export { ReplaceByLineTool } from './replaceByLine';
 export { DeleteContentTool } from './deleteContent';
 export { FindReplaceContentTool } from './findReplaceContent';
-export { BatchContentTool } from './batch/BatchContent';

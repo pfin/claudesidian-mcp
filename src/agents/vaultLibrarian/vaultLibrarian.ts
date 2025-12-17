@@ -4,8 +4,7 @@ import { VaultLibrarianConfig } from '../../config/agents';
 import {
   SearchContentTool,
   SearchDirectoryTool,
-  SearchMemoryTool,
-  BatchTool
+  SearchMemoryTool
 } from './tools';
 import { MemorySettings, DEFAULT_MEMORY_SETTINGS } from '../../types';
 import { MemoryService } from "../memoryManager/services/MemoryService";
@@ -139,16 +138,6 @@ export class VaultLibrarianAgent extends BaseAgent {
       this.workspaceService || undefined,
       this.storageAdapter || undefined  // SQLite storage adapter for memory trace search
     ));
-
-    // Always register BatchTool (supports both semantic and non-semantic users)
-    this.registerTool(new BatchTool(
-      pluginOrFallback,
-      this.memoryService || undefined,
-      this.workspaceService || undefined,
-      this.storageAdapter || undefined
-    ));
-    
-    
   }
   
   

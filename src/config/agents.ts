@@ -41,10 +41,9 @@ export const AGENT_REGISTRY = {
       'replaceContent',
       'replaceByLine',
       'deleteContent',
-      'findReplaceContent',
-      'batchContent'
+      'findReplaceContent'
     ] as const,
-    capabilities: ['create', 'read', 'update', 'delete', 'batch'] as string[],
+    capabilities: ['create', 'read', 'update', 'delete'] as string[],
     requiresVault: true,
   },
 
@@ -82,13 +81,11 @@ export const AGENT_REGISTRY = {
     version: '1.0.0',
     category: AGENT_CATEGORIES.SEARCH_RETRIEVAL,
     tools: [
-      'search',
+      'searchContent',
       'searchDirectory',
-      'searchWorkspace',
-      'searchMemory',
-      'batch'
+      'searchMemory'
     ] as const,
-    capabilities: ['search', 'text-search', 'batch'] as string[],
+    capabilities: ['search', 'text-search', 'semantic-search'] as string[],
     requiresVault: true,
   },
 

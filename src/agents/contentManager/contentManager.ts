@@ -9,8 +9,7 @@ import {
   ReplaceContentTool,
   ReplaceByLineTool,
   DeleteContentTool,
-  FindReplaceContentTool,
-  BatchContentTool
+  FindReplaceContentTool
 } from './tools';
 // import { AgentManager } from '../../services/AgentManager';
 import NexusPlugin from '../../main';
@@ -72,7 +71,6 @@ export class ContentManagerAgent extends BaseAgent {
     this.registerTool(new ReplaceByLineTool(app));
     this.registerTool(new DeleteContentTool(app));
     this.registerTool(new FindReplaceContentTool(app));
-    this.registerTool(new BatchContentTool(app, this.memoryService));
   }
   
   
