@@ -5,11 +5,20 @@
  * Saves to conversation metadata (this session only).
  */
 
-import { App, Modal, ButtonComponent } from 'obsidian';
+import { App, Modal, ButtonComponent, Plugin } from 'obsidian';
 import { WorkspaceService } from '../../../services/WorkspaceService';
 import { ModelAgentManager } from '../services/ModelAgentManager';
 import { ChatSettingsRenderer, ChatSettings } from '../../../components/shared/ChatSettingsRenderer';
 import { getNexusPlugin } from '../../../utils/pluginLocator';
+import { Settings } from '../../../settings';
+
+/**
+ * Type for the NexusPlugin with settings property
+ * Used to access plugin settings in a type-safe way
+ */
+interface NexusPluginWithSettings extends Plugin {
+  settings?: Settings;
+}
 
 export class ChatSettingsModal extends Modal {
   private workspaceService: WorkspaceService;
@@ -54,7 +63,7 @@ export class ChatSettingsModal extends Modal {
   }
 
   private async loadAndRender(contentEl: HTMLElement): Promise<void> {
-    const plugin = getNexusPlugin(this.app) as any;
+    const plugin = getNexusPlugin<NexusPluginWithSettings>(this.app);
     const llmProviderSettings = plugin?.settings?.settings?.llmProviders;
 
     if (!llmProviderSettings) {
@@ -112,7 +121,7 @@ export class ChatSettingsModal extends Modal {
     const contextNotes = this.modelAgentManager.getContextNotes();
 
     // Get plugin defaults for image settings
-    const plugin = getNexusPlugin(this.app) as any;
+    const plugin = getNexusPlugin<NexusPluginWithSettings>(this.app);
     const llmSettings = plugin?.settings?.settings?.llmProviders;
 
     return {

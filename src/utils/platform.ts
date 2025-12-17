@@ -12,6 +12,16 @@
 import { Platform } from 'obsidian';
 
 /**
+ * Extended Node.js process interface with optional version fields
+ */
+interface NodeProcess {
+    versions?: {
+        node?: string;
+        electron?: string;
+    };
+}
+
+/**
  * Check if running on mobile (iOS or Android phone)
  */
 export const isMobile = (): boolean => {
@@ -32,7 +42,7 @@ export const isDesktop = (): boolean => {
  * Obsidian desktop (Electron) provides Node; mobile does not.
  */
 export const hasNodeRuntime = (): boolean => {
-    return typeof process !== 'undefined' && !!(process as any)?.versions?.node;
+    return typeof process !== 'undefined' && !!((process as NodeProcess).versions?.node);
 };
 
 /**
@@ -40,7 +50,7 @@ export const hasNodeRuntime = (): boolean => {
  * Helpful for gating features that depend on Electron/Node integration.
  */
 export const isElectron = (): boolean => {
-    return typeof process !== 'undefined' && !!(process as any)?.versions?.electron;
+    return typeof process !== 'undefined' && !!((process as NodeProcess).versions?.electron);
 };
 
 /**

@@ -177,10 +177,9 @@ export class ToolSuggester extends BaseSuggester<ToolSuggestionItem> {
     evt: MouseEvent | KeyboardEvent
   ): void {
 
-    const context = (this as any).context as EditorSuggestContext;
-    if (!context) return;
+    if (!this.context) return;
 
-    const { editor, start, end } = context;
+    const { editor, start, end } = this.context;
 
     // Create tool hint
     const toolHint: ToolHint = {

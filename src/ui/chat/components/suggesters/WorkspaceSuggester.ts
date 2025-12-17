@@ -138,7 +138,7 @@ export class WorkspaceSuggester extends BaseSuggester<WorkspaceSuggestionItem> {
     evt: MouseEvent | KeyboardEvent
   ): void {
 
-    const context = (this as any).context as EditorSuggestContext;
+    const context = this.context;
     if (!context) return;
 
     const { editor, start, end } = context;

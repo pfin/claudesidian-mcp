@@ -16,8 +16,11 @@
  */
 
 import type { App } from 'obsidian';
-import { ProjectWorkspace } from '../../../database/types/workspace/WorkspaceTypes';
+import { ProjectWorkspace, WorkspaceContext } from '../../../database/types/workspace/WorkspaceTypes';
 import { getNexusPlugin } from '../../../utils/pluginLocator';
+import type { AgentManager } from '../../../services/AgentManager';
+import type { AgentManagerAgent } from '../../agentManager/agentManager';
+import type { CustomPromptStorageService } from '../../agentManager/services/CustomPromptStorageService';
 
 /**
  * Agent information returned from resolution operations
@@ -26,6 +29,31 @@ export interface AgentInfo {
   id: string;
   name: string;
   systemPrompt: string;
+}
+
+/**
+ * Legacy workspace context structure for backward compatibility
+ * Extends the current WorkspaceContext with deprecated fields
+ */
+interface LegacyWorkspaceContext extends WorkspaceContext {
+  agents?: Array<{
+    name: string;
+    [key: string]: unknown;
+  }>;
+}
+
+/**
+ * Plugin interface with agentManager property
+ */
+interface NexusPluginWithAgentManager {
+  agentManager: AgentManager;
+}
+
+/**
+ * AgentManager agent interface with storage service
+ */
+interface AgentManagerWithStorage {
+  storageService: CustomPromptStorageService;
 }
 
 /**
@@ -48,7 +76,8 @@ export class WorkspaceAgentResolver {
       // Check if workspace has a dedicated agent
       if (!workspace.context?.dedicatedAgent) {
         // Fall back to legacy agents array for backward compatibility
-        const legacyAgents = (workspace.context as any)?.agents;
+        const legacyContext = workspace.context as LegacyWorkspaceContext | undefined;
+        const legacyAgents = legacyContext?.agents;
         if (legacyAgents && Array.isArray(legacyAgents) && legacyAgents.length > 0) {
           const legacyAgentRef = legacyAgents[0];
           if (legacyAgentRef && legacyAgentRef.name) {
@@ -81,14 +110,14 @@ export class WorkspaceAgentResolver {
   ): Promise<AgentInfo | null> {
     try {
       // Get CustomPromptStorageService through plugin's agentManager
-      const plugin = getNexusPlugin(app) as any;
-      if (!plugin || !plugin.agentManager) {
+      const plugin = getNexusPlugin(app);
+      if (!plugin || !this.hasAgentManager(plugin)) {
         console.warn('[WorkspaceAgentResolver] AgentManager not available');
         return null;
       }
 
       const agentManagerAgent = plugin.agentManager.getAgent('agentManager');
-      if (!agentManagerAgent || !agentManagerAgent.storageService) {
+      if (!this.isAgentManagerAgent(agentManagerAgent)) {
         console.warn('[WorkspaceAgentResolver] AgentManagerAgent or storage service not available');
         return null;
       }
@@ -110,5 +139,19 @@ export class WorkspaceAgentResolver {
       console.warn(`[WorkspaceAgentResolver] Failed to fetch agent '${identifier}':`, error);
       return null;
     }
+  }
+
+  /**
+   * Type guard to check if plugin has agentManager property
+   */
+  private hasAgentManager(plugin: unknown): plugin is NexusPluginWithAgentManager {
+    return typeof plugin === 'object' && plugin !== null && 'agentManager' in plugin;
+  }
+
+  /**
+   * Type guard to check if agent is AgentManagerAgent with storageService
+   */
+  private isAgentManagerAgent(agent: unknown): agent is AgentManagerWithStorage {
+    return typeof agent === 'object' && agent !== null && 'storageService' in agent;
   }
 }

@@ -1,4 +1,4 @@
-import { Vault, App, EventRef } from 'obsidian';
+import { Vault, App, EventRef, TFile } from 'obsidian';
 import { EntityCache } from './EntityCache';
 import { VaultFileIndex } from './VaultFileIndex';
 import { WorkspaceService } from '../../../services/WorkspaceService';
@@ -83,8 +83,8 @@ export class CacheManager {
         // Listen for file events from Obsidian
         this.vaultEventRefs.push(
             this.vault.on('create', async (file) => {
-                if ('extension' in file && (file.extension === 'md' || file.extension === 'canvas')) {
-                    await this.vaultFileIndex!.updateFile(file as any);
+                if (file instanceof TFile && (file.extension === 'md' || file.extension === 'canvas')) {
+                    await this.vaultFileIndex!.updateFile(file);
                 }
             })
         );
@@ -101,7 +101,7 @@ export class CacheManager {
 
         this.vaultEventRefs.push(
             this.vault.on('rename', async (file, oldPath) => {
-                if ('extension' in file && (file.extension === 'md' || file.extension === 'canvas')) {
+                if (file instanceof TFile && (file.extension === 'md' || file.extension === 'canvas')) {
                     await this.vaultFileIndex!.renameFile(oldPath, file.path);
                 }
             })
@@ -109,8 +109,8 @@ export class CacheManager {
 
         this.vaultEventRefs.push(
             this.vault.on('modify', async (file) => {
-                if ('extension' in file && (file.extension === 'md' || file.extension === 'canvas')) {
-                    await this.vaultFileIndex!.updateFile(file as any);
+                if (file instanceof TFile && (file.extension === 'md' || file.extension === 'canvas')) {
+                    await this.vaultFileIndex!.updateFile(file);
                 }
             })
         );

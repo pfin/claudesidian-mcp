@@ -10,6 +10,7 @@ import { App, Plugin, prepareFuzzySearch } from 'obsidian';
 import {
   MemorySearchParameters,
   MemorySearchResult,
+  EnrichedMemorySearchResult,
   RawMemoryResult,
   MemorySearchContext,
   MemorySearchExecutionOptions,
@@ -27,10 +28,10 @@ import { getNexusPlugin } from '../../../utils/pluginLocator';
 import type NexusPlugin from '../../../main';
 
 export interface MemorySearchProcessorInterface {
-  process(params: MemorySearchParameters): Promise<MemorySearchResult[]>;
+  process(params: MemorySearchParameters): Promise<EnrichedMemorySearchResult[]>;
   validateParameters(params: MemorySearchParameters): ValidationResult;
   executeSearch(query: string, options: MemorySearchExecutionOptions): Promise<RawMemoryResult[]>;
-  enrichResults(results: RawMemoryResult[], context: MemorySearchContext): Promise<MemorySearchResult[]>;
+  enrichResults(results: RawMemoryResult[], context: MemorySearchContext): Promise<EnrichedMemorySearchResult[]>;
   getConfiguration(): MemoryProcessorConfiguration;
   updateConfiguration(config: Partial<MemoryProcessorConfiguration>): Promise<void>;
 }
@@ -64,7 +65,7 @@ export class MemorySearchProcessor implements MemorySearchProcessorInterface {
   /**
    * Main processing entry point
    */
-  async process(params: MemorySearchParameters): Promise<MemorySearchResult[]> {
+  async process(params: MemorySearchParameters): Promise<EnrichedMemorySearchResult[]> {
     // Validate parameters
     const validation = this.validateParameters(params);
     if (!validation.isValid) {
@@ -202,8 +203,8 @@ export class MemorySearchProcessor implements MemorySearchProcessorInterface {
   /**
    * Enrich raw results with metadata and context
    */
-  async enrichResults(results: RawMemoryResult[], context: MemorySearchContext): Promise<MemorySearchResult[]> {
-    const enrichedResults: MemorySearchResult[] = [];
+  async enrichResults(results: RawMemoryResult[], context: MemorySearchContext): Promise<EnrichedMemorySearchResult[]> {
+    const enrichedResults: EnrichedMemorySearchResult[] = [];
 
     for (const result of results) {
       try {
@@ -487,7 +488,7 @@ export class MemorySearchProcessor implements MemorySearchProcessorInterface {
     return [];
   }
 
-  private async enrichSingleResult(result: RawMemoryResult, context: MemorySearchContext): Promise<MemorySearchResult | null> {
+  private async enrichSingleResult(result: RawMemoryResult, context: MemorySearchContext): Promise<EnrichedMemorySearchResult | null> {
     const trace = result.trace;
     const query = context.params.query;
 
@@ -504,13 +505,14 @@ export class MemorySearchProcessor implements MemorySearchProcessorInterface {
       // Generate context
       const searchContext = this.generateSearchContext(trace, query, resultType);
 
-      const enrichedResult: MemorySearchResult = {
+      const enrichedResult: EnrichedMemorySearchResult = {
         type: resultType,
         id: trace.id,
         highlight,
         metadata,
         context: searchContext,
-        score: result.similarity || 0
+        score: result.similarity || 0,
+        _rawTrace: trace  // Attach raw trace for downstream processing
       };
 
       return enrichedResult;

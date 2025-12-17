@@ -2,25 +2,26 @@ import { Events, Vault, TFile } from 'obsidian';
 import { WorkspaceService } from '../../../services/WorkspaceService';
 import { MemoryService } from '../../../agents/memoryManager/services/MemoryService';
 
-interface CachedWorkspace {
+interface TimestampedEntry {
+    timestamp: number;
+}
+
+interface CachedWorkspace extends TimestampedEntry {
     data: any;
     sessionIds: string[];
     stateIds: string[];
     associatedFiles: string[];
-    timestamp: number;
 }
 
-interface CachedSession {
+interface CachedSession extends TimestampedEntry {
     data: any;
     traceIds: string[];
     associatedFiles: string[];
-    timestamp: number;
 }
 
-interface CachedState {
+interface CachedState extends TimestampedEntry {
     data: any;
     associatedFiles: string[];
-    timestamp: number;
 }
 
 interface FileMetadata {
@@ -363,16 +364,16 @@ export class EntityCache extends Events {
     }
 
     // Enforce cache size limits
-    private enforceLimit<T>(cache: Map<string, T>): void {
+    private enforceLimit<T extends TimestampedEntry>(cache: Map<string, T>): void {
         if (cache.size > (this.options.maxSize || this.maxCacheSize)) {
             // Remove oldest entries
             const entries = Array.from(cache.entries());
             entries.sort((a, b) => {
-                const timestampA = (a[1] as any).timestamp || 0;
-                const timestampB = (b[1] as any).timestamp || 0;
+                const timestampA = a[1].timestamp || 0;
+                const timestampB = b[1].timestamp || 0;
                 return timestampA - timestampB;
             });
-            
+
             const toRemove = entries.slice(0, Math.floor(cache.size * 0.2)); // Remove 20%
             toRemove.forEach(([key]) => cache.delete(key));
         }

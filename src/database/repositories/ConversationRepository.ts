@@ -174,17 +174,18 @@ export class ConversationRepository
 
     try {
       // 1. Write metadata event to JSONL
+      const eventData: Omit<ConversationCreatedEvent, 'id' | 'deviceId' | 'timestamp'> = {
+        type: 'metadata',
+        data: {
+          id,
+          title: data.title,
+          created: data.created ?? now,
+          vault: data.vaultName
+        }
+      };
       await this.writeEvent<ConversationCreatedEvent>(
         this.jsonlPath(id),
-        {
-          type: 'metadata',
-          data: {
-            id,
-            title: data.title,
-            created: data.created ?? now,
-            vault: data.vaultName
-          }
-        } as any
+        eventData
       );
 
       // 2. Update SQLite cache
@@ -219,17 +220,18 @@ export class ConversationRepository
   async update(id: string, data: UpdateConversationData): Promise<void> {
     try {
       // 1. Write update event to JSONL
+      const eventData: Omit<ConversationUpdatedEvent, 'id' | 'deviceId' | 'timestamp'> = {
+        type: 'conversation_updated',
+        conversationId: id,
+        data: {
+          title: data.title,
+          updated: data.updated ?? Date.now(),
+          settings: data.metadata
+        }
+      };
       await this.writeEvent<ConversationUpdatedEvent>(
         this.jsonlPath(id),
-        {
-          type: 'conversation_updated',
-          conversationId: id,
-          data: {
-            title: data.title,
-            updated: data.updated ?? Date.now(),
-            settings: data.metadata
-          }
-        } as any
+        eventData
       );
 
       // 2. Update SQLite cache

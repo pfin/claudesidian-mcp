@@ -143,7 +143,7 @@ export class NoteSuggester extends BaseSuggester<NoteSuggestionItem> {
     evt: MouseEvent | KeyboardEvent
   ): Promise<void> {
 
-    const context = (this as any).context as EditorSuggestContext;
+    const context = this.context;
     if (!context) return;
 
     const { editor, start, end } = context;

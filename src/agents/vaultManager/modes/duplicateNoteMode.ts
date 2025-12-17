@@ -1,4 +1,4 @@
-import { App } from 'obsidian';
+import { App, Plugin } from 'obsidian';
 import { BaseMode } from '../../baseMode';
 import { DuplicateNoteParams, DuplicateNoteResult } from '../types';
 import { FileOperations } from '../utils/FileOperations';
@@ -8,6 +8,15 @@ import { createErrorMessage } from '../../../utils/errorUtils';
 import { addRecommendations, Recommendation } from '../../../utils/recommendationUtils';
 import { NudgeHelpers } from '../../../utils/nudgeHelpers';
 import { getNexusPlugin } from '../../../utils/pluginLocator';
+
+/**
+ * Interface for a plugin with services
+ */
+interface PluginWithServices extends Plugin {
+  services?: {
+    memoryService?: MemoryService;
+  };
+}
 
 /**
  * Mode for duplicating a note
@@ -35,7 +44,7 @@ export class DuplicateNoteMode extends BaseMode<DuplicateNoteParams, DuplicateNo
     // Try to get memory service from plugin if not provided
     if (!this.memoryService) {
       try {
-        const plugin = getNexusPlugin(this.app) as any;
+        const plugin = getNexusPlugin<PluginWithServices>(this.app);
         if (plugin?.services?.memoryService) {
           this.memoryService = plugin.services.memoryService;
         }
@@ -152,7 +161,7 @@ export class DuplicateNoteMode extends BaseMode<DuplicateNoteParams, DuplicateNo
       // Try to get memory service from plugin if not available
       if (!this.memoryService) {
         try {
-          const plugin = getNexusPlugin(this.app) as any;
+          const plugin = getNexusPlugin<PluginWithServices>(this.app);
           if (plugin?.services?.memoryService) {
             this.memoryService = plugin.services.memoryService;
             // Try again with the newly found service

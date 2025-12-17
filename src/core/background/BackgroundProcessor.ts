@@ -79,20 +79,19 @@ export class BackgroundProcessor {
 
                 const updateManager = new UpdateManager(this.config.plugin);
                 const hasUpdate = await updateManager.checkForUpdate();
-                
+
                 settings.settings.lastUpdateCheckDate = new Date().toISOString();
-                
+
                 if (hasUpdate) {
-                    const release = await (updateManager as any).fetchLatestRelease();
-                    const availableVersion = release.tag_name.replace('v', '');
-                    
+                    const availableVersion = await updateManager.getLatestVersion();
+
                     settings.settings.availableUpdateVersion = availableVersion;
-                    
+
                     new Notice(`Plugin update available: v${availableVersion}. Check settings to update.`, 8000);
                 } else {
                     settings.settings.availableUpdateVersion = undefined;
                 }
-                
+
                 await settings.saveSettings();
 
             } catch (error) {

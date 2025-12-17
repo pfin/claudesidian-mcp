@@ -30,15 +30,21 @@ import { QueryCache } from '../../optimizations/QueryCache';
 import { BaseStorageEvent } from '../../interfaces/StorageEvents';
 
 /**
+ * Valid entity types for type-specific cache invalidation
+ * Must match the types supported by QueryCache.invalidateByType/invalidateById
+ */
+export type CacheableEntityType = 'workspace' | 'session' | 'state' | 'conversation' | 'message';
+
+/**
  * Dependencies required by all repositories
  */
 export interface RepositoryDependencies {
   /** SQLite cache manager for fast queries */
   sqliteCache: SQLiteCacheManager;
-  
+
   /** JSONL writer for event sourcing */
   jsonlWriter: JSONLWriter;
-  
+
   /** Query cache for optimization */
   queryCache: QueryCache;
 }
@@ -204,15 +210,35 @@ export abstract class BaseRepository<T> implements IRepository<T> {
   }
 
   /**
+   * Check if entity type is cacheable (supports type-specific invalidation)
+   *
+   * @param type - Entity type to check
+   * @returns True if type supports QueryCache.invalidateByType/invalidateById
+   */
+  private isCacheableEntityType(type: string): type is CacheableEntityType {
+    return ['workspace', 'session', 'state', 'conversation', 'message'].includes(type);
+  }
+
+  /**
    * Invalidate cache for this entity type
    *
    * @param id - Optional specific entity ID to invalidate
    */
   protected invalidateCache(id?: string): void {
-    if (id) {
-      this.queryCache.invalidateById(this.entityType as any, id);
+    if (this.isCacheableEntityType(this.entityType)) {
+      // Use type-specific invalidation for supported entity types
+      if (id) {
+        this.queryCache.invalidateById(this.entityType, id);
+      } else {
+        this.queryCache.invalidateByType(this.entityType);
+      }
     } else {
-      this.queryCache.invalidateByType(this.entityType as any);
+      // Use pattern-based invalidation for other entity types
+      if (id) {
+        this.queryCache.invalidate(`^${this.entityType}:.*:${id}`);
+      } else {
+        this.queryCache.invalidate(`^${this.entityType}:`);
+      }
     }
   }
 

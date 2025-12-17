@@ -3,7 +3,7 @@
  * Provides unified interface to all LLM providers with Obsidian integration
  */
 
-import { Vault, EventRef } from 'obsidian';
+import { Vault, EventRef, DataAdapter } from 'obsidian';
 import { BaseAdapter } from '../adapters/BaseAdapter';
 import { GenerateOptions, LLMResponse, ModelInfo } from '../adapters/types';
 import { LLMProviderSettings, LLMProviderConfig } from '../../../types';
@@ -13,9 +13,9 @@ import { ConversationData } from '../../../types/chat/ChatTypes';
 import { AdapterRegistry } from './AdapterRegistry';
 import { ModelDiscoveryService } from './ModelDiscoveryService';
 import { FileContentService } from './FileContentService';
-import { StreamingOrchestrator, StreamingOptions, StreamYield } from './StreamingOrchestrator';
+import { StreamingOrchestrator, StreamingOptions, StreamYield, ConversationMessage } from './StreamingOrchestrator';
 import { VaultOperations } from '../../../core/VaultOperations';
-import { CacheManager } from '../utils/CacheManager';
+import { CacheManager, VaultAdapter } from '../utils/CacheManager';
 import { Logger } from '../utils/Logger';
 import { LLMSettingsNotifier } from '../LLMSettingsNotifier';
 
@@ -62,7 +62,7 @@ export class LLMService {
     this.settings = settings;
     this.vault = vault;
     if (vault) {
-      const adapter = vault.adapter as any;
+      const adapter = vault.adapter as DataAdapter & VaultAdapter;
       CacheManager.configureVaultAdapter(adapter);
       Logger.setVaultAdapter(adapter);
     }
@@ -258,11 +258,20 @@ export class LLMService {
       this.toolExecutor
     );
     // Convert messages to ConversationMessage format
-    const conversationMessages = messages.map(msg => ({
-      role: msg.role as 'user' | 'assistant' | 'system' | 'tool',
-      content: msg.content,
-      tool_calls: 'tool_calls' in msg ? (msg as any).tool_calls : undefined
-    }));
+    const conversationMessages: ConversationMessage[] = messages.map(msg => {
+      // Type guard to check for tool_calls property
+      if ('tool_calls' in msg && Array.isArray((msg as { tool_calls?: unknown }).tool_calls)) {
+        return {
+          role: msg.role as 'user' | 'assistant' | 'system' | 'tool',
+          content: msg.content,
+          tool_calls: (msg as { tool_calls: ConversationMessage['tool_calls'] }).tool_calls
+        };
+      }
+      return {
+        role: msg.role as 'user' | 'assistant' | 'system' | 'tool',
+        content: msg.content
+      };
+    });
     yield* orchestrator.generateResponseStream(conversationMessages, options);
   }
 

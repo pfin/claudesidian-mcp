@@ -84,7 +84,7 @@ export class SQLiteCacheManager implements IStorageBackend, ISQLiteCacheManager 
    * as well as the current `.obsidian/plugins/nexus/` folder.
    */
   private async resolveSqliteWasmPath(): Promise<string> {
-    const configDir = (this.app.vault as any)?.configDir || '.obsidian';
+    const configDir = this.app.vault.configDir || '.obsidian';
     const candidatePluginFolders = ['nexus', 'claudesidian-mcp'];
     const candidates = candidatePluginFolders.map(folder => `${configDir}/plugins/${folder}/sqlite3.wasm`);
 

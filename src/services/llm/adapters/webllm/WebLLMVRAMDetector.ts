@@ -21,6 +21,69 @@
 
 import { VRAMInfo } from './types';
 
+// ============================================================================
+// WebGPU Type Definitions
+// ============================================================================
+
+/**
+ * WebGPU adapter info interface
+ * Provides GPU hardware information
+ */
+interface GPUAdapterInfo {
+  vendor?: string;
+  architecture?: string;
+  device?: string;
+  description?: string;
+}
+
+/**
+ * WebGPU adapter interface
+ * Represents a physical GPU available to the system
+ */
+interface GPUAdapter {
+  readonly info?: GPUAdapterInfo;
+  readonly limits: GPUSupportedLimits;
+  requestAdapterInfo?(): Promise<GPUAdapterInfo>;
+  requestDevice(): Promise<GPUDevice>;
+}
+
+/**
+ * WebGPU supported limits interface
+ */
+interface GPUSupportedLimits {
+  readonly maxBufferSize: number;
+  // Additional limits exist but maxBufferSize is what we need for VRAM estimation
+}
+
+/**
+ * WebGPU device interface
+ */
+interface GPUDevice {
+  readonly limits: GPUSupportedLimits;
+  destroy(): void;
+}
+
+/**
+ * WebGPU API interface
+ */
+interface GPU {
+  requestAdapter(options?: { powerPreference?: 'low-power' | 'high-performance' }): Promise<GPUAdapter | null>;
+}
+
+/**
+ * Extended Navigator interface with WebGPU support
+ */
+interface NavigatorGPU extends Navigator {
+  readonly gpu: GPU;
+}
+
+/**
+ * Type guard to check if navigator has WebGPU support
+ */
+function hasGPU(navigator: Navigator): navigator is NavigatorGPU {
+  return 'gpu' in navigator;
+}
+
 export class WebLLMVRAMDetector {
   private static cachedInfo: VRAMInfo | null = null;
 
@@ -33,7 +96,7 @@ export class WebLLMVRAMDetector {
       return false;
     }
 
-    if (!('gpu' in navigator)) {
+    if (!hasGPU(navigator)) {
       console.log('[WebLLMVRAMDetector] WebGPU not available - navigator.gpu is missing');
       console.log('[WebLLMVRAMDetector] This may be due to:');
       console.log('  - Outdated Obsidian version (needs recent Electron)');
@@ -43,7 +106,7 @@ export class WebLLMVRAMDetector {
     }
 
     try {
-      const gpu = (navigator as any).gpu;
+      const gpu = navigator.gpu;
 
       // Try different adapter options for better compatibility
       // Windows/NVIDIA may need explicit high-performance preference
@@ -87,14 +150,14 @@ export class WebLLMVRAMDetector {
     };
 
     // Check WebGPU support
-    if (typeof navigator === 'undefined' || !('gpu' in navigator)) {
+    if (typeof navigator === 'undefined' || !hasGPU(navigator)) {
       console.log('[WebLLMVRAMDetector] WebGPU API not available');
       this.cachedInfo = info;
       return info;
     }
 
     try {
-      const gpu = (navigator as any).gpu;
+      const gpu = navigator.gpu;
 
       // Request high-performance adapter first (important for Windows/NVIDIA)
       console.log('[WebLLMVRAMDetector] Requesting WebGPU adapter...');

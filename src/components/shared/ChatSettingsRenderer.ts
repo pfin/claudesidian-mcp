@@ -39,7 +39,16 @@ export interface ChatSettings {
  * Available options for dropdowns
  */
 export interface ChatSettingsOptions {
-  workspaces: Array<{ id: string; name: string }>;
+  workspaces: Array<{
+    id: string;
+    name: string;
+    context?: {
+      dedicatedAgent?: {
+        agentId: string;
+        agentName: string;
+      };
+    };
+  }>;
   agents: Array<{ id: string; name: string }>;
 }
 
@@ -411,8 +420,8 @@ export class ChatSettingsRenderer {
     if (!workspaceId) return;
 
     const workspace = this.config.options.workspaces.find(w => w.id === workspaceId);
-    if (workspace && (workspace as any).context?.dedicatedAgent?.agentId) {
-      const agentId = (workspace as any).context.dedicatedAgent.agentId;
+    if (workspace?.context?.dedicatedAgent?.agentId) {
+      const agentId = workspace.context.dedicatedAgent.agentId;
       const agent = this.config.options.agents.find(a => a.id === agentId || a.name === agentId);
       if (agent) {
         this.settings.agentId = agent.name;

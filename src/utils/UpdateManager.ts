@@ -37,12 +37,21 @@ export class UpdateManager {
             const release = await this.fetchLatestRelease();
             const latestVersion = release.tag_name.replace('v', '');
             const currentVersion = this.plugin.manifest.version;
-            
+
             return this.compareVersions(latestVersion, currentVersion) > 0;
         } catch (error) {
             console.error('Failed to check for updates:', error);
             throw new Error('Failed to check for updates: ' + (error as Error).message);
         }
+    }
+
+    /**
+     * Get the latest available version
+     * @returns version string without 'v' prefix
+     */
+    async getLatestVersion(): Promise<string> {
+        const release = await this.fetchLatestRelease();
+        return release.tag_name.replace('v', '');
     }
 
     /**

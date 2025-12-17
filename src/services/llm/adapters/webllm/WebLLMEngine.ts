@@ -111,6 +111,11 @@ let webllm: typeof WebLLMTypes | null = null;
 // This ensures the model stays loaded in GPU memory even when multiple adapters exist
 let sharedEngineInstance: WebLLMEngine | null = null;
 
+// Extend Window interface to include our patch tracking flag
+interface NexusWindow extends Window {
+  __nexus_wasm_patched?: boolean;
+}
+
 /**
  * Patch WebAssembly.instantiate to inject FFI stub functions
  *
@@ -124,7 +129,7 @@ let sharedEngineInstance: WebLLMEngine | null = null;
  * 3. These are GPU stream management functions not used by WebGPU
  */
 function patchWebAssemblyInstantiate(): void {
-  const win = window as any;
+  const win = window as NexusWindow;
 
   // Check if we've already patched
   if (win.__nexus_wasm_patched) {
@@ -145,6 +150,9 @@ function patchWebAssemblyInstantiate(): void {
     TVMFFIEnvCheckSignals: () => 0,   // Interrupt/signal handling
   };
 
+  // Type for WebAssembly module environment with FFI stubs
+  type FFIEnv = Record<string, unknown> & Record<string, () => number>;
+
   // Helper to inject stubs into imports
   function injectStubs(imports: WebAssembly.Imports | undefined): WebAssembly.Imports {
     if (!imports) {
@@ -163,10 +171,12 @@ function patchWebAssemblyInstantiate(): void {
       patchedImports.env = {};
     }
 
+    const env = patchedImports.env as FFIEnv;
+
     // Add stubs only if not already present
     for (const [name, stub] of Object.entries(ffiStubs)) {
-      if (!(name in (patchedImports.env as object))) {
-        (patchedImports.env as any)[name] = stub;
+      if (!(name in env)) {
+        env[name] = stub;
       }
     }
 
@@ -658,11 +668,14 @@ export class WebLLMEngine {
 
       // Debug: Check WebLLM internal state before iteration
       try {
-        const engineAny = this.engine as any;
+        // Type guard to check if engine has internal debug properties (runtime-only inspection)
+        type EngineInternal = { chat?: unknown; currentModelId?: string };
+        const engineInternal = this.engine as unknown as EngineInternal;
+
         console.log('[NEXUS_DEBUG] WebLLM internal state:', {
-          hasChat: !!engineAny?.chat,
-          hasPipeline: !!engineAny?.currentModelId,
-          modelId: engineAny?.currentModelId,
+          hasChat: !!engineInternal.chat,
+          hasPipeline: !!engineInternal.currentModelId,
+          modelId: engineInternal.currentModelId,
         });
       } catch (e) {
         console.log('[NEXUS_DEBUG] Could not inspect WebLLM state:', e);

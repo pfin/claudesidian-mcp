@@ -276,10 +276,10 @@ export class ProvidersTab {
                 settings.providers[providerId] = updatedConfig;
 
                 // Handle Ollama model update
-                if (providerId === 'ollama') {
-                    const ollamaModel = (updatedConfig as any).__ollamaModel;
+                if (providerId === 'ollama' && '__ollamaModel' in updatedConfig) {
+                    const ollamaModel = (updatedConfig as LLMProviderConfig & { __ollamaModel: string }).__ollamaModel;
                     if (ollamaModel) {
-                        delete (updatedConfig as any).__ollamaModel;
+                        delete (updatedConfig as LLMProviderConfig & { __ollamaModel?: string }).__ollamaModel;
                         if (settings.defaultModel.provider === 'ollama') {
                             settings.defaultModel.model = ollamaModel;
                         }

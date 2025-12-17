@@ -5,6 +5,11 @@ import { SettingsRouter, RouterState, SettingsTab } from './SettingsRouter';
 import { UpdateManager } from '../utils/UpdateManager';
 import { supportsMCPBridge } from '../utils/platform';
 
+// Type to access private method (should be refactored to make fetchLatestRelease public in UpdateManager)
+type UpdateManagerWithFetchRelease = {
+    fetchLatestRelease(): Promise<{ tag_name: string; assets: Array<{ name: string; browser_download_url: string }> }>;
+};
+
 // Services
 import { WorkspaceService } from '../services/WorkspaceService';
 import { MemoryService } from '../agents/memoryManager/services/MemoryService';
@@ -258,7 +263,7 @@ export class SettingsView extends PluginSettingTab {
             this.settingsManager.settings.lastUpdateCheckDate = new Date().toISOString();
 
             if (hasUpdate) {
-                const release = await (updateManager as any).fetchLatestRelease();
+                const release = await (updateManager as unknown as UpdateManagerWithFetchRelease).fetchLatestRelease();
                 const availableVersion = release.tag_name.replace('v', '');
                 this.settingsManager.settings.availableUpdateVersion = availableVersion;
 
@@ -468,7 +473,7 @@ export class SettingsView extends PluginSettingTab {
 
         // Get plugin path for MCP config
         const vaultBasePath = this.getVaultBasePath();
-        const pluginDir = (this.plugin as any).manifest?.dir;
+        const pluginDir = this.plugin.manifest.dir;
         // Extract just the folder name in case manifest.dir contains a full path
         // (e.g., ".obsidian/plugins/claudesidian-mcp" instead of just "claudesidian-mcp")
         const pluginFolderName = pluginDir ? pluginDir.split('/').pop() || pluginDir : '';

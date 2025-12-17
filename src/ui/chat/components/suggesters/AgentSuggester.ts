@@ -151,10 +151,11 @@ export class AgentSuggester extends BaseSuggester<AgentSuggestionItem> {
     evt: MouseEvent | KeyboardEvent
   ): void {
 
-    const context = (this as any).context as EditorSuggestContext;
-    if (!context) return;
+    // Access the context property from EditorSuggest base class
+    // This is typed as EditorSuggestContext | null in Obsidian's API
+    if (!this.context) return;
 
-    const { editor, start, end } = context;
+    const { editor, start, end } = this.context;
 
     // Create agent reference
     const agentRef: AgentReference = {

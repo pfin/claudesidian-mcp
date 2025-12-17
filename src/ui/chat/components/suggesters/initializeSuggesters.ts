@@ -2,7 +2,7 @@
  * Initialize suggesters for a contenteditable element
  */
 
-import { App } from 'obsidian';
+import { App, Plugin } from 'obsidian';
 import { TextAreaNoteSuggester } from './TextAreaNoteSuggester';
 import { TextAreaToolSuggester } from './TextAreaToolSuggester';
 import { TextAreaAgentSuggester } from './TextAreaAgentSuggester';
@@ -11,6 +11,16 @@ import { MessageEnhancer } from '../../services/MessageEnhancer';
 import { CustomPromptStorageService } from '../../../../agents/agentManager/services/CustomPromptStorageService';
 import { WorkspaceService } from '../../../../services/WorkspaceService';
 import { getNexusPlugin } from '../../../../utils/pluginLocator';
+import type { Settings } from '../../../../settings';
+
+/**
+ * Interface for NexusPlugin with settings and services
+ */
+interface NexusPluginWithServices extends Plugin {
+  settings?: Settings;
+  services?: Record<string, unknown>;
+  workspaceService?: WorkspaceService;
+}
 
 export interface SuggesterInstances {
   noteSuggester: TextAreaNoteSuggester;
@@ -35,15 +45,16 @@ export function initializeSuggesters(
   let agentSuggester: TextAreaAgentSuggester | undefined;
   let workspaceSuggester: TextAreaWorkspaceSuggester | undefined;
   try {
-    const plugin = getNexusPlugin(app) as any;
-    if (plugin && plugin.settings) {
+    const plugin = getNexusPlugin<NexusPluginWithServices>(app);
+    if (plugin?.settings) {
       const promptStorage = new CustomPromptStorageService(plugin.settings);
       agentSuggester = new TextAreaAgentSuggester(app, element, messageEnhancer, promptStorage);
     }
 
     // Initialize workspace suggester
     if (plugin) {
-      const workspaceService = plugin.workspaceService;
+      const workspaceService = plugin.workspaceService ||
+        (plugin.services?.workspaceService as WorkspaceService | undefined);
       if (workspaceService) {
         workspaceSuggester = new TextAreaWorkspaceSuggester(app, element, messageEnhancer, workspaceService);
       }

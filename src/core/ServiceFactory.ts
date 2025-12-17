@@ -31,6 +31,14 @@ import { AgentManager } from '../services/AgentManager';
 import { UsageTracker } from '../services/UsageTracker';
 import { MemoryService } from '../agents/memoryManager/services/MemoryService';
 import { Settings } from '../settings';
+import type NexusPlugin from '../main';
+
+/**
+ * Type guard to check if a plugin has settings property
+ */
+function hasSettings(plugin: Plugin): plugin is Plugin & { settings: Settings } {
+    return 'settings' in plugin && plugin.settings !== undefined;
+}
 
 /**
  * Standardized agent factory interface
@@ -82,7 +90,9 @@ export class ContentManagerAgentFactory extends BaseAgentFactory<ContentManagerA
     async create(dependencies: Map<string, any>, app: App, plugin: Plugin): Promise<ContentManagerAgent> {
         const memoryService = this.getOptionalDependency<MemoryService>(dependencies, 'memoryService');
         const workspaceService = this.getOptionalDependency<any>(dependencies, 'workspaceService');
-        return new ContentManagerAgent(app, plugin as any, memoryService, workspaceService);
+        // ContentManagerAgent accepts NexusPlugin which extends Plugin
+        const nexusPlugin = plugin as unknown as NexusPlugin;
+        return new ContentManagerAgent(app, nexusPlugin, memoryService, workspaceService);
     }
 }
 
@@ -121,8 +131,8 @@ export class VaultLibrarianAgentFactory extends BaseAgentFactory<VaultLibrarianA
     }
 
     async create(dependencies: Map<string, any>, app: App, plugin: Plugin): Promise<VaultLibrarianAgent> {
-        // Get settings from plugin
-        const pluginSettings = (plugin as any)?.settings?.settings;
+        // Get settings from plugin using type guard
+        const pluginSettings = hasSettings(plugin) ? plugin.settings.settings : undefined;
         const enableSearchModes = false; // Currently disabled
         const memoryService = this.getOptionalDependency<MemoryService>(dependencies, 'memoryService');
         const workspaceService = this.getOptionalDependency<any>(dependencies, 'workspaceService');
@@ -172,15 +182,14 @@ export class AgentManagerAgentFactory extends BaseAgentFactory<AgentManagerAgent
         const parentAgentManager = this.getDependency<AgentManager>(dependencies, 'agentManager');
         const usageTracker = this.getDependency<UsageTracker>(dependencies, 'usageTracker');
 
-        // Get plugin settings
-        const settings = (plugin as any).settings;
-        if (!settings) {
+        // Get plugin settings using type guard
+        if (!hasSettings(plugin)) {
             throw new Error('Plugin settings required for AgentManagerAgent');
         }
 
         // Create agent with all dependencies injected via constructor
         return new AgentManagerAgent(
-            settings,
+            plugin.settings,
             providerManager,
             parentAgentManager,
             usageTracker,

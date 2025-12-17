@@ -375,7 +375,11 @@ export class StreamingOrchestrator {
         if (msg.tool_calls && msg.tool_calls.length > 0) {
           return `Assistant: [Calling tools: ${msg.tool_calls.map((tc) => {
             // Handle both AdapterToolCall and ChatToolCall
-            if ('name' in tc && tc.name) return tc.name;
+            // ChatToolCall has optional 'name' property, AdapterToolCall does not
+            if ('name' in tc) {
+              const chatTc = tc as ChatToolCall;
+              if (chatTc.name) return chatTc.name;
+            }
             return tc.function?.name || 'unknown';
           }).join(', ')}]`;
         }

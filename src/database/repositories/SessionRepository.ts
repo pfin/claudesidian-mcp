@@ -269,7 +269,7 @@ export class SessionRepository
       workspaceId: session.workspaceId,
       endTime: Date.now(),
       isActive: false
-    } as any);
+    });
   }
 
   async countByWorkspace(workspaceId: string): Promise<number> {

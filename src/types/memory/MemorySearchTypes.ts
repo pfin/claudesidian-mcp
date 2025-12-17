@@ -67,6 +67,11 @@ export interface MemorySearchResult {
   score: number;
 }
 
+// Enriched memory search result with raw trace attached
+export interface EnrichedMemorySearchResult extends MemorySearchResult {
+  _rawTrace: any;
+}
+
 // Memory result metadata
 export interface MemoryResultMetadata {
   created: string;

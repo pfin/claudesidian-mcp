@@ -4,6 +4,7 @@ import { getErrorMessage } from '../../../utils/errorUtils';
 import {
   MemorySearchParameters,
   MemorySearchResult,
+  EnrichedMemorySearchResult,
   SearchMemoryModeResult,
   MemoryFilterOptions,
   FormatOptions,
@@ -147,10 +148,10 @@ export class SearchMemoryMode extends BaseMode<SearchMemoryParams, SearchMemoryR
       
       // Transform results to simple format with just content, tool, and context
       // Use the raw trace data attached during enrichment
-      const simplifiedResults = results.map((result) => {
+      const simplifiedResults = results.map((result: EnrichedMemorySearchResult) => {
         try {
           // Access the raw trace that was attached during enrichment
-          const trace = (result as any)._rawTrace;
+          const trace = result._rawTrace;
           if (!trace) {
             console.warn('[SearchMemoryMode] No raw trace found for result:', result.id);
             return null;

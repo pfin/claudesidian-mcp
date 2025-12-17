@@ -5,16 +5,34 @@
  */
 
 import { BaseAdapter } from '../BaseAdapter';
-import { 
-  GenerateOptions, 
-  StreamChunk, 
-  LLMResponse, 
-  ModelInfo, 
-  ProviderCapabilities, 
-  ModelPricing 
+import {
+  GenerateOptions,
+  StreamChunk,
+  LLMResponse,
+  ModelInfo,
+  ProviderCapabilities,
+  ModelPricing
 } from '../types';
 import { REQUESTY_MODELS, REQUESTY_DEFAULT_MODEL } from './RequestyModels';
 import { MCPToolExecution } from '../shared/ToolExecutionUtils';
+
+/**
+ * Requesty API response structure (OpenAI-compatible)
+ */
+interface RequestyChatCompletionResponse {
+  choices: Array<{
+    message?: {
+      content?: string;
+      toolCalls?: any[];
+    };
+    finish_reason?: string;
+  }>;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+}
 
 export class RequestyAdapter extends BaseAdapter {
   readonly name = 'requesty';
@@ -174,7 +192,7 @@ export class RequestyAdapter extends BaseAdapter {
       throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
-    const data = await response.json() as any;
+    const data = await response.json() as RequestyChatCompletionResponse;
     const choice = data.choices[0];
     
     if (!choice) {
@@ -183,7 +201,7 @@ export class RequestyAdapter extends BaseAdapter {
     
     let text = choice.message?.content || '';
     const usage = this.extractUsage(data);
-    let finishReason = choice.finish_reason || 'stop';
+    const finishReason = this.mapFinishReason(choice.finish_reason || null);
 
     // If tools were provided and we got tool calls, return placeholder text
     if (options?.tools && choice.message?.toolCalls && choice.message.toolCalls.length > 0) {
@@ -195,7 +213,7 @@ export class RequestyAdapter extends BaseAdapter {
       model,
       usage,
       { provider: 'requesty' },
-      finishReason as any
+      finishReason
     );
   }
 

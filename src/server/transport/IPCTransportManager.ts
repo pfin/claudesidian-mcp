@@ -246,7 +246,15 @@ export class IPCTransportManager {
         isWindows: boolean;
         socketExists?: boolean;
     } {
-        const diagnostics = {
+        type DiagnosticsWithSocket = {
+            transportType: string;
+            isRunning: boolean;
+            hasServer: boolean;
+            ipcPath: string;
+            isWindows: boolean;
+        } & { socketExists?: boolean };
+
+        const diagnostics: DiagnosticsWithSocket = {
             transportType: 'ipc',
             isRunning: this.isRunning,
             hasServer: this.ipcServer !== null,
@@ -259,13 +267,13 @@ export class IPCTransportManager {
             try {
                 fs.access(this.configuration.getIPCPath())
                     .then(() => {
-                        (diagnostics as any).socketExists = true;
+                        diagnostics.socketExists = true;
                     })
                     .catch(() => {
-                        (diagnostics as any).socketExists = false;
+                        diagnostics.socketExists = false;
                     });
             } catch (error) {
-                (diagnostics as any).socketExists = false;
+                diagnostics.socketExists = false;
             }
         }
 

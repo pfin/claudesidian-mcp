@@ -201,7 +201,7 @@ export class LoadWorkspaceMode extends BaseMode<LoadWorkspaceParameters, LoadWor
 
       // Add navigation fallback message if workspace path building failed
       if (workspacePathResult.failed) {
-        (result.data.context as any).recentActivity.push(
+        result.data.context.recentActivity.push(
           "Note: Workspace directory navigation unavailable. Use vaultManager listDirectoryMode to explore the workspace folder structure."
         );
       }

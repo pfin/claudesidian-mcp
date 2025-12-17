@@ -14,6 +14,40 @@ import { AgentConfigurationUtility } from '../utils/AgentConfigurationUtility';
 import { WorkspaceIntegrationService } from './WorkspaceIntegrationService';
 import { getWebLLMLifecycleManager } from '../../../services/llm/adapters/webllm/WebLLMLifecycleManager';
 import { ThinkingSettings } from '../../../types/llm/ProviderTypes';
+import type NexusPlugin from '../../../main';
+import type { App } from 'obsidian';
+
+/**
+ * App type with plugin registry access
+ */
+type AppWithPlugins = {
+  plugins?: {
+    plugins?: Record<string, NexusPlugin>;
+  };
+} & Omit<App, 'plugins'>;
+
+/**
+ * Plugin interface with settings structure
+ */
+interface PluginWithSettings {
+  settings?: {
+    settings?: {
+      llmProviders?: {
+        defaultThinking?: ThinkingSettings;
+      };
+      defaultWorkspaceId?: string;
+      defaultAgentId?: string;
+    };
+  };
+  serviceManager?: {
+    getServiceIfReady?: (name: string) => any;
+  };
+  connector?: {
+    agentRegistry?: {
+      getAllAgents: () => Map<string, any>;
+    };
+  };
+}
 
 export interface ModelAgentManagerEvents {
   onModelChanged: (model: ModelOption | null) => void;
@@ -191,7 +225,7 @@ export class ModelAgentManager {
 
       // Get plugin settings for defaults
       const { getNexusPlugin } = await import('../../../utils/pluginLocator');
-      const plugin = getNexusPlugin(this.app) as any;
+      const plugin = getNexusPlugin<NexusPlugin>(this.app) as unknown as PluginWithSettings | null;
       const settings = plugin?.settings?.settings;
 
       // Load default thinking settings
@@ -543,7 +577,8 @@ export class ModelAgentManager {
   private getToolAgentInfo(): ToolAgentInfo[] {
     try {
       // Access plugin from app
-      const plugin = (this.app as any).plugins?.plugins?.['claudesidian-mcp'];
+      const appWithPlugins = this.app as AppWithPlugins;
+      const plugin = appWithPlugins.plugins?.plugins?.['claudesidian-mcp'] as unknown as PluginWithSettings | undefined;
       if (!plugin) {
         return [];
       }

@@ -13,6 +13,19 @@
 
 import { formatToolDisplayName, normalizeToolName } from '../../../utils/toolNameUtils';
 
+/**
+ * Represents a tool call object that may have arguments in different locations
+ * depending on the provider format (OpenAI-style vs direct arguments)
+ */
+interface ToolCallWithArguments {
+  function?: {
+    name?: string;
+    arguments?: string;
+  };
+  arguments?: string;
+  [key: string]: any;
+}
+
 export interface ToolEventInfo {
   toolId: string | null;
   displayName: string;
@@ -132,10 +145,12 @@ export class ToolEventParser {
       return undefined;
     }
 
-    if (toolCall.function && typeof toolCall.function === 'object' && 'arguments' in toolCall.function) {
-      return toolCall.function.arguments;
+    const typedToolCall = toolCall as ToolCallWithArguments;
+
+    if (typedToolCall.function && typeof typedToolCall.function === 'object' && 'arguments' in typedToolCall.function) {
+      return typedToolCall.function.arguments;
     }
 
-    return (toolCall as any)?.arguments;
+    return typedToolCall.arguments;
   }
 }

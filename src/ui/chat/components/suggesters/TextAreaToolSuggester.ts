@@ -2,7 +2,7 @@
  * TextAreaToolSuggester - Tool suggester for textarea
  */
 
-import { App, prepareFuzzySearch, setIcon } from 'obsidian';
+import { App, Plugin, prepareFuzzySearch, setIcon } from 'obsidian';
 import { ContentEditableSuggester } from './ContentEditableSuggester';
 import { ContentEditableHelper } from '../../utils/ContentEditableHelper';
 import {
@@ -13,6 +13,18 @@ import {
 import { MessageEnhancer } from '../../services/MessageEnhancer';
 import { formatToolDisplayName } from '../../../../utils/toolNameUtils';
 import { getNexusPlugin } from '../../../../utils/pluginLocator';
+import { IAgent } from '../../../../agents/interfaces/IAgent';
+
+/**
+ * Extended plugin interface with MCP connector structure
+ */
+interface PluginWithConnector extends Plugin {
+  connector?: {
+    agentRegistry?: {
+      getAllAgents(): Map<string, IAgent>;
+    };
+  };
+}
 
 export class TextAreaToolSuggester extends ContentEditableSuggester<ToolSuggestionItem> {
   private messageEnhancer: MessageEnhancer;
@@ -38,7 +50,7 @@ export class TextAreaToolSuggester extends ContentEditableSuggester<ToolSuggesti
    */
   private async loadTools(): Promise<void> {
     try {
-      const plugin = getNexusPlugin(this.app) as any;
+      const plugin = getNexusPlugin<PluginWithConnector>(this.app);
       if (!plugin) {
         return;
       }
@@ -56,8 +68,8 @@ export class TextAreaToolSuggester extends ContentEditableSuggester<ToolSuggesti
       // Extract individual tools from each agent's modes
       this.cachedTools = [];
 
-      for (const agent of agents.values()) {
-        const modes = (agent as any).getModes?.() || [];
+      for (const agent of Array.from(agents.values())) {
+        const modes = agent.getModes();
 
         for (const mode of modes) {
           const toolName = `${agent.name}.${mode.slug}`;

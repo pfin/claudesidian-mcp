@@ -9,8 +9,10 @@
  */
 
 import { AgentOption } from '../components/AgentSelector';
-import { AgentDiscoveryService } from '../../../services/agent/AgentDiscoveryService';
+import { AgentDiscoveryService, AgentInfo } from '../../../services/agent/AgentDiscoveryService';
 import { getNexusPlugin } from '../../../utils/pluginLocator';
+import type { App } from 'obsidian';
+import type NexusPlugin from '../../../main';
 
 /**
  * Utility class for agent configuration and discovery
@@ -21,13 +23,13 @@ export class AgentConfigurationUtility {
   /**
    * Initialize agent discovery service
    */
-  static async initializeDiscoveryService(app: any): Promise<AgentDiscoveryService | null> {
+  static async initializeDiscoveryService(app: App): Promise<AgentDiscoveryService | null> {
     if (AgentConfigurationUtility.agentDiscoveryService) {
       return AgentConfigurationUtility.agentDiscoveryService;
     }
 
     try {
-      const plugin = getNexusPlugin(app) as any;
+      const plugin = getNexusPlugin<NexusPlugin>(app);
       if (!plugin) {
         return null;
       }
@@ -48,7 +50,7 @@ export class AgentConfigurationUtility {
   /**
    * Get available agents from agent manager
    */
-  static async getAvailableAgents(app: any): Promise<AgentOption[]> {
+  static async getAvailableAgents(app: App): Promise<AgentOption[]> {
     try {
       // Initialize AgentDiscoveryService if needed
       const discoveryService = await AgentConfigurationUtility.initializeDiscoveryService(app);
@@ -70,7 +72,7 @@ export class AgentConfigurationUtility {
   /**
    * Convert AgentInfo to AgentOption format
    */
-  static mapToAgentOption(agent: any): AgentOption {
+  static mapToAgentOption(agent: AgentInfo): AgentOption {
     return {
       id: agent.id,
       name: agent.name || 'Unnamed Agent',

@@ -5,6 +5,7 @@
 
 import { Notice } from 'obsidian';
 import { CommandContext } from './CommandDefinitions';
+import type NexusPlugin from '../../main';
 
 export class MaintenanceCommandManager {
   constructor(private context: CommandContext) {}
@@ -102,7 +103,7 @@ export class MaintenanceCommandManager {
 
     // Check plugin.services getter
     console.log('\n🔍 Checking plugin.services getter...');
-    const services = (this.context.plugin as any).services;
+    const services = (this.context.plugin as NexusPlugin).services;
     const expectedServices = ['memoryService', 'workspaceService', 'sessionService', 'conversationService', 'customPromptStorageService'];
 
     for (const name of expectedServices) {

@@ -11,7 +11,7 @@
  * SDK import is now lazy (dynamic) to avoid bundling Node.js dependencies.
  */
 
-import { Vault } from 'obsidian';
+import { TFile, Vault } from 'obsidian';
 
 // Type-only import for TypeScript (doesn't affect bundling)
 import type { GoogleGenAI as GoogleGenAIType } from '@google/genai';
@@ -31,6 +31,29 @@ import {
   ModelInfo,
   CostDetails
 } from '../types';
+
+// Type definitions for Google GenAI response structure
+interface InlineData {
+  mimeType: string;
+  data: string;
+}
+
+interface ContentPart {
+  inlineData?: InlineData;
+  text?: string;
+}
+
+interface Content {
+  parts?: ContentPart[];
+}
+
+interface Candidate {
+  content?: Content;
+}
+
+interface GenerateContentResponseType {
+  candidates?: Candidate[];
+}
 
 export class GeminiImageAdapter extends BaseImageAdapter {
 
@@ -139,7 +162,7 @@ export class GeminiImageAdapter extends BaseImageAdapter {
 
         // Call generateContent API
         const client = await this.getClient();
-        const result = await (client as any).models.generateContent({
+        const result = await client.models.generateContent({
           model: model,
           contents: contents,
           config: config
@@ -171,8 +194,13 @@ export class GeminiImageAdapter extends BaseImageAdapter {
           throw new Error(`Reference image not found: ${path}`);
         }
 
+        // Type guard: ensure file is a TFile (not a TFolder)
+        if (!(file instanceof TFile)) {
+          throw new Error(`Reference path is not a file: ${path}`);
+        }
+
         // Read file as binary
-        const arrayBuffer = await this.vault.readBinary(file as any);
+        const arrayBuffer = await this.vault.readBinary(file);
         const buffer = Buffer.from(arrayBuffer);
         const base64 = buffer.toString('base64');
 
@@ -401,7 +429,7 @@ export class GeminiImageAdapter extends BaseImageAdapter {
   // Private helper methods
 
   private buildImageResponse(
-    response: any,
+    response: GenerateContentResponseType,
     params: ImageGenerationParams
   ): ImageGenerationResponse {
     // Handle generateContent response format
@@ -417,7 +445,7 @@ export class GeminiImageAdapter extends BaseImageAdapter {
     }
 
     // Find the image part in the response
-    const imagePart = candidate.content.parts.find((part: any) => part.inlineData);
+    const imagePart = candidate.content.parts.find((part: ContentPart) => part.inlineData);
     if (!imagePart || !imagePart.inlineData) {
       throw new Error('No image data found in Google response');
     }

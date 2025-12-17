@@ -8,10 +8,29 @@
  * Dependencies: LLMService, ProviderUtils
  */
 
+import { Plugin } from 'obsidian';
 import { ModelOption } from '../components/ModelSelector';
 import { ProviderUtils } from '../utils/ProviderUtils';
 import { getNexusPlugin } from '../../../utils/pluginLocator';
 import { getAvailableProviders } from '../../../utils/platform';
+import { ModelWithProvider } from '../../../services/llm/core/ModelDiscoveryService';
+import { Settings } from '../../../settings';
+
+/**
+ * Interface for LLMService with getAvailableModels method
+ */
+interface LLMServiceWithModels {
+  getAvailableModels(): Promise<ModelWithProvider[]>;
+}
+
+/**
+ * Extended plugin interface with required properties
+ */
+interface NexusPluginExtended extends Plugin {
+  settings: Settings;
+  getService<T>(name: string): Promise<T | null>;
+  loadData(): Promise<any>;
+}
 
 /**
  * Utility class for model selection and management
@@ -23,13 +42,13 @@ export class ModelSelectionUtility {
   static async getAvailableModels(app: any): Promise<ModelOption[]> {
     try {
       // Get plugin instance to access LLMService
-      const plugin = getNexusPlugin(app) as any;
+      const plugin = getNexusPlugin<NexusPluginExtended>(app);
       if (!plugin) {
         return [];
       }
 
       // Get LLMService which has ModelDiscoveryService
-      const llmService = await plugin.getService('llmService');
+      const llmService = await plugin.getService<LLMServiceWithModels>('llmService');
       if (!llmService) {
         return [];
       }
@@ -42,8 +61,8 @@ export class ModelSelectionUtility {
 
       // Filter to allowed providers and convert to ModelOption format
       const models: ModelOption[] = allModels
-        .filter((model: any) => allowedProviders.includes(model.provider))
-        .map((model: any) => ModelSelectionUtility.mapToModelOption(model));
+        .filter((model: ModelWithProvider) => allowedProviders.includes(model.provider))
+        .map((model: ModelWithProvider) => ModelSelectionUtility.mapToModelOption(model));
 
       return models;
     } catch (error) {
@@ -56,7 +75,7 @@ export class ModelSelectionUtility {
    */
   static async getDefaultModel(app: any): Promise<{ provider: string; model: string }> {
     try {
-      const plugin = getNexusPlugin(app) as any;
+      const plugin = getNexusPlugin<NexusPluginExtended>(app);
       if (!plugin) {
         throw new Error('Plugin not found');
       }
@@ -113,7 +132,7 @@ export class ModelSelectionUtility {
   /**
    * Convert ModelWithProvider to ModelOption format
    */
-  static mapToModelOption(model: any): ModelOption {
+  static mapToModelOption(model: ModelWithProvider): ModelOption {
     return {
       providerId: model.provider,
       providerName: ModelSelectionUtility.getProviderDisplayName(model.provider),

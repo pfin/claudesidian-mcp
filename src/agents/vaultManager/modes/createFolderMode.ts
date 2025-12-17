@@ -1,4 +1,4 @@
-import { App } from 'obsidian';
+import { App, Plugin } from 'obsidian';
 import { BaseMode } from '../../baseMode';
 import { CreateFolderParams, CreateFolderResult } from '../types';
 import { FileOperations } from '../utils/FileOperations';
@@ -6,6 +6,28 @@ import { MemoryService } from "../../memoryManager/services/MemoryService";
 import {parseWorkspaceContext} from '../../../utils/contextUtils';
 import { createErrorMessage } from '../../../utils/errorUtils';
 import { getNexusPlugin } from '../../../utils/pluginLocator';
+
+/**
+ * Type guard to check if plugin has services with memoryService
+ */
+interface PluginWithServices extends Plugin {
+  services: {
+    memoryService: MemoryService;
+  };
+}
+
+/**
+ * Type guard to check if object has services property with memoryService
+ */
+function hasMemoryService(plugin: Plugin | null): plugin is PluginWithServices {
+  return plugin !== null &&
+         'services' in plugin &&
+         typeof plugin.services === 'object' &&
+         plugin.services !== null &&
+         'memoryService' in plugin.services &&
+         plugin.services.memoryService !== undefined &&
+         plugin.services.memoryService !== null;
+}
 
 /**
  * Mode to create a new folder
@@ -32,9 +54,9 @@ export class CreateFolderMode extends BaseMode<CreateFolderParams, CreateFolderR
     // Try to get memory service from plugin if not provided
     if (!this.memoryService) {
       try {
-        const plugin = getNexusPlugin(this.app) as any;
-        if (plugin?.services?.memoryService) {
-          this.memoryService = plugin.services.memoryService;
+        const plugin = getNexusPlugin<PluginWithServices>(this.app);
+        if (hasMemoryService(plugin)) {
+          this.memoryService = plugin.services?.memoryService || null;
         }
       } catch (error) {
         console.error('Failed to get memory service:', error);
@@ -152,9 +174,9 @@ export class CreateFolderMode extends BaseMode<CreateFolderParams, CreateFolderR
       // Try to get memory service from plugin if not available
       if (!this.memoryService) {
         try {
-          const plugin = getNexusPlugin(this.app) as any;
-          if (plugin?.services?.memoryService) {
-            this.memoryService = plugin.services.memoryService;
+          const plugin = getNexusPlugin<PluginWithServices>(this.app);
+          if (hasMemoryService(plugin)) {
+            this.memoryService = plugin.services?.memoryService || null;
             // Try again with the newly found service
             await this.recordActivity(params, result);
           }

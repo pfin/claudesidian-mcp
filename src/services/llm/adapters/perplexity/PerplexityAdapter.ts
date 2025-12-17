@@ -26,6 +26,26 @@ export interface PerplexityOptions extends GenerateOptions {
   searchContextSize?: 'low' | 'medium' | 'high';
 }
 
+interface PerplexityChatMessage {
+  content?: string;
+  toolCalls?: any[];
+}
+
+interface PerplexityChatChoice {
+  message?: PerplexityChatMessage;
+  finish_reason?: string;
+}
+
+interface PerplexityChatResponse {
+  choices: PerplexityChatChoice[];
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+  search_results?: any[];
+}
+
 export class PerplexityAdapter extends BaseAdapter {
   readonly name = 'perplexity';
   readonly baseUrl = 'https://api.perplexity.ai';
@@ -202,7 +222,7 @@ export class PerplexityAdapter extends BaseAdapter {
       throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
-    const data = await response.json() as any;
+    const data = await response.json() as PerplexityChatResponse;
     const choice = data.choices[0];
     
     if (!choice) {
@@ -211,7 +231,7 @@ export class PerplexityAdapter extends BaseAdapter {
     
     let text = choice.message?.content || '';
     const usage = this.extractUsage(data);
-    let finishReason = choice.finish_reason || 'stop';
+    const rawFinishReason = choice.finish_reason || 'stop';
 
     // If tools were provided and we got tool calls, return placeholder text
     if (options?.tools && choice.message?.toolCalls && choice.message.toolCalls.length > 0) {
@@ -223,6 +243,9 @@ export class PerplexityAdapter extends BaseAdapter {
       ? this.extractPerplexitySources(data.search_results || [])
       : undefined;
 
+    // Map finish reason to expected type
+    const finishReason = this.mapFinishReason(rawFinishReason);
+
     return this.buildLLMResponse(
       text,
       model,
@@ -233,7 +256,7 @@ export class PerplexityAdapter extends BaseAdapter {
         searchMode: options?.searchMode,
         webSearchResults
       },
-      finishReason as any
+      finishReason
     );
   }
 

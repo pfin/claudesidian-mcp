@@ -136,10 +136,10 @@ export class VaultFileIndex extends Events {
 
         try {
             // Load frontmatter - Note: getFileCache may not be available in all vault types
-            const cache = (this.vault as any).metadataCache?.getFileCache(file);
+            const cache = this.app?.metadataCache?.getFileCache(file);
             if (cache) {
                 indexed.frontmatter = cache.frontmatter;
-                indexed.tags = cache.tags?.map((t: any) => t.tag) || [];
+                indexed.tags = cache.tags?.map((t: { tag: string }) => t.tag) || [];
                 indexed.aliases = cache.frontmatter?.aliases || [];
 
                 // Update tag index
@@ -153,7 +153,7 @@ export class VaultFileIndex extends Events {
                 }
 
                 // Extract links
-                indexed.forwardLinks = cache.links?.map((l: any) => l.link) || [];
+                indexed.forwardLinks = cache.links?.map((l: { link: string }) => l.link) || [];
             }
         } catch (error) {
             console.error(`Error loading metadata for ${filePath}:`, error);

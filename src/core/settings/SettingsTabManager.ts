@@ -7,22 +7,28 @@
  * providing focused settings tab lifecycle management.
  */
 
-import type { Plugin } from 'obsidian';
+import type { App, Plugin } from 'obsidian';
 import type { Settings } from '../../settings';
 // Use new SettingsView (tab-based UI) instead of old SettingsTab (accordion-based)
 import { SettingsView } from '../../settings/SettingsView';
 import type { BackgroundProcessor } from '../background/BackgroundProcessor';
+import type { ServiceManager } from '../ServiceManager';
 
 // Type-only import to avoid bundling Node.js dependencies on mobile
 type MCPConnectorType = import('../../connector').MCPConnector;
 
+// Extended interface for PluginLifecycleManager with optional methods
+interface LifecycleManager {
+    [key: string]: any;
+}
+
 export interface SettingsTabManagerConfig {
     plugin: Plugin;
-    app: any;
+    app: App;
     settings: Settings;
-    serviceManager: any;
+    serviceManager: ServiceManager;
     connector?: MCPConnectorType; // Optional - undefined on mobile
-    lifecycleManager: any; // Reference to PluginLifecycleManager for ChatView activation
+    lifecycleManager: LifecycleManager; // Reference to PluginLifecycleManager for ChatView activation
     backgroundProcessor?: BackgroundProcessor;
 }
 
@@ -57,7 +63,7 @@ export class SettingsTabManager {
                 services, // Pass current services (may be empty initially)
                 vaultLibrarian || undefined,
                 memoryManager || undefined,
-                this.config.serviceManager as any, // Pass service manager for compatibility
+                this.config.serviceManager, // Pass service manager for compatibility
                 this.config.lifecycleManager // Pass lifecycle manager for ChatView activation
             );
             this.config.plugin.addSettingTab(this.settingsTab);
@@ -103,8 +109,8 @@ export class SettingsTabManager {
      * Cleanup settings tab (called during shutdown)
      */
     cleanup(): void {
-        if (this.settingsTab && typeof (this.settingsTab as any).cleanup === 'function') {
-            (this.settingsTab as any).cleanup();
+        if (this.settingsTab && 'cleanup' in this.settingsTab && typeof this.settingsTab.cleanup === 'function') {
+            this.settingsTab.cleanup();
         }
     }
 }

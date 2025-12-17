@@ -4,7 +4,7 @@
  */
 
 import { AgentRegistry } from '../services/AgentRegistry';
-import { SessionContextManager } from '../../services/SessionContextManager';
+import { SessionContextManager, WorkspaceContext } from '../../services/SessionContextManager';
 import { NexusError, NexusErrorCode } from '../../utils/errors';
 import { logger } from '../../utils/logger';
 import { getErrorMessage } from '../../utils/errorUtils';
@@ -305,23 +305,19 @@ export class AgentExecutionManager {
      */
     getExecutionContextInfo(sessionId?: string): {
         hasSessionManager: boolean;
-        sessionContext?: any;
-        workspaceContext?: any;
+        workspaceContext?: WorkspaceContext;
     } {
-        const info: any = {
+        const info: {
+            hasSessionManager: boolean;
+            workspaceContext?: WorkspaceContext;
+        } = {
             hasSessionManager: !!this.sessionContextManager
         };
 
         if (this.sessionContextManager && sessionId) {
             try {
-                // Get session context if available
-                const sessionContext = (this.sessionContextManager as any).getSessionContext?.(sessionId);
-                if (sessionContext) {
-                    info.sessionContext = sessionContext;
-                }
-                
                 // Get workspace context if available
-                const workspaceContext = (this.sessionContextManager as any).getWorkspaceContext?.(sessionId);
+                const workspaceContext = this.sessionContextManager.getWorkspaceContext(sessionId);
                 if (workspaceContext) {
                     info.workspaceContext = workspaceContext;
                 }

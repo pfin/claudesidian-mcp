@@ -39,6 +39,13 @@ export interface ReferenceMetadata {
 
 export class ReferenceExtractor {
   /**
+   * Type guard to check if a Node is an HTMLElement
+   */
+  private static isHTMLElement(node: Node): node is HTMLElement {
+    return node.nodeType === Node.ELEMENT_NODE;
+  }
+
+  /**
    * Extract all content from contenteditable element
    */
   static extractContent(element: HTMLElement): ExtractedContent {
@@ -57,8 +64,8 @@ export class ReferenceExtractor {
           textParts.push(text);
           currentOffset += text.length;
         }
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const element = node as HTMLElement;
+      } else if (this.isHTMLElement(node)) {
+        const element = node;
 
         // Check if this is a reference node
         if (element.classList.contains('chat-reference')) {
@@ -140,8 +147,8 @@ export class ReferenceExtractor {
     const references: Array<{ displayText: string; technicalName: string }> = [];
 
     const traverse = (node: Node): void => {
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        const el = node as HTMLElement;
+      if (this.isHTMLElement(node)) {
+        const el = node;
 
         if (
           el.classList.contains('chat-reference') &&

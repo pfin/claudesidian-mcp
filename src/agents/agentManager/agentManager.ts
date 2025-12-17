@@ -125,8 +125,7 @@ export class AgentManagerAgent extends BaseAgent {
     ));
 
     // Register image generation mode only if Google or OpenRouter API keys are configured
-    const pluginSettings = (settings as any)?.settings;
-    const llmProviders = pluginSettings?.llmProviders;
+    const llmProviders = settings.settings.llmProviders;
     const hasGoogleKey = llmProviders?.providers?.google?.apiKey && llmProviders?.providers?.google?.enabled;
     const hasOpenRouterKey = llmProviders?.providers?.openrouter?.apiKey && llmProviders?.providers?.openrouter?.enabled;
 

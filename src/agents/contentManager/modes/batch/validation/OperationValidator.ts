@@ -114,8 +114,11 @@ export class OperationValidator {
    * Validate content operations (create, append, prepend)
    */
   private validateContentOperation(operation: ContentOperation, index: number): ValidationResult {
-    const params = operation.params as any;
-    if (!params.content) {
+    if (operation.type !== 'create' && operation.type !== 'append' && operation.type !== 'prepend') {
+      return { success: false, error: `Invalid operation type` };
+    }
+
+    if (!('content' in operation.params)) {
       return {
         success: false,
         error: `Missing 'content' property in ${operation.type} operation at index ${index}`
@@ -128,15 +131,18 @@ export class OperationValidator {
    * Validate replace operation
    */
   private validateReplaceOperation(operation: ContentOperation, index: number): ValidationResult {
-    const params = operation.params as any;
-    if (!params.oldContent) {
+    if (operation.type !== 'replace') {
+      return { success: false, error: `Invalid operation type` };
+    }
+
+    if (!('oldContent' in operation.params)) {
       return {
         success: false,
         error: `Missing 'oldContent' property in replace operation at index ${index}`
       };
     }
 
-    if (!params.newContent) {
+    if (!('newContent' in operation.params)) {
       return {
         success: false,
         error: `Missing 'newContent' property in replace operation at index ${index}`
@@ -150,22 +156,25 @@ export class OperationValidator {
    * Validate replace by line operation
    */
   private validateReplaceByLineOperation(operation: ContentOperation, index: number): ValidationResult {
-    const params = operation.params as any;
-    if (typeof params.startLine !== 'number') {
+    if (operation.type !== 'replaceByLine') {
+      return { success: false, error: `Invalid operation type` };
+    }
+
+    if (!('startLine' in operation.params) || typeof operation.params.startLine !== 'number') {
       return {
         success: false,
         error: `Missing or invalid 'startLine' property in replaceByLine operation at index ${index}`
       };
     }
 
-    if (typeof params.endLine !== 'number') {
+    if (!('endLine' in operation.params) || typeof operation.params.endLine !== 'number') {
       return {
         success: false,
         error: `Missing or invalid 'endLine' property in replaceByLine operation at index ${index}`
       };
     }
 
-    if (!params.newContent) {
+    if (!('newContent' in operation.params)) {
       return {
         success: false,
         error: `Missing 'newContent' property in replaceByLine operation at index ${index}`
@@ -179,8 +188,11 @@ export class OperationValidator {
    * Validate delete operation
    */
   private validateDeleteOperation(operation: ContentOperation, index: number): ValidationResult {
-    const params = operation.params as any;
-    if (!params.content) {
+    if (operation.type !== 'delete') {
+      return { success: false, error: `Invalid operation type` };
+    }
+
+    if (!('content' in operation.params)) {
       return {
         success: false,
         error: `Missing 'content' property in delete operation at index ${index}`
@@ -193,15 +205,18 @@ export class OperationValidator {
    * Validate find and replace operation
    */
   private validateFindReplaceOperation(operation: ContentOperation, index: number): ValidationResult {
-    const params = operation.params as any;
-    if (!params.findText) {
+    if (operation.type !== 'findReplace') {
+      return { success: false, error: `Invalid operation type` };
+    }
+
+    if (!('findText' in operation.params)) {
       return {
         success: false,
         error: `Missing 'findText' property in findReplace operation at index ${index}`
       };
     }
 
-    if (!params.replaceText) {
+    if (!('replaceText' in operation.params)) {
       return {
         success: false,
         error: `Missing 'replaceText' property in findReplace operation at index ${index}`

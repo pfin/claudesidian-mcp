@@ -35,18 +35,19 @@ export class RequestExecutor {
       } else if (config.type === 'image') {
         return await this.executeImageRequest(config as ImagePromptConfig, context, sessionId, startTime);
       } else {
+        // TypeScript narrows this to never, but we keep it for runtime safety
+        // Assert to the base type to access common properties
         const executionTime = performance.now() - startTime;
-        // Cast to any temporarily to access properties
-        const anyConfig = config as any;
+        const unknownConfig = config as TextPromptConfig | ImagePromptConfig;
         return {
           type: 'text', // Default fallback
-          id: anyConfig.id,
-          prompt: anyConfig.prompt,
+          id: unknownConfig.id,
+          prompt: unknownConfig.prompt,
           success: false,
-          error: `Unknown request type: ${anyConfig.type}`,
+          error: `Unknown request type: ${unknownConfig.type}`,
           executionTime,
-          sequence: anyConfig.sequence,
-          parallelGroup: anyConfig.parallelGroup
+          sequence: unknownConfig.sequence,
+          parallelGroup: unknownConfig.parallelGroup
         } as TextExecutionResult;
       }
     } catch (error) {

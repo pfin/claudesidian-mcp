@@ -15,6 +15,7 @@
 
 import { WorkspaceService } from '../WorkspaceService';
 import { EmbeddingService } from '../embeddings/EmbeddingService';
+import { TraceMetadata } from '../../database/types/memory/MemoryTypes';
 
 export interface TraceContext {
   workspaceId: string;
@@ -258,20 +259,21 @@ export class ChatTraceService {
     }
   ): Promise<void> {
     try {
+      // Chat traces use simplified metadata that doesn't match the full TraceMetadata schema.
+      // Cast through unknown since this is an intentional structural mismatch.
       const trace = await this.workspaceService.addMemoryTrace(
         context.workspaceId,
         context.sessionId,
         {
           type: traceData.type,
           content: traceData.content,
-          // Cast metadata as any - chat traces use simplified metadata
-          metadata: traceData.metadata as any,
+          metadata: traceData.metadata as unknown as TraceMetadata,
           timestamp: Date.now()
         }
       );
 
       // Embed the trace if embedding service is available
-      if (this.embeddingService?.isServiceEnabled()) {
+      if (this.embeddingService && this.embeddingService.isServiceEnabled()) {
         try {
           await this.embeddingService.embedTrace(
             trace.id,
