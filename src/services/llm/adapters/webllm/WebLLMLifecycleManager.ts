@@ -24,39 +24,6 @@ export interface WebLLMLifecycleCallbacks {
   onError?: (error: Error) => void;
 }
 
-/**
- * Helper function to safely get instanceId from adapter
- */
-function getAdapterInstanceId(adapter: WebLLMAdapter | null): number | undefined {
-  if (adapter && 'instanceId' in adapter) {
-    const value = (adapter as Record<string, unknown>).instanceId;
-    return typeof value === 'number' ? value : undefined;
-  }
-  return undefined;
-}
-
-/**
- * Helper function to safely get plugin registry from window
- */
-function getPluginRegistry(): Record<string, unknown> | undefined {
-  const globalWindow = window as Record<string, unknown>;
-  if (!globalWindow.app || typeof globalWindow.app !== 'object') {
-    return undefined;
-  }
-
-  const app = globalWindow.app as Record<string, unknown>;
-  if (!app.plugins || typeof app.plugins !== 'object') {
-    return undefined;
-  }
-
-  const plugins = app.plugins as Record<string, unknown>;
-  if (!plugins.plugins || typeof plugins.plugins !== 'object') {
-    return undefined;
-  }
-
-  return plugins.plugins as Record<string, unknown>;
-}
-
 export class WebLLMLifecycleManager {
   private static readonly IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -72,7 +39,7 @@ export class WebLLMLifecycleManager {
    * Called when AdapterRegistry initializes
    */
   setAdapter(adapter: WebLLMAdapter | null): void {
-    const instanceId = getAdapterInstanceId(adapter);
+    const instanceId = (adapter as any)?.instanceId;
     console.log(`[NEXUS_DEBUG] LifecycleManager.setAdapter instance=#${instanceId}`);
     this.adapter = adapter;
   }
@@ -89,7 +56,7 @@ export class WebLLMLifecycleManager {
    */
   private isNexusDefaultProvider(): boolean {
     try {
-      const registry = getPluginRegistry();
+      const registry = (window as any).app?.plugins?.plugins;
       if (!registry) {
         console.log('[NEXUS_DEBUG] isNexusDefault: No plugin registry');
         return false;
@@ -97,40 +64,11 @@ export class WebLLMLifecycleManager {
 
       for (const id of getAllPluginIds()) {
         const plugin = registry[id];
-        if (!plugin || typeof plugin !== 'object') {
-          continue;
-        }
-
-        // Navigate through nested structure safely
-        const pluginObj = plugin as Record<string, unknown>;
-        const settings = pluginObj.settings;
-        if (!settings || typeof settings !== 'object') {
-          continue;
-        }
-
-        const settingsObj = settings as Record<string, unknown>;
-        const settingsData = settingsObj.settings;
-        if (!settingsData || typeof settingsData !== 'object') {
-          continue;
-        }
-
-        const settingsDataObj = settingsData as Record<string, unknown>;
-        const llmProviders = settingsDataObj.llmProviders;
-        if (!llmProviders || typeof llmProviders !== 'object') {
-          continue;
-        }
-
-        const llmProvidersObj = llmProviders as Record<string, unknown>;
-        const defaultModel = llmProvidersObj.defaultModel;
-        if (!defaultModel || typeof defaultModel !== 'object') {
-          continue;
-        }
-
-        const defaultModelObj = defaultModel as Record<string, unknown>;
-        const provider = defaultModelObj.provider;
-
-        console.log('[NEXUS_DEBUG] isNexusDefault:', { provider });
-        if (provider === 'webllm') {
+        // Note: plugin.settings is the Settings manager class
+        // plugin.settings.settings is the actual MCPSettings object
+        const defaultProvider = plugin?.settings?.settings?.llmProviders?.defaultModel?.provider;
+        console.log('[NEXUS_DEBUG] isNexusDefault:', { defaultProvider });
+        if (defaultProvider === 'webllm') {
           return true;
         }
       }
@@ -253,7 +191,7 @@ export class WebLLMLifecycleManager {
       return;
     }
 
-    const adapterInstanceId = getAdapterInstanceId(this.adapter);
+    const adapterInstanceId = (this.adapter as any)?.instanceId;
     console.log(`[NEXUS_DEBUG] loadModel: Starting for ${modelSpec.name} on adapter instance=#${adapterInstanceId}`);
 
     this.isLoading = true;

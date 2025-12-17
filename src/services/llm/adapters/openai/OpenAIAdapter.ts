@@ -4,8 +4,6 @@
  */
 
 import OpenAI from 'openai';
-import { Stream } from 'openai/streaming';
-import type { Response, ResponseStreamEvent } from 'openai/resources/responses/responses';
 import { BaseAdapter } from '../BaseAdapter';
 import {
   GenerateOptions,
@@ -148,9 +146,7 @@ export class OpenAIAdapter extends BaseAdapter {
         }
 
         // Create Responses API stream
-        // TypeScript can't narrow the overloaded create() signature based on responseParams,
-        // so we need to assert the type. We know it returns Stream<ResponseStreamEvent> because stream: true
-        return await this.client.responses.create(responseParams) as unknown as Stream<ResponseStreamEvent>;
+        return await this.client.responses.create(responseParams) as any;
       });
 
       // Process Responses API stream events
@@ -168,7 +164,7 @@ export class OpenAIAdapter extends BaseAdapter {
    * Includes reasoning/thinking support for GPT-5 and o-series models
    * @private
    */
-  private async* processResponsesStream(stream: Stream<ResponseStreamEvent>): AsyncGenerator<StreamChunk, void, unknown> {
+  private async* processResponsesStream(stream: any): AsyncGenerator<StreamChunk, void, unknown> {
     let fullContent = '';
     let currentResponseId: string | null = null;
     const toolCallsMap = new Map<number, any>();
@@ -405,9 +401,7 @@ export class OpenAIAdapter extends BaseAdapter {
     if (options?.frequencyPenalty !== undefined) responseParams.frequency_penalty = options.frequencyPenalty;
     if (options?.presencePenalty !== undefined) responseParams.presence_penalty = options.presencePenalty;
 
-    // TypeScript can't narrow the overloaded create() signature based on responseParams,
-    // so we need to assert the type. We know it returns Response because stream: false
-    const response = await this.client.responses.create(responseParams) as unknown as Response;
+    const response = await this.client.responses.create(responseParams) as any;
 
     if (!response.output || response.output.length === 0) {
       throw new Error('No output from OpenAI Responses API');
