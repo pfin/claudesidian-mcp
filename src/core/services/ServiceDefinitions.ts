@@ -231,18 +231,16 @@ export const CORE_SERVICE_DEFINITIONS: ServiceDefinition[] = [
         }
     },
 
-    // Agent manager for custom AI agents
+    // Agent manager for custom AI agents (registry only - no dependencies needed)
     {
         name: 'agentManager',
-        dependencies: ['llmService'],
+        dependencies: [],
         create: async (context) => {
             const { AgentManager } = await import('../../services/AgentManager');
 
-            const llmService = await context.serviceManager.getService('llmService');
-
             return new AgentManager(
                 context.plugin.app,
-                llmService,
+                context.plugin,
                 new Events() // Placeholder Events instance for unused parameter
             );
         }
