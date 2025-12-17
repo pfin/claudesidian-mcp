@@ -57,19 +57,19 @@ export class ProgressBar {
     constructor(containerEl: HTMLElement, _app: App, component?: Component) {
         // App parameter marked with underscore as it's not currently used
         this.component = component;
-        
+
         // Create the container
         this.container = containerEl.createDiv({ cls: 'mcp-progress-container' });
         this.container.addClass('mcp-progress-container-hidden');
-        
+
         // Progress info
         const infoContainer = this.container.createDiv({ cls: 'mcp-progress-info' });
         this.progressText = infoContainer.createSpan({ cls: 'mcp-progress-text' });
-        
+
         // Progress bar
         const barContainer = this.container.createDiv({ cls: 'mcp-progress-bar-container' });
         this.progressBar = barContainer.createDiv({ cls: 'mcp-progress-bar' });
-        
+
         // Cancel button
         this.cancelButton = this.container.createDiv({
             cls: 'mcp-progress-cancel',
@@ -79,13 +79,29 @@ export class ProgressBar {
         const cancelHandler = () => {
             this.triggerCancel();
         };
-        this.component!.registerDomEvent(this.cancelButton, 'click', cancelHandler);
-        
+        this.safeRegisterDomEvent(this.cancelButton, 'click', cancelHandler);
+
         // Create event handlers
         this.setupEventHandlers();
-        
+
         // Initialize with hidden state
         this.hide();
+    }
+
+    /**
+     * Safely register a DOM event - uses Component.registerDomEvent if available,
+     * otherwise falls back to plain addEventListener (cleanup handled by DOM removal)
+     */
+    private safeRegisterDomEvent<K extends keyof HTMLElementEventMap>(
+        el: HTMLElement,
+        type: K,
+        handler: (ev: HTMLElementEventMap[K]) => void
+    ): void {
+        if (this.component) {
+            this.component.registerDomEvent(el, type, handler);
+        } else {
+            el.addEventListener(type, handler);
+        }
     }
     
     /**

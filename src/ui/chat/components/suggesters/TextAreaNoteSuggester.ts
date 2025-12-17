@@ -2,7 +2,7 @@
  * TextAreaNoteSuggester - Note suggester for textarea
  */
 
-import { App, TFile, prepareFuzzySearch, setIcon } from 'obsidian';
+import { App, TFile, prepareFuzzySearch, setIcon, Component } from 'obsidian';
 import { ContentEditableSuggester } from './ContentEditableSuggester';
 import { ContentEditableHelper } from '../../utils/ContentEditableHelper';
 import {
@@ -17,13 +17,13 @@ export class TextAreaNoteSuggester extends ContentEditableSuggester<NoteSuggesti
   private messageEnhancer: MessageEnhancer;
   private maxTokensPerNote = 10000;
 
-  constructor(app: App, element: HTMLElement, messageEnhancer: MessageEnhancer) {
+  constructor(app: App, element: HTMLElement, messageEnhancer: MessageEnhancer, component?: Component) {
     super(app, element, {
       trigger: /\[\[([^\]]*?)$/,
       maxSuggestions: 50,
       cacheTTL: 60000,
       debounceDelay: 150
-    });
+    }, component);
 
     this.messageEnhancer = messageEnhancer;
   }

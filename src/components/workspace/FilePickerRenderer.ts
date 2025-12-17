@@ -42,6 +42,23 @@ export class FilePickerRenderer {
   }
 
   /**
+   * Safely register a DOM event - uses Component.registerDomEvent if available,
+   * otherwise falls back to plain addEventListener (cleanup handled by DOM removal)
+   */
+  private safeRegisterDomEvent<K extends keyof HTMLElementEventMap>(
+    el: HTMLElement,
+    type: K,
+    handler: (ev: HTMLElementEventMap[K]) => void
+  ): void {
+    if (this.component) {
+      this.component.registerDomEvent(el, type, handler);
+    } else {
+      // Fallback: Modal/parent container handles cleanup when removed
+      el.addEventListener(type, handler);
+    }
+  }
+
+  /**
    * Render the file picker view
    */
   render(container: HTMLElement): void {
@@ -272,7 +289,7 @@ export class FilePickerRenderer {
       }
       this.renderRoot(); // Re-render tree
     };
-    this.component!.registerDomEvent(row, 'click', clickHandler);
+    this.safeRegisterDomEvent(row, 'click', clickHandler);
 
     // Render children if expanded
     if (isExpanded) {
@@ -301,7 +318,7 @@ export class FilePickerRenderer {
         this.selectedFiles.delete(file.path);
       }
     };
-    this.component!.registerDomEvent(checkbox, 'change', changeHandler);
+    this.safeRegisterDomEvent(checkbox, 'change', changeHandler);
 
     // File icon
     const iconEl = row.createSpan({ cls: 'nexus-tree-icon' });
@@ -317,7 +334,7 @@ export class FilePickerRenderer {
         checkbox.dispatchEvent(new Event('change'));
       }
     };
-    this.component!.registerDomEvent(row, 'click', rowClickHandler);
+    this.safeRegisterDomEvent(row, 'click', rowClickHandler);
   }
 
   /**
@@ -388,6 +405,7 @@ export class FilePickerRenderer {
         },
         options.initialSelection?.join(','),
         options.rootFolder || '/'
+        // Note: No component passed - modal handles its own lifecycle
       );
 
       pickerInstance.render(modal.contentEl);

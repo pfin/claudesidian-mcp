@@ -196,7 +196,8 @@ export class SettingsView extends PluginSettingTab {
             defaultTab: this.router.getState().tab,
             onTabChange: (tabKey) => {
                 this.router.setTab(tabKey as SettingsTab);
-            }
+            },
+            component: this.plugin
         });
 
         // 3. Subscribe to router changes
@@ -395,7 +396,8 @@ export class SettingsView extends PluginSettingTab {
                 app: this.app,
                 workspaceService: services.workspaceService,
                 customPromptStorage: this.customPromptStorage,
-                prefetchedWorkspaces: this.prefetchedWorkspaces
+                prefetchedWorkspaces: this.prefetchedWorkspaces,
+                component: this.plugin
             }
         );
     }
@@ -497,7 +499,8 @@ export class SettingsView extends PluginSettingTab {
                     if (this.tabs) {
                         this.tabs.activateTab('providers');
                     }
-                }
+                },
+                component: this.plugin
             }
         );
     }

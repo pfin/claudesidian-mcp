@@ -135,7 +135,7 @@ export class ChatInput {
 
     // Initialize suggesters if app is available
     if (this.app && this.inputElement) {
-      this.suggesters = initializeSuggesters(this.app, this.inputElement);
+      this.suggesters = initializeSuggesters(this.app, this.inputElement, this.component);
     }
 
     this.element = this.container;

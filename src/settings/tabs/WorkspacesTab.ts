@@ -8,7 +8,7 @@
  * - Auto-save on all changes
  */
 
-import { App, Setting, Notice, ButtonComponent } from 'obsidian';
+import { App, Setting, Notice, ButtonComponent, Component } from 'obsidian';
 import { SettingsRouter, RouterState } from '../SettingsRouter';
 import { BackButton } from '../components/BackButton';
 import { WorkspaceFormRenderer } from '../../components/workspace/WorkspaceFormRenderer';
@@ -26,6 +26,7 @@ export interface WorkspacesTabServices {
     workspaceService?: WorkspaceService;
     customPromptStorage?: CustomPromptStorageService;
     prefetchedWorkspaces?: ProjectWorkspace[] | null;
+    component?: Component;
 }
 
 type WorkspacesView = 'list' | 'detail' | 'workflow' | 'filepicker';
@@ -462,7 +463,9 @@ export class WorkspacesTab {
                 this.renderDetail();
             },
             currentPath,
-            workspaceRoot
+            workspaceRoot,
+            undefined, // title
+            this.services.component
         );
 
         this.filePickerRenderer.render(this.container);

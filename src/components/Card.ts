@@ -36,6 +36,22 @@ export class Card {
   }
 
   /**
+   * Safely register a DOM event - uses Component.registerDomEvent if available,
+   * otherwise falls back to plain addEventListener (cleanup handled by DOM removal)
+   */
+  private safeRegisterDomEvent<K extends keyof HTMLElementEventMap>(
+    el: HTMLElement,
+    type: K,
+    handler: (ev: HTMLElementEventMap[K]) => void
+  ): void {
+    if (this.component) {
+      this.component.registerDomEvent(el, type, handler);
+    } else {
+      el.addEventListener(type, handler);
+    }
+  }
+
+  /**
    * Create the card element with standard styling
    */
   private createCard(): HTMLElement {
@@ -66,7 +82,7 @@ export class Card {
       });
       setIcon(editBtn, 'edit');
       const editHandler = () => this.config.onEdit!();
-      this.component!.registerDomEvent(editBtn, 'click', editHandler);
+      this.safeRegisterDomEvent(editBtn, 'click', editHandler);
     }
 
     if (this.config.onDelete) {
@@ -76,7 +92,7 @@ export class Card {
       });
       setIcon(deleteBtn, 'trash');
       const deleteHandler = () => this.config.onDelete!();
-      this.component!.registerDomEvent(deleteBtn, 'click', deleteHandler);
+      this.safeRegisterDomEvent(deleteBtn, 'click', deleteHandler);
     }
 
     if (this.config.additionalActions) {
@@ -86,7 +102,7 @@ export class Card {
           attr: { 'aria-label': action.label }
         });
         setIcon(actionBtn, action.icon);
-        this.component!.registerDomEvent(actionBtn, 'click', action.onClick);
+        this.safeRegisterDomEvent(actionBtn, 'click', action.onClick);
       });
     }
     

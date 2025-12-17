@@ -32,6 +32,22 @@ export class ModelSelector {
   }
 
   /**
+   * Safely register a DOM event - uses Component.registerDomEvent if available,
+   * otherwise falls back to plain addEventListener
+   */
+  private safeRegisterDomEvent<K extends keyof HTMLElementEventMap>(
+    el: HTMLElement,
+    type: K,
+    handler: (ev: HTMLElementEventMap[K]) => void
+  ): void {
+    if (this.component) {
+      this.component.registerDomEvent(el, type, handler);
+    } else {
+      el.addEventListener(type, handler);
+    }
+  }
+
+  /**
    * Render the model selector dropdown
    */
   private async render(): Promise<void> {
@@ -64,7 +80,7 @@ export class ModelSelector {
     const changeHandler = () => {
       this.handleModelChange();
     };
-    this.component!.registerDomEvent(this.selectElement, 'change', changeHandler);
+    this.safeRegisterDomEvent(this.selectElement, 'change', changeHandler);
 
     this.element = this.container;
   }

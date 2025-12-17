@@ -3,7 +3,7 @@
  * Triggers on # and suggests available workspaces with fuzzy search
  */
 
-import { App, prepareFuzzySearch, setIcon } from 'obsidian';
+import { App, prepareFuzzySearch, setIcon, Component } from 'obsidian';
 import { ContentEditableSuggester } from './ContentEditableSuggester';
 import { ContentEditableHelper } from '../../utils/ContentEditableHelper';
 import {
@@ -22,14 +22,15 @@ export class TextAreaWorkspaceSuggester extends ContentEditableSuggester<Workspa
     app: App,
     element: HTMLElement,
     messageEnhancer: MessageEnhancer,
-    workspaceService: WorkspaceService
+    workspaceService: WorkspaceService,
+    component?: Component
   ) {
     super(app, element, {
       trigger: /#(\w*)$/,
       maxSuggestions: 20,
       cacheTTL: 30000,
       debounceDelay: 100
-    });
+    }, component);
 
     this.messageEnhancer = messageEnhancer;
     this.workspaceService = workspaceService;

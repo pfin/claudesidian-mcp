@@ -39,6 +39,22 @@ export class UnifiedTabs {
   }
 
   /**
+   * Safely register a DOM event - uses Component.registerDomEvent if available,
+   * otherwise falls back to plain addEventListener (cleanup handled by DOM removal)
+   */
+  private safeRegisterDomEvent<K extends keyof HTMLElementEventMap>(
+    el: HTMLElement,
+    type: K,
+    handler: (ev: HTMLElementEventMap[K]) => void
+  ): void {
+    if (this.component) {
+      this.component.registerDomEvent(el, type, handler);
+    } else {
+      el.addEventListener(type, handler);
+    }
+  }
+
+  /**
    * Create the tab structure exactly like MemorySettingsTab
    */
   private createTabStructure(tabConfigs: UnifiedTabConfig[]): void {
@@ -68,7 +84,7 @@ export class UnifiedTabs {
       const clickHandler = () => {
         this.switchToTab(key);
       };
-      this.component!.registerDomEvent(tab, 'click', clickHandler);
+      this.safeRegisterDomEvent(tab, 'click', clickHandler);
     });
   }
 

@@ -2,7 +2,7 @@
  * TextAreaAgentSuggester - Agent suggester for textarea
  */
 
-import { App, prepareFuzzySearch, setIcon } from 'obsidian';
+import { App, prepareFuzzySearch, setIcon, Component } from 'obsidian';
 import { ContentEditableSuggester } from './ContentEditableSuggester';
 import { ContentEditableHelper } from '../../utils/ContentEditableHelper';
 import {
@@ -23,14 +23,15 @@ export class TextAreaAgentSuggester extends ContentEditableSuggester<AgentSugges
     app: App,
     element: HTMLElement,
     messageEnhancer: MessageEnhancer,
-    promptStorage: CustomPromptStorageService
+    promptStorage: CustomPromptStorageService,
+    component?: Component
   ) {
     super(app, element, {
       trigger: /@(\w*)$/,
       maxSuggestions: 20,
       cacheTTL: 30000,
       debounceDelay: 100
-    });
+    }, component);
 
     this.messageEnhancer = messageEnhancer;
     this.promptStorage = promptStorage;

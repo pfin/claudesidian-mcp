@@ -2,7 +2,7 @@
  * Initialize suggesters for a contenteditable element
  */
 
-import { App, Plugin } from 'obsidian';
+import { App, Plugin, Component } from 'obsidian';
 import { TextAreaNoteSuggester } from './TextAreaNoteSuggester';
 import { TextAreaToolSuggester } from './TextAreaToolSuggester';
 import { TextAreaAgentSuggester } from './TextAreaAgentSuggester';
@@ -33,13 +33,14 @@ export interface SuggesterInstances {
 
 export function initializeSuggesters(
   app: App,
-  element: HTMLElement
+  element: HTMLElement,
+  component?: Component
 ): SuggesterInstances {
   const messageEnhancer = new MessageEnhancer();
 
   // Create suggesters
-  const noteSuggester = new TextAreaNoteSuggester(app, element, messageEnhancer);
-  const toolSuggester = new TextAreaToolSuggester(app, element, messageEnhancer);
+  const noteSuggester = new TextAreaNoteSuggester(app, element, messageEnhancer, component);
+  const toolSuggester = new TextAreaToolSuggester(app, element, messageEnhancer, component);
 
   // Try to get CustomPromptStorageService for agent suggester
   let agentSuggester: TextAreaAgentSuggester | undefined;
@@ -48,7 +49,7 @@ export function initializeSuggesters(
     const plugin = getNexusPlugin<NexusPluginWithServices>(app);
     if (plugin?.settings) {
       const promptStorage = new CustomPromptStorageService(plugin.settings);
-      agentSuggester = new TextAreaAgentSuggester(app, element, messageEnhancer, promptStorage);
+      agentSuggester = new TextAreaAgentSuggester(app, element, messageEnhancer, promptStorage, component);
     }
 
     // Initialize workspace suggester
@@ -56,7 +57,7 @@ export function initializeSuggesters(
       const workspaceService = plugin.workspaceService ||
         (plugin.services?.workspaceService as WorkspaceService | undefined);
       if (workspaceService) {
-        workspaceSuggester = new TextAreaWorkspaceSuggester(app, element, messageEnhancer, workspaceService);
+        workspaceSuggester = new TextAreaWorkspaceSuggester(app, element, messageEnhancer, workspaceService, component);
       }
     }
   } catch (error) {

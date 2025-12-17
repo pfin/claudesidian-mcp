@@ -2,7 +2,7 @@
  * TextAreaToolSuggester - Tool suggester for textarea
  */
 
-import { App, Plugin, prepareFuzzySearch, setIcon } from 'obsidian';
+import { App, Plugin, prepareFuzzySearch, setIcon, Component } from 'obsidian';
 import { ContentEditableSuggester } from './ContentEditableSuggester';
 import { ContentEditableHelper } from '../../utils/ContentEditableHelper';
 import {
@@ -33,14 +33,15 @@ export class TextAreaToolSuggester extends ContentEditableSuggester<ToolSuggesti
   constructor(
     app: App,
     element: HTMLElement,
-    messageEnhancer: MessageEnhancer
+    messageEnhancer: MessageEnhancer,
+    component?: Component
   ) {
     super(app, element, {
       trigger: /\/(\w*)$/,
       maxSuggestions: 30,
       cacheTTL: 120000,
       debounceDelay: 100
-    });
+    }, component);
 
     this.messageEnhancer = messageEnhancer;
   }

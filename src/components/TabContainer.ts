@@ -36,6 +36,22 @@ export class TabContainer {
   }
 
   /**
+   * Safely register a DOM event - uses Component.registerDomEvent if available,
+   * otherwise falls back to plain addEventListener (cleanup handled by DOM removal)
+   */
+  private safeRegisterDomEvent<K extends keyof HTMLElementEventMap>(
+    el: HTMLElement,
+    type: K,
+    handler: (ev: HTMLElementEventMap[K]) => void
+  ): void {
+    if (this.component) {
+      this.component.registerDomEvent(el, type, handler);
+    } else {
+      el.addEventListener(type, handler);
+    }
+  }
+
+  /**
    * Create the tab structure using Memory Manager styling
    */
   private createTabStructure(tabConfigs: TabConfig[]): void {
@@ -50,7 +66,7 @@ export class TabContainer {
       });
 
       const clickHandler = () => this.switchToTab(config.key);
-      this.component!.registerDomEvent(tabEl, 'click', clickHandler);
+      this.safeRegisterDomEvent(tabEl, 'click', clickHandler);
       this.tabs[config.key] = tabEl;
     });
 
