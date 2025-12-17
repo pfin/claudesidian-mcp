@@ -2,11 +2,7 @@ import { App } from 'obsidian';
 import { BaseTool } from '../../baseTool';
 import { DeleteContentParams, DeleteContentResult } from '../types';
 import { ContentOperations } from '../utils/ContentOperations';
-import { createErrorMessage, getErrorMessage } from '../../../utils/errorUtils';
-import { parseWorkspaceContext } from '../../../utils/contextUtils';
-import { MemoryService } from '../../memoryManager/services/MemoryService';
-import { getNexusPlugin } from '../../../utils/pluginLocator';
-import { NexusPluginWithServices } from '../../memoryManager/tools/utils/pluginTypes';
+import { createErrorMessage } from '../../../utils/errorUtils';
 
 /**
  * Tool for deleting content from a file
@@ -15,8 +11,7 @@ import { NexusPluginWithServices } from '../../memoryManager/tools/utils/pluginT
  */
 export class DeleteContentTool extends BaseTool<DeleteContentParams, DeleteContentResult> {
   private app: App;
-  private memoryService: MemoryService | null = null;
-  
+
   /**
    * Create a new DeleteContentTool
    * @param app Obsidian app instance
@@ -28,7 +23,7 @@ export class DeleteContentTool extends BaseTool<DeleteContentParams, DeleteConte
       'Delete content from a file in the vault',
       '1.0.0'
     );
-    
+
     this.app = app;
   }
   
@@ -54,15 +49,12 @@ export class DeleteContentTool extends BaseTool<DeleteContentParams, DeleteConte
         filePath,
         deletions
       };
-      
-      // Record session activity for memory tracking
-      await this.recordActivity(params, resultData);
-      
-      const response = this.prepareResult(true, resultData, undefined, params.context, parseWorkspaceContext(workspaceContext) || undefined);
-      
+
+      const response = this.prepareResult(true, resultData);
+
       return response;
     } catch (error) {
-      return this.prepareResult(false, undefined, createErrorMessage('Error deleting content: ', error), params.context, parseWorkspaceContext(params.workspaceContext) || undefined);
+      return this.prepareResult(false, undefined, createErrorMessage('Error deleting content: ', error));
     }
   }
   
@@ -150,69 +142,5 @@ export class DeleteContentTool extends BaseTool<DeleteContentParams, DeleteConte
       },
       required: ['success']
     };
-  }
-  
-  /**
-   * Record content deletion activity in workspace memory
-   * @param params Params used for deleting content
-   * @param resultData Result data containing deletion information
-   */
-  private async recordActivity(
-    params: DeleteContentParams,
-    resultData: {
-      filePath: string;
-      deletions: number;
-    }
-  ): Promise<void> {
-    // Parse workspace context
-    const parsedContext = parseWorkspaceContext(params.workspaceContext) || undefined;
-    
-    // Skip if no workspace context
-    if (!parsedContext?.workspaceId) {
-      return;
-    }
-    
-    // Skip if no memory service
-    if (!this.memoryService) {
-      try {
-        // Try to get the memory service from the plugin
-        const plugin = getNexusPlugin<NexusPluginWithServices>(this.app);
-        if (plugin?.services?.memoryService) {
-          this.memoryService = plugin.services.memoryService;
-        } else {
-          // No memory service available, skip activity recording
-          return;
-        }
-      } catch (error) {
-        console.error('Failed to get memory service from plugin:', getErrorMessage(error));
-        return;
-      }
-    }
-    
-    // Create a descriptive content about this operation
-    let contentSnippet = params.content.substring(0, 100);
-    if (params.content.length > 100) {
-      contentSnippet += '...';
-    }
-    
-    const content = `Deleted content from ${params.filePath} (${resultData.deletions} deletions)\nDeleted: ${contentSnippet}`;
-    
-    try {
-      await this.memoryService!.recordActivityTrace({
-        workspaceId: parsedContext.workspaceId,
-        type: 'content',
-        content: content,
-        timestamp: Date.now(),
-        metadata: {
-          tool: 'contentManager.deleteContent',
-          params: { filePath: params.filePath },
-          result: resultData,
-          relatedFiles: [params.filePath]
-        },
-        sessionId: params.context.sessionId
-      });
-    } catch (error) {
-      console.error('Failed to record delete content activity:', getErrorMessage(error));
-    }
   }
 }

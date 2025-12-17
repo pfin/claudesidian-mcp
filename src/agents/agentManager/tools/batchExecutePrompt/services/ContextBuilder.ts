@@ -1,4 +1,4 @@
-import { ExecutionContext, PromptExecutionResult, PromptConfig } from '../types';
+import { ExecutionContext, InternalExecutionResult, PromptConfig } from '../types';
 
 /**
  * Service responsible for building context from previous execution results
@@ -10,12 +10,12 @@ export class ContextBuilder {
    * Build context string from previous sequence and group results with precise ID-based selection
    */
   buildPreviousResultsContext(
-    previousResults: Map<number, PromptExecutionResult[]> | { [sequence: number]: PromptExecutionResult[] },
+    previousResults: Map<number, InternalExecutionResult[]> | { [sequence: number]: InternalExecutionResult[] },
     currentSequence: number,
-    currentSequenceGroupResults?: { [groupKey: string]: PromptExecutionResult[] },
+    currentSequenceGroupResults?: { [groupKey: string]: InternalExecutionResult[] },
     currentParallelGroup?: string,
     contextFromSteps?: string[],
-    allResults?: PromptExecutionResult[]
+    allResults?: InternalExecutionResult[]
   ): string {
     const contextParts: string[] = [];
     
@@ -146,13 +146,13 @@ export class ContextBuilder {
   updateExecutionContext(
     executionContext: ExecutionContext,
     sequence: number,
-    results: PromptExecutionResult[]
+    results: InternalExecutionResult[]
   ): void {
     // Store results by sequence
     const currentSequenceResults = executionContext.previousResults.get(sequence) || [];
     currentSequenceResults.push(...results);
     executionContext.previousResults.set(sequence, currentSequenceResults);
-    
+
     // Add to all results
     executionContext.allResults.push(...results);
   }

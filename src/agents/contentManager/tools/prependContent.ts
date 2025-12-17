@@ -2,19 +2,14 @@ import { App } from 'obsidian';
 import { BaseTool } from '../../baseTool';
 import { PrependContentParams, PrependContentResult } from '../types';
 import { ContentOperations } from '../utils/ContentOperations';
-import { createErrorMessage, getErrorMessage } from '../../../utils/errorUtils';
-import { parseWorkspaceContext } from '../../../utils/contextUtils';
-import { MemoryService } from '../../memoryManager/services/MemoryService';
-import { getNexusPlugin } from '../../../utils/pluginLocator';
-import { NexusPluginWithServices } from '../../memoryManager/tools/utils/pluginTypes';
+import { createErrorMessage } from '../../../utils/errorUtils';
 
 /**
  * Tool for prepending content to a file
  */
 export class PrependContentTool extends BaseTool<PrependContentParams, PrependContentResult> {
   private app: App;
-  private memoryService: MemoryService | null = null;
-  
+
   /**
    * Create a new PrependContentTool
    * @param app Obsidian app instance
@@ -26,7 +21,7 @@ export class PrependContentTool extends BaseTool<PrependContentParams, PrependCo
       'Prepend content to a file in the vault',
       '1.0.0'
     );
-    
+
     this.app = app;
   }
   
@@ -48,15 +43,12 @@ export class PrependContentTool extends BaseTool<PrependContentParams, PrependCo
         prependedLength: result.prependedLength,
         totalLength: result.totalLength
       };
-      
-      // Record session activity for memory tracking
-      await this.recordActivity(params, resultData);
-      
-      const response = this.prepareResult(true, resultData, undefined, params.context, parseWorkspaceContext(workspaceContext) || undefined);
-      
+
+      const response = this.prepareResult(true, resultData);
+
       return response;
     } catch (error) {
-      return this.prepareResult(false, undefined, createErrorMessage('Error prepending content: ', error), params.context, parseWorkspaceContext(params.workspaceContext) || undefined);
+      return this.prepareResult(false, undefined, createErrorMessage('Error prepending content: ', error));
     }
   }
   
@@ -141,70 +133,5 @@ export class PrependContentTool extends BaseTool<PrependContentParams, PrependCo
       },
       required: ['success']
     };
-  }
-  
-  /**
-   * Record content prepending activity in workspace memory
-   * @param params Params used for prepending content
-   * @param resultData Result data containing prepend information
-   */
-  private async recordActivity(
-    params: PrependContentParams,
-    resultData: {
-      filePath: string;
-      prependedLength: number;
-      totalLength: number;
-    }
-  ): Promise<void> {
-    // Parse workspace context
-    const parsedContext = parseWorkspaceContext(params.workspaceContext) || undefined;
-    
-    // Skip if no workspace context
-    if (!parsedContext?.workspaceId) {
-      return;
-    }
-    
-    // Skip if no memory service
-    if (!this.memoryService) {
-      try {
-        // Try to get the memory service from the plugin
-        const plugin = getNexusPlugin<NexusPluginWithServices>(this.app);
-        if (plugin?.services?.memoryService) {
-          this.memoryService = plugin.services.memoryService;
-        } else {
-          // No memory service available, skip activity recording
-          return;
-        }
-      } catch (error) {
-        console.error('Failed to get memory service from plugin:', getErrorMessage(error));
-        return;
-      }
-    }
-    
-    // Create a descriptive content about this operation
-    let contentSnippet = params.content.substring(0, 100);
-    if (params.content.length > 100) {
-      contentSnippet += '...';
-    }
-    
-    const content = `Prepended to file ${params.filePath} (${resultData.prependedLength} chars added, ${resultData.totalLength} total)\nContent: ${contentSnippet}`;
-    
-    try {
-      await this.memoryService!.recordActivityTrace({
-        workspaceId: parsedContext.workspaceId,
-        type: 'content',
-        content: content,
-        timestamp: Date.now(),
-        metadata: {
-          tool: 'contentManager.prependContent',
-          params: { filePath: params.filePath },
-          result: resultData,
-          relatedFiles: [params.filePath]
-        },
-        sessionId: params.context.sessionId
-      });
-    } catch (error) {
-      console.error('Failed to record prepend content activity:', getErrorMessage(error));
-    }
   }
 }

@@ -106,7 +106,7 @@ export class AgentManagerAgent extends BaseAgent {
     // Register unified prompt execution tool (handles single and batch)
     this.registerTool(new ExecutePromptsTool(
       undefined, // plugin - not needed in constructor injection pattern
-      undefined, // llmService - will be resolved internally
+      this.providerManager.getLLMService(), // Get LLM service from provider manager
       this.providerManager,
       this.parentAgentManager,
       this.storageService

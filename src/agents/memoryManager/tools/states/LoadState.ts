@@ -19,7 +19,7 @@ import { LoadStateParams, StateResult } from '../../types';
 import { createErrorMessage } from '../../../../utils/errorUtils';
 import { extractContextFromParams } from '../../../../utils/contextUtils';
 import { MemoryService } from "../../services/MemoryService";
-import { WorkspaceService } from '../../../../services/WorkspaceService';
+import { WorkspaceService, GLOBAL_WORKSPACE_ID } from '../../../../services/WorkspaceService';
 import { createServiceIntegration } from '../../services/ValidationService';
 import { SchemaBuilder, SchemaType } from '../../../../utils/schemas/SchemaBuilder';
 
@@ -69,8 +69,8 @@ export class LoadStateTool extends BaseTool<LoadStateParams, StateResult> {
             // Extract workspaceId and sessionId from params
             const parsedContext = params.workspaceContext ?
                 (typeof params.workspaceContext === 'string' ? JSON.parse(params.workspaceContext) : params.workspaceContext) : null;
-            const workspaceId = parsedContext?.workspaceId || 'default-workspace';
-            const sessionId = params.context?.sessionId || 'current';
+            const workspaceId = parsedContext?.workspaceId || GLOBAL_WORKSPACE_ID;
+            const sessionId = 'current';
 
             const stateResult = await this.loadStateData(workspaceId, sessionId, params.stateId, memoryService);
             if (!stateResult.success) {

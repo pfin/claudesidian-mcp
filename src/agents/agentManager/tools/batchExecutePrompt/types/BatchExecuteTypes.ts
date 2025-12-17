@@ -128,13 +128,13 @@ export interface ContentAction {
 }
 
 /**
- * Execution context for prompt processing
+ * Execution context for prompt processing (uses internal results during execution)
  */
 export interface ExecutionContext {
   sessionId?: string;
-  context?: any;
-  previousResults: Map<number, PromptExecutionResult[]>;
-  allResults: PromptExecutionResult[];
+  context?: unknown;
+  previousResults: Map<number, InternalExecutionResult[]>;
+  allResults: InternalExecutionResult[];
 }
 
 /**
@@ -151,19 +151,31 @@ export interface PromptExecutionParams {
 }
 
 /**
- * Result from individual request execution (unified for text and image)
+ * Result from individual request execution (lean)
+ * Infer type from fields: response/savedTo = text, imagePath = image
  */
-export type PromptExecutionResult = TextExecutionResult | ImageExecutionResult;
+export interface PromptExecutionResult {
+  success: boolean;
+  /** Text response - omitted if action saved content to note */
+  response?: string;
+  /** Path where content was saved (text with action) */
+  savedTo?: string;
+  /** Path where image was saved */
+  imagePath?: string;
+  /** Only included on failure */
+  error?: string;
+}
 
 /**
- * Result from text prompt execution
+ * Internal result with full details (used during execution, stripped before return)
  */
-export interface TextExecutionResult {
-  type: 'text';
+export interface InternalExecutionResult {
+  type: 'text' | 'image';
   id?: string;
   prompt: string;
   success: boolean;
   response?: string;
+  imagePath?: string;
   provider?: string;
   model?: string;
   agent?: string;
@@ -172,9 +184,11 @@ export interface TextExecutionResult {
   sequence?: number;
   parallelGroup?: string;
   usage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    imagesGenerated?: number;
+    resolution?: string;
   };
   cost?: {
     inputCost: number;
@@ -189,39 +203,4 @@ export interface TextExecutionResult {
     success: boolean;
     error?: string;
   };
-}
-
-/**
- * Result from image generation execution
- */
-export interface ImageExecutionResult {
-  type: 'image';
-  id?: string;
-  prompt: string;
-  success: boolean;
-  imagePath?: string;
-  revisedPrompt?: string;
-  provider?: string;
-  model?: string;
-  error?: string;
-  executionTime?: number;
-  sequence?: number;
-  parallelGroup?: string;
-  dimensions?: { width: number; height: number };
-  fileSize?: number;
-  format?: string;
-  usage?: {
-    imagesGenerated: number;
-    resolution: string;
-    model: string;
-    provider: string;
-  };
-  cost?: {
-    inputCost: number;
-    outputCost: number;
-    totalCost: number;
-    currency: string;
-    ratePerImage?: number;
-  };
-  metadata?: Record<string, any>;
 }

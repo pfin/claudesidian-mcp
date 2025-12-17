@@ -1,56 +1,66 @@
-import { 
-  PromptExecutionResult, 
-  BatchExecutePromptResult, 
-  ExecutionStats, 
-  MergedResponse 
+import {
+  PromptExecutionResult,
+  InternalExecutionResult,
+  BatchExecutePromptResult,
+  ExecutionStats,
+  MergedResponse
 } from '../types';
 
 /**
  * Service responsible for processing and formatting execution results
- * Follows SRP by focusing only on result processing logic
+ * Strips internal details to return lean, context-efficient results
  */
 export class ResultProcessor {
 
   /**
-   * Process results into final batch execution result
+   * Process results into final batch execution result (lean format)
    */
   processResults(
-    results: PromptExecutionResult[],
+    results: InternalExecutionResult[],
     mergeResponses: boolean,
-    totalExecutionTime: number,
-    totalPrompts: number
+    _totalExecutionTime: number,
+    _totalPrompts: number
   ): BatchExecutePromptResult {
     const successful = results.filter(r => r.success);
-    const failed = results.filter(r => !r.success);
-
-    const stats: ExecutionStats = {
-      totalExecutionTimeMS: totalExecutionTime,
-      promptsExecuted: totalPrompts,
-      promptsFailed: failed.length,
-      avgExecutionTimeMS: totalPrompts > 0 ? totalExecutionTime / totalPrompts : 0,
-      tokensUsed: this.calculateTotalTokens(results)
-    };
 
     if (mergeResponses) {
       const merged = this.mergePromptResults(successful);
-      
       return {
         success: true,
-        merged: {
-          totalPrompts,
-          successfulPrompts: successful.length,
-          combinedResponse: merged.combinedResponse,
-          providersUsed: merged.providersUsed
-        },
-        stats
+        merged: merged.combinedResponse
       };
     } else {
+      // Strip to lean format
+      const leanResults = results.map(r => this.toLeanResult(r));
       return {
         success: true,
-        results: results,
-        stats
+        results: leanResults
       };
     }
+  }
+
+  /**
+   * Convert internal result to lean public result
+   * Type inferred from fields: response/savedTo = text, imagePath = image
+   */
+  private toLeanResult(result: InternalExecutionResult): PromptExecutionResult {
+    const lean: PromptExecutionResult = { success: result.success };
+
+    if (result.type === 'image') {
+      if (result.imagePath) lean.imagePath = result.imagePath;
+    } else {
+      // Only include response if no action saved it to a file
+      if (result.response && !result.actionPerformed?.success) {
+        lean.response = result.response;
+      }
+      // Include savedTo path if action was performed
+      if (result.actionPerformed?.success && result.actionPerformed.targetPath) {
+        lean.savedTo = result.actionPerformed.targetPath;
+      }
+    }
+
+    if (!result.success && result.error) lean.error = result.error;
+    return lean;
   }
 
   /**
@@ -66,123 +76,30 @@ export class ResultProcessor {
   /**
    * Merge multiple prompt results into a single unified response
    */
-  private mergePromptResults(results: PromptExecutionResult[]): MergedResponse {
+  private mergePromptResults(results: InternalExecutionResult[]): MergedResponse {
     const responses: string[] = [];
     const providersUsed = new Set<string>();
-    
-    results.forEach((result, index) => {
+
+    results.forEach((result) => {
       if (result.success) {
-        let responseContent = '';
-        
+        let content = '';
         if (result.type === 'text' && result.response) {
-          responseContent = result.response;
+          content = result.response;
         } else if (result.type === 'image' && result.imagePath) {
-          responseContent = `[Image generated: ${result.imagePath}]`;
+          content = `[Image: ${result.imagePath}]`;
         }
-        
-        if (responseContent) {
-          responses.push(
-            `## Response ${index + 1}${result.id ? ` (${result.id})` : ''}${result.provider ? ` - ${result.provider}` : ''}\n\n${responseContent}`
-          );
-          
-          if (result.provider) {
-            providersUsed.add(result.provider);
-          }
+        if (content) {
+          responses.push(content);
+          if (result.provider) providersUsed.add(result.provider);
         }
       }
     });
-    
-    const combinedResponse = responses.join('\n\n---\n\n');
-    
+
     return {
       totalPrompts: results.length,
       successfulPrompts: results.filter(r => r.success).length,
-      combinedResponse,
+      combinedResponse: responses.join('\n\n'),
       providersUsed: Array.from(providersUsed)
     };
-  }
-
-  /**
-   * Calculate total tokens used across all results
-   */
-  private calculateTotalTokens(results: PromptExecutionResult[]): number | undefined {
-    let totalTokens = 0;
-    let hasTokenData = false;
-
-    for (const result of results) {
-      if (result.usage) {
-        if (result.type === 'text' && 'totalTokens' in result.usage && result.usage.totalTokens) {
-          totalTokens += result.usage.totalTokens;
-          hasTokenData = true;
-        }
-        // Note: Image usage has different metrics (imagesGenerated, resolution, etc.)
-        // and doesn't have totalTokens, so we skip those for token calculation
-      }
-    }
-
-    return hasTokenData ? totalTokens : undefined;
-  }
-
-  /**
-   * Calculate total cost across all results
-   */
-  calculateTotalCost(results: PromptExecutionResult[]): { totalCost: number; currency: string } | undefined {
-    let totalCost = 0;
-    let currency = 'USD';
-    let hasCostData = false;
-
-    for (const result of results) {
-      if (result.cost?.totalCost) {
-        totalCost += result.cost.totalCost;
-        currency = result.cost.currency || 'USD';
-        hasCostData = true;
-      }
-    }
-
-    return hasCostData ? { totalCost, currency } : undefined;
-  }
-
-  /**
-   * Get summary statistics for reporting
-   */
-  getResultsSummary(results: PromptExecutionResult[]) {
-    const successful = results.filter(r => r.success);
-    const failed = results.filter(r => !r.success);
-    const providersUsed = new Set(results.map(r => r.provider).filter(Boolean));
-    const modelsUsed = new Set(results.map(r => r.model).filter(Boolean));
-
-    return {
-      total: results.length,
-      successful: successful.length,
-      failed: failed.length,
-      successRate: results.length > 0 ? (successful.length / results.length) * 100 : 0,
-      providersUsed: Array.from(providersUsed),
-      modelsUsed: Array.from(modelsUsed),
-      totalCost: this.calculateTotalCost(results),
-      totalTokens: this.calculateTotalTokens(results)
-    };
-  }
-
-  /**
-   * Filter results by criteria
-   */
-  filterResults(
-    results: PromptExecutionResult[],
-    criteria: {
-      onlySuccessful?: boolean;
-      onlyFailed?: boolean;
-      provider?: string;
-      sequence?: number;
-      parallelGroup?: string;
-    }
-  ): PromptExecutionResult[] {
-    return results.filter(result => {
-      if (criteria.onlySuccessful && !result.success) return false;
-      if (criteria.onlyFailed && result.success) return false;
-      if (criteria.provider && result.provider !== criteria.provider) return false;
-      if (criteria.sequence !== undefined && result.sequence !== criteria.sequence) return false;
-      if (criteria.parallelGroup && result.parallelGroup !== criteria.parallelGroup) return false;
-      return true;
-    });
   }
 }

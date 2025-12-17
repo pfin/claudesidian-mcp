@@ -1,9 +1,9 @@
 import { RequestExecutor } from './RequestExecutor';
 import { ContextBuilder } from './ContextBuilder';
-import { 
-  PromptConfig, 
-  PromptExecutionResult, 
-  ExecutionContext 
+import {
+  PromptConfig,
+  InternalExecutionResult,
+  ExecutionContext
 } from '../types';
 
 /**
@@ -26,8 +26,8 @@ export class SequenceManager {
   async executePromptsWithSequencing(
     prompts: PromptConfig[],
     executionContext: ExecutionContext
-  ): Promise<PromptExecutionResult[]> {
-    const results: PromptExecutionResult[] = [];
+  ): Promise<InternalExecutionResult[]> {
+    const results: InternalExecutionResult[] = [];
     
     // Group prompts by sequence number (default to 0 if not specified)
     const sequenceGroups = this.groupPromptsBySequence(prompts);
@@ -62,9 +62,9 @@ export class SequenceManager {
   private async executeSequenceWithParallelGroups(
     prompts: PromptConfig[],
     executionContext: ExecutionContext,
-    currentSequence: number
-  ): Promise<PromptExecutionResult[]> {
-    const results: PromptExecutionResult[] = [];
+    _currentSequence: number
+  ): Promise<InternalExecutionResult[]> {
+    const results: InternalExecutionResult[] = [];
     
     // Group prompts by parallelGroup within this sequence
     const parallelGroups = this.groupPromptsByParallelGroup(prompts);
@@ -139,13 +139,13 @@ export class SequenceManager {
   }
 
   /**
-   * Get execution statistics from results
+   * Get execution statistics from results (internal use only)
    */
-  getExecutionStatistics(results: PromptExecutionResult[]) {
+  getExecutionStatistics(results: InternalExecutionResult[]) {
     const successful = results.filter(r => r.success);
     const failed = results.filter(r => !r.success);
     const totalExecutionTime = results.reduce((sum, r) => sum + (r.executionTime || 0), 0);
-    
+
     return {
       totalPrompts: results.length,
       successfulPrompts: successful.length,

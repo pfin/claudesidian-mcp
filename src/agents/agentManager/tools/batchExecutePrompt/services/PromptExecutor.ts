@@ -2,12 +2,12 @@ import { LLMService } from '../../../../../services/llm/core/LLMService';
 import { CustomPromptStorageService } from '../../../services/CustomPromptStorageService';
 import { BudgetValidator } from './BudgetValidator';
 import { ContextBuilder } from './ContextBuilder';
-import { 
-  PromptConfig, 
+import {
+  PromptConfig,
   TextPromptConfig,
-  PromptExecutionResult, 
+  InternalExecutionResult,
   PromptExecutionParams,
-  ExecutionContext 
+  ExecutionContext
 } from '../types';
 import { getErrorMessage } from '../../../../../utils/errorUtils';
 
@@ -31,7 +31,7 @@ export class PromptExecutor {
     executionContext: ExecutionContext,
     currentSequence: number,
     index: number = 0
-  ): Promise<PromptExecutionResult> {
+  ): Promise<InternalExecutionResult> {
     try {
       // Add delay between concurrent requests to avoid overwhelming APIs
       if (index > 0) {
@@ -154,7 +154,7 @@ export class PromptExecutor {
     prompts: PromptConfig[],
     executionContext: ExecutionContext,
     currentSequence: number
-  ): Promise<PromptExecutionResult[]> {
+  ): Promise<InternalExecutionResult[]> {
     const batchPromises = prompts.map((promptConfig, index) => 
       this.executePrompt(promptConfig, executionContext, currentSequence, index)
     );

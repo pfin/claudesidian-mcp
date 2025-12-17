@@ -18,12 +18,11 @@ import { LLMProviderSettings } from '../../../types/llm/ProviderTypes';
 
 export interface GenerateImageParams extends CommonParameters {
   prompt: string;
-  provider: 'google' | 'openrouter'; // Google (direct) or OpenRouter (routing)
-  model?: 'gemini-2.5-flash-image' | 'gemini-3-pro-image-preview' | 'flux-2-pro' | 'flux-2-flex';
+  provider?: 'google' | 'openrouter'; // Defaults to 'google' if available
+  model?: 'gemini-2.5-flash-image' | 'gemini-3-pro-image-preview' | 'flux-2-pro' | 'flux-2-flex'; // Defaults to 'gemini-2.5-flash-image'
   aspectRatio?: AspectRatio;
   numberOfImages?: number;
   imageSize?: '1K' | '2K' | '4K';
-  sampleImageSize?: '1K' | '2K'; // Legacy alias
   referenceImages?: string[]; // Vault-relative paths to reference images
   savePath: string;
 }
@@ -31,25 +30,6 @@ export interface GenerateImageParams extends CommonParameters {
 export interface GenerateImageModeResult extends CommonResult {
   data?: {
     imagePath: string;
-    prompt: string;
-    revisedPrompt?: string;
-    model: string;
-    provider: string;
-    dimensions: { width: number; height: number };
-    fileSize: number;
-    format: string;
-    cost?: {
-      totalCost: number;
-      currency: string;
-      ratePerImage: number;
-    };
-    usage?: {
-      imagesGenerated: number;
-      resolution: string;
-      model: string;
-      provider: string;
-    };
-    metadata?: Record<string, any>;
   };
 }
 
@@ -124,11 +104,7 @@ export class GenerateImageTool extends BaseTool<GenerateImageParams, GenerateIma
         return createResult<GenerateImageModeResult>(
           false,
           undefined,
-          'Image generation service not initialized. Vault instance required.',
-          undefined,
-          undefined,
-          params.context.sessionId,
-          params.context
+          'Image generation service not initialized. Vault instance required.'
         );
       }
 
@@ -137,100 +113,69 @@ export class GenerateImageTool extends BaseTool<GenerateImageParams, GenerateIma
         return createResult<GenerateImageModeResult>(
           false,
           undefined,
-          'No image generation providers available. Please configure Google API key in plugin settings.',
-          undefined,
-          undefined,
-          params.context.sessionId,
-          params.context
+          'No image generation providers available. Please configure Google API key in plugin settings.'
         );
       }
+
+      // Apply defaults: google provider and gemini-2.5-flash-image model
+      const provider = params.provider || 'google';
+      const model = params.model || 'gemini-2.5-flash-image';
 
       // Validate parameters
       const validation = await this.imageService.validateParams({
         prompt: params.prompt,
-        provider: params.provider,
-        model: params.model,
+        provider,
+        model,
         aspectRatio: params.aspectRatio,
         numberOfImages: params.numberOfImages,
         imageSize: params.imageSize,
-        sampleImageSize: params.sampleImageSize,
         referenceImages: params.referenceImages,
         savePath: params.savePath,
-        sessionId: params.context.sessionId,
-        context: typeof params.context === 'string' ? params.context : JSON.stringify(params.context)
+        sessionId: 'default',
+        context: ''
       });
 
       if (!validation.isValid) {
         return createResult<GenerateImageModeResult>(
           false,
           undefined,
-          `Parameter validation failed: ${validation.errors.join(', ')}`,
-          undefined,
-          undefined,
-          params.context.sessionId,
-          params.context
+          `Parameter validation failed: ${validation.errors.join(', ')}`
         );
       }
 
       // Generate the image
       const result = await this.imageService.generateImage({
         prompt: params.prompt,
-        provider: params.provider,
-        model: params.model,
+        provider,
+        model,
         aspectRatio: params.aspectRatio,
         numberOfImages: params.numberOfImages,
         imageSize: params.imageSize,
-        sampleImageSize: params.sampleImageSize,
         referenceImages: params.referenceImages,
         savePath: params.savePath,
-        sessionId: params.context.sessionId,
-        context: typeof params.context === 'string' ? params.context : JSON.stringify(params.context)
+        sessionId: 'default',
+        context: ''
       });
 
       if (!result.success) {
         return createResult<GenerateImageModeResult>(
           false,
           undefined,
-          result.error || 'Image generation failed',
-          undefined,
-          undefined,
-          params.context.sessionId,
-          params.context
+          result.error || 'Image generation failed'
         );
       }
 
-      // Return successful result
+      // Return lean result - just the path
       return createResult<GenerateImageModeResult>(
         true,
-        result.data ? {
-          imagePath: result.data.imagePath,
-          prompt: result.data.prompt,
-          revisedPrompt: result.data.revisedPrompt,
-          model: result.data.model,
-          provider: result.data.provider,
-          dimensions: result.data.dimensions,
-          fileSize: result.data.fileSize,
-          format: result.data.format,
-          cost: result.data.cost,
-          usage: result.data.usage,
-          metadata: result.data.metadata
-        } : undefined,
-        'Image generated successfully',
-        undefined,
-        undefined,
-        params.context.sessionId,
-        params.context
+        result.data ? { imagePath: result.data.imagePath } : undefined
       );
 
     } catch (error) {
       return createResult<GenerateImageModeResult>(
         false,
         undefined,
-        `Image generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        undefined,
-        undefined,
-        params.context.sessionId,
-        params.context
+        `Image generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
@@ -251,12 +196,14 @@ export class GenerateImageTool extends BaseTool<GenerateImageParams, GenerateIma
         provider: {
           type: 'string',
           enum: ['google', 'openrouter'],
-          description: 'AI provider for image generation. google = direct API, openrouter = via OpenRouter routing'
+          default: 'google',
+          description: 'AI provider (default: google)'
         },
         model: {
           type: 'string',
           enum: ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview', 'flux-2-pro', 'flux-2-flex'],
-          description: 'Model to use. Nano Banana models (gemini-*) work with both providers. FLUX models only via OpenRouter.'
+          default: 'gemini-2.5-flash-image',
+          description: 'Model (default: gemini-2.5-flash-image). FLUX models only via OpenRouter.'
         },
         aspectRatio: {
           type: 'string',
@@ -278,7 +225,7 @@ export class GenerateImageTool extends BaseTool<GenerateImageParams, GenerateIma
           type: 'array',
           items: { type: 'string' },
           maxItems: 14,
-          description: 'Vault-relative paths to reference images for style/composition guidance. Max 6 for gemini-2.5-flash-image, max 14 for gemini-3-pro-image-preview'
+          description: 'Reference images for style/composition. Max 3 for 2.5-flash, max 14 for 3-pro'
         },
         savePath: {
           type: 'string',
@@ -291,116 +238,27 @@ export class GenerateImageTool extends BaseTool<GenerateImageParams, GenerateIma
           description: 'Image format (optional, inferred from savePath extension or provider default)'
         }
       },
-      required: ['prompt', 'provider', 'savePath']
+      required: ['prompt', 'savePath']
     };
 
     return this.getMergedSchema(modeSchema);
   }
 
   /**
-   * Get result schema for MCP
+   * Get result schema for MCP (lean format)
    */
-  getResultSchema(): any {
+  getResultSchema(): Record<string, unknown> {
     return {
       type: 'object',
       properties: {
-        success: {
-          type: 'boolean',
-          description: 'Whether the image generation succeeded'
-        },
-        message: {
-          type: 'string',
-          description: 'Status message'
-        },
+        success: { type: 'boolean' },
         data: {
           type: 'object',
           properties: {
-            imagePath: {
-              type: 'string',
-              description: 'Path where the image was saved in the vault'
-            },
-            prompt: {
-              type: 'string',
-              description: 'Original prompt used for generation'
-            },
-            revisedPrompt: {
-              type: 'string',
-              description: 'Provider-revised prompt (if applicable)'
-            },
-            model: {
-              type: 'string',
-              description: 'AI model used for generation'
-            },
-            provider: {
-              type: 'string',
-              description: 'AI provider used (google)'
-            },
-            dimensions: {
-              type: 'object',
-              properties: {
-                width: {
-                  type: 'number',
-                  description: 'Image width in pixels'
-                },
-                height: {
-                  type: 'number',
-                  description: 'Image height in pixels'
-                }
-              },
-              required: ['width', 'height']
-            },
-            fileSize: {
-              type: 'number',
-              description: 'File size in bytes'
-            },
-            format: {
-              type: 'string',
-              description: 'Image format (png, jpeg, webp)'
-            },
-            cost: {
-              type: 'object',
-              properties: {
-                totalCost: {
-                  type: 'number',
-                  description: 'Total cost in USD'
-                },
-                currency: {
-                  type: 'string',
-                  description: 'Currency (USD)'
-                },
-                ratePerImage: {
-                  type: 'number',
-                  description: 'Cost per image'
-                }
-              }
-            },
-            usage: {
-              type: 'object',
-              properties: {
-                imagesGenerated: {
-                  type: 'number',
-                  description: 'Number of images generated'
-                },
-                resolution: {
-                  type: 'string',
-                  description: 'Image resolution'
-                },
-                model: {
-                  type: 'string',
-                  description: 'Model used'
-                },
-                provider: {
-                  type: 'string',
-                  description: 'Provider used'
-                }
-              }
-            },
-            metadata: {
-              type: 'object',
-              description: 'Additional metadata'
-            }
+            imagePath: { type: 'string', description: 'Path where image was saved' }
           }
-        }
+        },
+        error: { type: 'string' }
       },
       required: ['success']
     };

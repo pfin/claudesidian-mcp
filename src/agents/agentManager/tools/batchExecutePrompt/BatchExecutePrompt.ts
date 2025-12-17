@@ -157,22 +157,19 @@ export class ExecutePromptsTool extends BaseTool<BatchExecutePromptParams, Batch
       // Validate dependencies
       if (!this.llmService) {
         return createResult<BatchExecutePromptResult>(
-          false, undefined, 'LLM Service not initialized',
-          undefined, undefined, params.context.sessionId, params.context
+          false, undefined, 'LLM Service not initialized'
         );
       }
-      
+
       if (!this.providerManager) {
         return createResult<BatchExecutePromptResult>(
-          false, undefined, 'LLM Provider Manager not initialized. Please ensure you have configured at least one LLM provider with valid API keys.',
-          undefined, undefined, params.context.sessionId, params.context
+          false, undefined, 'LLM Provider Manager not initialized. Please ensure you have configured at least one LLM provider with valid API keys.'
         );
       }
-      
+
       if (!this.promptStorage) {
         return createResult<BatchExecutePromptResult>(
-          false, undefined, 'Prompt storage service not initialized',
-          undefined, undefined, params.context.sessionId, params.context
+          false, undefined, 'Prompt storage service not initialized'
         );
       }
 
@@ -180,8 +177,7 @@ export class ExecutePromptsTool extends BaseTool<BatchExecutePromptParams, Batch
       this.ensureRequestExecutor();
       if (!this.requestExecutor || !this.sequenceManager) {
         return createResult<BatchExecutePromptResult>(
-          false, undefined, 'Failed to initialize execution services',
-          undefined, undefined, params.context.sessionId, params.context
+          false, undefined, 'Failed to initialize execution services'
         );
       }
 
@@ -189,8 +185,7 @@ export class ExecutePromptsTool extends BaseTool<BatchExecutePromptParams, Batch
       const validation = this.promptParser.validateParameters(params);
       if (!validation.valid) {
         return createResult<BatchExecutePromptResult>(
-          false, undefined, `Parameter validation failed: ${validation.errors.join(', ')}`,
-          undefined, undefined, params.context.sessionId, params.context
+          false, undefined, `Parameter validation failed: ${validation.errors.join(', ')}`
         );
       }
 
@@ -198,13 +193,13 @@ export class ExecutePromptsTool extends BaseTool<BatchExecutePromptParams, Batch
       
       // Normalize prompt configurations
       const normalizedPrompts = this.promptParser.normalizePromptConfigs(params.prompts);
-      
-      // Initialize execution context
+
+      // Initialize execution context with default values
       const executionContext = this.contextBuilder.initializeExecutionContext(
-        params.context.sessionId,
-        params.context
+        'default',
+        ''
       );
-      
+
       // Execute prompts with sequence and parallel group support
       const results = await this.sequenceManager.executePromptsWithSequencing(
         normalizedPrompts,
@@ -227,28 +222,22 @@ export class ExecutePromptsTool extends BaseTool<BatchExecutePromptParams, Batch
       const result = createResult<BatchExecutePromptResult>(
         processedResults.success,
         processedResults,
-        processedResults.error,
-        undefined, // workspaceContext
-        params.context.sessionId,
-        params.context
+        processedResults.error
       );
-      
+
       // Dynamic nudges based on operation count
       const nudges: Recommendation[] = [NudgeHelpers.suggestCaptureProgress()];
       const batchNudge = NudgeHelpers.checkBatchAgentOpportunity(processedResults.results?.length || 0);
       if (batchNudge) nudges.push(batchNudge);
 
       return addRecommendations(result, nudges);
-      
+
     } catch (error) {
       console.error('Batch LLM prompt execution failed:', error);
       return createResult<BatchExecutePromptResult>(
         false,
         undefined,
-        `Batch execution failed: ${getErrorMessage(error)}`,
-        undefined, // workspaceContext
-        params.context.sessionId,
-        params.context
+        `Batch execution failed: ${getErrorMessage(error)}`
       );
     }
   }
@@ -272,8 +261,8 @@ export class ExecutePromptsTool extends BaseTool<BatchExecutePromptParams, Batch
           const actionResult = await this.actionExecutor.executeContentAction(
             promptConfig.action,
             result.response,
-            params.context.sessionId,
-            typeof params.context === 'string' ? params.context : JSON.stringify(params.context)
+            'default',
+            ''
           );
 
           result.actionPerformed = {
@@ -466,158 +455,30 @@ export class ExecutePromptsTool extends BaseTool<BatchExecutePromptParams, Batch
   }
 
   /**
-   * Get result schema for MCP tool definition
+   * Get result schema for MCP tool definition (lean format)
+   * Type inferred from fields: response/savedTo = text, imagePath = image
    */
-  getResultSchema(): any {
+  getResultSchema(): Record<string, unknown> {
     return {
       type: 'object',
       properties: {
-        success: {
-          type: 'boolean',
-          description: 'Whether the batch execution succeeded overall'
-        },
-        message: {
-          type: 'string',
-          description: 'Status message about the batch execution'
-        },
-        data: {
-          type: 'object',
-          properties: {
-            results: {
-              type: 'array',
-              description: 'Individual results from each request',
-              items: {
-                oneOf: [
-                  {
-                    type: 'object',
-                    description: 'Text prompt result',
-                    properties: {
-                      type: { const: 'text' },
-                      id: { type: 'string' },
-                      prompt: { type: 'string' },
-                      success: { type: 'boolean' },
-                      response: { type: 'string' },
-                      provider: { type: 'string' },
-                      model: { type: 'string' },
-                      agent: { type: 'string' },
-                      error: { type: 'string' },
-                      executionTime: { type: 'number' },
-                      sequence: { type: 'number' },
-                      parallelGroup: { type: 'string' },
-                      usage: {
-                        type: 'object',
-                        properties: {
-                          promptTokens: { type: 'number' },
-                          completionTokens: { type: 'number' },
-                          totalTokens: { type: 'number' }
-                        }
-                      },
-                      cost: {
-                        type: 'object',
-                        properties: {
-                          inputCost: { type: 'number' },
-                          outputCost: { type: 'number' },
-                          totalCost: { type: 'number' },
-                          currency: { type: 'string' }
-                        }
-                      },
-                      filesIncluded: {
-                        type: 'array',
-                        items: { type: 'string' }
-                      },
-                      actionPerformed: {
-                        type: 'object',
-                        properties: {
-                          type: { type: 'string' },
-                          targetPath: { type: 'string' },
-                          success: { type: 'boolean' },
-                          error: { type: 'string' }
-                        }
-                      }
-                    },
-                    required: ['type', 'success']
-                  },
-                  {
-                    type: 'object',
-                    description: 'Image generation result',
-                    properties: {
-                      type: { const: 'image' },
-                      id: { type: 'string' },
-                      prompt: { type: 'string' },
-                      success: { type: 'boolean' },
-                      imagePath: { type: 'string' },
-                      revisedPrompt: { type: 'string' },
-                      provider: { type: 'string' },
-                      model: { type: 'string' },
-                      error: { type: 'string' },
-                      executionTime: { type: 'number' },
-                      sequence: { type: 'number' },
-                      parallelGroup: { type: 'string' },
-                      dimensions: {
-                        type: 'object',
-                        properties: {
-                          width: { type: 'number' },
-                          height: { type: 'number' }
-                        }
-                      },
-                      fileSize: { type: 'number' },
-                      format: { type: 'string' },
-                      usage: {
-                        type: 'object',
-                        properties: {
-                          imagesGenerated: { type: 'number' },
-                          resolution: { type: 'string' },
-                          model: { type: 'string' },
-                          provider: { type: 'string' }
-                        }
-                      },
-                      cost: {
-                        type: 'object',
-                        properties: {
-                          inputCost: { type: 'number' },
-                          outputCost: { type: 'number' },
-                          totalCost: { type: 'number' },
-                          currency: { type: 'string' },
-                          ratePerImage: { type: 'number' }
-                        }
-                      },
-                      metadata: {
-                        type: 'object',
-                        description: 'Additional image metadata'
-                      }
-                    },
-                    required: ['type', 'success']
-                  }
-                ]
-              }
+        success: { type: 'boolean' },
+        results: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              response: { type: 'string', description: 'Text response (omitted if saved)' },
+              savedTo: { type: 'string', description: 'Path where text was saved' },
+              imagePath: { type: 'string', description: 'Path where image was saved' },
+              error: { type: 'string' }
             },
-            mergedResponse: {
-              type: 'object',
-              description: 'Merged response when mergeResponses is true',
-              properties: {
-                totalPrompts: { type: 'number' },
-                successfulPrompts: { type: 'number' },
-                mergedContent: { type: 'string' },
-                providersUsed: {
-                  type: 'array',
-                  items: { type: 'string' }
-                }
-              }
-            },
-            executionStats: {
-              type: 'object',
-              properties: {
-                totalExecutionTimeMS: { type: 'number' },
-                promptsExecuted: { type: 'number' },
-                promptsFailed: { type: 'number' },
-                avgExecutionTimeMS: { type: 'number' },
-                totalTokens: { type: 'number' },
-                totalCost: { type: 'number' }
-              }
-            }
-          },
-          required: ['results']
-        }
+            required: ['success']
+          }
+        },
+        merged: { type: 'string', description: 'Combined response (if mergeResponses: true)' },
+        error: { type: 'string' }
       },
       required: ['success']
     };

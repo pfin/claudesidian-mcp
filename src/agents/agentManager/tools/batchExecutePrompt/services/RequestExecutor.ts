@@ -1,10 +1,8 @@
-import { 
-  PromptConfig, 
-  TextPromptConfig, 
-  ImagePromptConfig, 
-  PromptExecutionResult,
-  TextExecutionResult,
-  ImageExecutionResult
+import {
+  PromptConfig,
+  TextPromptConfig,
+  ImagePromptConfig,
+  InternalExecutionResult
 } from '../types';
 import { PromptExecutor } from './PromptExecutor';
 import { ActionExecutor } from './ActionExecutor';
@@ -24,9 +22,9 @@ export class RequestExecutor {
    */
   async executeRequest(
     config: PromptConfig,
-    context: any,
+    context: unknown,
     sessionId?: string
-  ): Promise<PromptExecutionResult> {
+  ): Promise<InternalExecutionResult> {
     const startTime = performance.now();
 
     try {
@@ -35,12 +33,10 @@ export class RequestExecutor {
       } else if (config.type === 'image') {
         return await this.executeImageRequest(config as ImagePromptConfig, context, sessionId, startTime);
       } else {
-        // TypeScript narrows this to never, but we keep it for runtime safety
-        // Assert to the base type to access common properties
         const executionTime = performance.now() - startTime;
         const unknownConfig = config as TextPromptConfig | ImagePromptConfig;
         return {
-          type: 'text', // Default fallback
+          type: 'text',
           id: unknownConfig.id,
           prompt: unknownConfig.prompt,
           success: false,
@@ -48,12 +44,12 @@ export class RequestExecutor {
           executionTime,
           sequence: unknownConfig.sequence,
           parallelGroup: unknownConfig.parallelGroup
-        } as TextExecutionResult;
+        };
       }
     } catch (error) {
       const executionTime = performance.now() - startTime;
       return {
-        type: 'text', // Default fallback for errors
+        type: 'text',
         id: config.id,
         prompt: config.prompt,
         success: false,
@@ -61,7 +57,7 @@ export class RequestExecutor {
         executionTime,
         sequence: config.sequence,
         parallelGroup: config.parallelGroup
-      } as TextExecutionResult;
+      };
     }
   }
 
@@ -70,55 +66,22 @@ export class RequestExecutor {
    */
   private async executeTextRequest(
     config: TextPromptConfig,
-    context: any,
-    sessionId?: string,
+    context: unknown,
+    _sessionId?: string,
     startTime?: number
-  ): Promise<TextExecutionResult> {
+  ): Promise<InternalExecutionResult> {
     const actualStartTime = startTime || performance.now();
 
     try {
       // Execute the text prompt using the existing PromptExecutor
       const result = await this.promptExecutor.executePrompt(
-        config, 
-        context, 
+        config,
+        context as import('../types').ExecutionContext,
         config.sequence || 0
       );
-      
-      const executionTime = performance.now() - actualStartTime;
 
-      // Type guard to ensure we have a text result
-      if (result.type === 'text') {
-        return {
-          type: 'text',
-          id: config.id,
-          prompt: config.prompt,
-          success: result.success,
-          response: result.response,
-          provider: result.provider,
-          model: result.model,
-          agent: result.agent,
-          error: result.error,
-          executionTime,
-          sequence: config.sequence,
-          parallelGroup: config.parallelGroup,
-          usage: result.usage,
-          cost: result.cost,
-          filesIncluded: result.filesIncluded,
-          actionPerformed: result.actionPerformed
-        };
-      } else {
-        // Handle unexpected result type
-        return {
-          type: 'text',
-          id: config.id,
-          prompt: config.prompt,
-          success: false,
-          error: 'Unexpected result type from text execution',
-          executionTime,
-          sequence: config.sequence,
-          parallelGroup: config.parallelGroup
-        };
-      }
+      const executionTime = performance.now() - actualStartTime;
+      return { ...result, executionTime };
     } catch (error) {
       const executionTime = performance.now() - actualStartTime;
       return {
@@ -139,10 +102,10 @@ export class RequestExecutor {
    */
   private async executeImageRequest(
     config: ImagePromptConfig,
-    context: any,
+    context: unknown,
     sessionId?: string,
     startTime?: number
-  ): Promise<ImageExecutionResult> {
+  ): Promise<InternalExecutionResult> {
     const actualStartTime = startTime || performance.now();
 
     try {
@@ -155,35 +118,19 @@ export class RequestExecutor {
 
       const executionTime = performance.now() - actualStartTime;
 
-      if (result.success) {
-        return {
-          type: 'image',
-          id: config.id,
-          prompt: config.prompt,
-          success: true,
-          imagePath: result.imagePath,
-          provider: config.provider,
-          model: config.model || 'imagen-4',
-          executionTime,
-          sequence: config.sequence,
-          parallelGroup: config.parallelGroup,
-          // Note: Additional metadata like dimensions, fileSize, etc. would need to be
-          // extracted from the image generation result if available
-        };
-      } else {
-        return {
-          type: 'image',
-          id: config.id,
-          prompt: config.prompt,
-          success: false,
-          error: result.error,
-          provider: config.provider,
-          model: config.model || 'imagen-4',
-          executionTime,
-          sequence: config.sequence,
-          parallelGroup: config.parallelGroup
-        };
-      }
+      return {
+        type: 'image',
+        id: config.id,
+        prompt: config.prompt,
+        success: result.success,
+        imagePath: result.imagePath,
+        error: result.error,
+        provider: config.provider,
+        model: config.model || 'imagen-4',
+        executionTime,
+        sequence: config.sequence,
+        parallelGroup: config.parallelGroup
+      };
     } catch (error) {
       const executionTime = performance.now() - actualStartTime;
       return {
@@ -206,13 +153,13 @@ export class RequestExecutor {
    */
   async executeRequestsInParallel(
     configs: PromptConfig[],
-    context: any,
+    context: unknown,
     sessionId?: string
-  ): Promise<PromptExecutionResult[]> {
-    const promises = configs.map(config => 
+  ): Promise<InternalExecutionResult[]> {
+    const promises = configs.map(config =>
       this.executeRequest(config, context, sessionId)
     );
-    
+
     return await Promise.all(promises);
   }
 

@@ -56,7 +56,7 @@ export class ListCommandsTool extends BaseTool<ListCommandsParams, ListCommandsR
       const response = this.prepareResult(true, {
           commands: mappedCommands,
           total: mappedCommands.length
-        }, undefined, params.context, parseWorkspaceContext(workspaceContext) || undefined);
+        });
 
       return response;
     } catch (error) {

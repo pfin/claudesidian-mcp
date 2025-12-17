@@ -47,12 +47,12 @@ export class ReplaceByLineTool extends BaseTool<ReplaceByLineParams, ReplaceByLi
       const response = this.prepareResult(true, {
           filePath,
           linesReplaced
-        }, undefined, params.context, parseWorkspaceContext(workspaceContext) || undefined);
-      
+        });
+
       return response;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      return this.prepareResult(false, undefined, errorMessage, params.context, parseWorkspaceContext(params.workspaceContext) || undefined);
+      return this.prepareResult(false, undefined, errorMessage);
     }
   }
   

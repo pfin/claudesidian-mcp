@@ -2,11 +2,7 @@ import { App } from 'obsidian';
 import { BaseTool } from '../../baseTool';
 import { CreateContentParams, CreateContentResult } from '../types';
 import { ContentOperations } from '../utils/ContentOperations';
-import { createErrorMessage, getErrorMessage } from '../../../utils/errorUtils';
-import { parseWorkspaceContext } from '../../../utils/contextUtils';
-import { MemoryService } from '../../memoryManager/services/MemoryService';
-import { getNexusPlugin } from '../../../utils/pluginLocator';
-import { NexusPluginWithServices } from '../../memoryManager/tools/utils/pluginTypes';
+import { createErrorMessage } from '../../../utils/errorUtils';
 import { addRecommendations, Recommendation } from '../../../utils/recommendationUtils';
 import { NudgeHelpers } from '../../../utils/nudgeHelpers';
 
@@ -17,8 +13,7 @@ import { NudgeHelpers } from '../../../utils/nudgeHelpers';
  */
 export class CreateContentTool extends BaseTool<CreateContentParams, CreateContentResult> {
   private app: App;
-  private memoryService?: MemoryService | null;
-  
+
   /**
    * Create a new CreateContentTool
    * @param app Obsidian app instance
@@ -30,7 +25,7 @@ export class CreateContentTool extends BaseTool<CreateContentParams, CreateConte
       'Create a new file with content in the vault',
       '1.0.0'
     );
-    
+
     this.app = app;
   }
   
@@ -45,34 +40,31 @@ export class CreateContentTool extends BaseTool<CreateContentParams, CreateConte
       
       // Validate parameters
       if (!filePath) {
-        return this.prepareResult(false, undefined, 'File path is required', params.context, parseWorkspaceContext(workspaceContext) || undefined);
+        return this.prepareResult(false, undefined, 'File path is required');
       }
-      
+
       if (content === undefined || content === null) {
-        return this.prepareResult(false, undefined, 'Content is required', params.context, parseWorkspaceContext(workspaceContext) || undefined);
+        return this.prepareResult(false, undefined, 'Content is required');
       }
       
       // Create file
       const file = await ContentOperations.createContent(this.app, filePath, content);
       
-      
+
       const resultData = {
         filePath,
         created: file.stat.ctime
       };
-      
-      // Record session activity for memory tracking
-      await this.recordActivity(params, resultData);
-      
-      const result = this.prepareResult(true, resultData, undefined, params.context, parseWorkspaceContext(workspaceContext) || undefined);
-      
+
+      const result = this.prepareResult(true, resultData);
+
       // Generate nudges based on file creation
       const nudges = this.generateCreateContentNudges(params, resultData);
       const resultWithNudges = addRecommendations(result, nudges);
-      
+
       return resultWithNudges;
     } catch (error) {
-      return this.prepareResult(false, undefined, createErrorMessage('Error creating file: ', error), params.context, parseWorkspaceContext(params.workspaceContext) || undefined);
+      return this.prepareResult(false, undefined, createErrorMessage('Error creating file: ', error));
     }
   }
   
@@ -154,70 +146,6 @@ export class CreateContentTool extends BaseTool<CreateContentParams, CreateConte
       required: ['success']
     };
   }
-  
-  /**
-   * Record content creation activity in workspace memory
-   * @param params Params used for creating content
-   * @param resultData Result data containing creation information
-   */
-  private async recordActivity(
-    params: CreateContentParams,
-    resultData: {
-      filePath: string;
-      created: number;
-    }
-  ): Promise<void> {
-    // Parse workspace context
-    const parsedContext = parseWorkspaceContext(params.workspaceContext) || undefined;
-    
-    // Skip if no workspace context
-    if (!parsedContext?.workspaceId) {
-      return;
-    }
-    
-    // Skip if no memory service
-    if (!this.memoryService) {
-      try {
-        // Try to get the memory service from the plugin
-        const plugin = getNexusPlugin<NexusPluginWithServices>(this.app);
-        if (plugin?.services?.memoryService) {
-          this.memoryService = plugin.services.memoryService;
-        } else {
-          // No memory service available, skip activity recording
-          return;
-        }
-      } catch (error) {
-        console.error('Failed to get memory service from plugin:', getErrorMessage(error));
-        return;
-      }
-    }
-    
-    // Create a descriptive content about this operation
-    let contentSnippet = params.content.substring(0, 100);
-    if (params.content.length > 100) {
-      contentSnippet += '...';
-    }
-    
-    const content = `Created file ${params.filePath}\nContent: ${contentSnippet}`;
-    
-    try {
-      await this.memoryService!.recordActivityTrace({
-        workspaceId: parsedContext.workspaceId,
-        type: 'content',
-        content: content,
-        timestamp: Date.now(),
-        metadata: {
-          tool: 'contentManager.createContent',
-          params: { filePath: params.filePath },
-          result: { created: resultData.created },
-          relatedFiles: [params.filePath]
-        },
-        sessionId: params.context.sessionId
-      });
-    } catch (error) {
-      console.error('Failed to record create content activity:', getErrorMessage(error));
-    }
-  }
 
   /**
    * Generate nudges for file creation
@@ -228,11 +156,7 @@ export class CreateContentTool extends BaseTool<CreateContentParams, CreateConte
     // Always suggest Obsidian features for new files
     nudges.push(NudgeHelpers.suggestObsidianFeatures());
 
-    // Check session for multiple file creations (this would need enhanced session tracking)
-    const multipleFilesNudge = NudgeHelpers.checkMultipleFilesInSession(params.context);
-    if (multipleFilesNudge) {
-      nudges.push(multipleFilesNudge);
-    }
+    // Note: Multiple files nudge removed - session tracking happens at useTool level
 
     return nudges;
   }

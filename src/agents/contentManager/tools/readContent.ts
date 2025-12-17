@@ -2,39 +2,29 @@ import { App } from 'obsidian';
 import { BaseTool } from '../../baseTool';
 import { ReadContentParams, ReadContentResult } from '../types';
 import { ContentOperations } from '../utils/ContentOperations';
-import {parseWorkspaceContext} from '../../../utils/contextUtils';
-import { MemoryService } from '../../memoryManager/services/MemoryService';
-import { getErrorMessage, createErrorMessage } from '../../../utils/errorUtils';
+import { createErrorMessage } from '../../../utils/errorUtils';
 import { addRecommendations, Recommendation } from '../../../utils/recommendationUtils';
 import { NudgeHelpers } from '../../../utils/nudgeHelpers';
-import { getNexusPlugin } from '../../../utils/pluginLocator';
-import { NexusPluginWithServices } from '../../memoryManager/tools/utils/pluginTypes';
 
 /**
  * Tool for reading content from a file
  */
 export class ReadContentTool extends BaseTool<ReadContentParams, ReadContentResult> {
   private app: App;
-  private memoryService: MemoryService | null = null;
-  
+
   /**
    * Create a new ReadContentTool
    * @param app Obsidian app instance
-   * @param memoryService Optional MemoryService for activity recording
    */
-  constructor(
-    app: App,
-    memoryService?: MemoryService | null
-  ) {
+  constructor(app: App) {
     super(
       'readContent',
       'Read Content',
       'Read content from a file in the vault',
       '1.0.0'
     );
-    
+
     this.app = app;
-    this.memoryService = memoryService || null;
   }
   
   /**
@@ -77,19 +67,16 @@ export class ReadContentTool extends BaseTool<ReadContentParams, ReadContentResu
         startLine,
         endLine
       };
-      
-      // Record this activity in workspace memory if applicable
-      await this.recordActivity(params, resultData);
-      
-      const result = this.prepareResult(true, resultData, undefined, params.context, parseWorkspaceContext(workspaceContext) || undefined);
-      
+
+      const result = this.prepareResult(true, resultData);
+
       // Generate nudges based on content
       const nudges = this.generateReadContentNudges(resultData);
       const resultWithNudges = addRecommendations(result, nudges);
-      
+
       return resultWithNudges;
     } catch (error) {
-      return this.prepareResult(false, undefined, createErrorMessage('Error reading content: ', error), params.context, parseWorkspaceContext(params.workspaceContext) || undefined);
+      return this.prepareResult(false, undefined, createErrorMessage('Error reading content: ', error));
     }
   }
   
@@ -125,89 +112,6 @@ export class ReadContentTool extends BaseTool<ReadContentParams, ReadContentResu
 
     // Merge with common schema (workspace context)
     return this.getMergedSchema(toolSchema);
-  }
-  
-  /**
-   * Record content reading activity in workspace memory
-   * @param params Params used for reading content
-   * @param resultData Result data containing content information
-   */
-  private async recordActivity(
-    params: ReadContentParams,
-    resultData: {
-      content: string;
-      filePath: string;
-      lineNumbersIncluded?: boolean;
-      startLine?: number;
-      endLine?: number;
-    }
-  ): Promise<void> {
-    // Parse workspace context
-    const parsedContext = parseWorkspaceContext(params.workspaceContext) || undefined;
-    
-    // Skip if no workspace context
-    if (!parsedContext?.workspaceId) {
-      return;
-    }
-    
-    // Skip if no memory service
-    if (!this.memoryService) {
-      try {
-        // Try to get the memory service from the plugin
-        const plugin = getNexusPlugin<NexusPluginWithServices>(this.app);
-        if (plugin?.services?.memoryService) {
-          this.memoryService = plugin.services.memoryService;
-        } else {
-          // No memory service available, skip activity recording
-          return;
-        }
-      } catch (error) {
-        console.error('Failed to get memory service from plugin:', getErrorMessage(error));
-        return;
-      }
-    }
-    
-    // Create a descriptive content about this operation
-    let contentSnippet = resultData.content.substring(0, 100);
-    if (resultData.content.length > 100) {
-      contentSnippet += '...';
-    }
-    
-    const readDescription = params.limit && params.offset 
-      ? `Read lines ${params.offset}-${params.offset + params.limit - 1}` 
-      : 'Read full content';
-    
-    const content = `${readDescription} from ${params.filePath}\nSnippet: ${contentSnippet}`;
-    
-    try {
-      // Record activity using MemoryService - we've already checked it's not null
-      await this.memoryService!.recordActivityTrace({
-        workspaceId: parsedContext.workspaceId,
-        type: 'content_read',
-        content: content,
-        timestamp: Date.now(),
-        metadata: {
-          tool: 'ReadContentTool',
-          params: {
-            filePath: params.filePath,
-            limit: params.limit,
-            offset: params.offset,
-            includeLineNumbers: params.includeLineNumbers
-          },
-          result: {
-            contentLength: content.length,
-            startLine: params.offset || 0,
-            endLine: params.limit && params.offset !== undefined ? params.offset + params.limit : undefined
-          },
-          relatedFiles: [params.filePath]
-        },
-        sessionId: params.context.sessionId || ''
-      });
-      
-    } catch (error) {
-      // Log but don't fail the main operation
-      console.error('Failed to record content reading activity with memory service:', getErrorMessage(error));
-    }
   }
 
   getResultSchema(): Record<string, unknown> {

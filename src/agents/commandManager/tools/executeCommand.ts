@@ -59,10 +59,7 @@ export class ExecuteCommandTool extends BaseTool<ExecuteCommandParams, ExecuteCo
         true,
         {
           commandId
-        },
-        undefined,
-        params.context,
-        parseWorkspaceContext(workspaceContext) || undefined
+        }
       );
 
       // Generate nudges for command execution

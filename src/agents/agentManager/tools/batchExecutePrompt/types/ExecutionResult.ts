@@ -1,32 +1,20 @@
 import { PromptExecutionResult } from './BatchExecuteTypes';
 
 /**
- * Result from batch LLM prompt execution
+ * Result from batch LLM prompt execution (lean for context efficiency)
  */
 export interface BatchExecutePromptResult {
   success: boolean;
-  /** Individual prompt results (if mergeResponses is false) */
+  /** Individual prompt results - minimal data */
   results?: PromptExecutionResult[];
-  /** Merged response (if mergeResponses is true) */
-  merged?: {
-    totalPrompts: number;
-    successfulPrompts: number;
-    combinedResponse: string;
-    providersUsed: string[];
-  };
-  /** Execution statistics */
-  stats?: {
-    totalExecutionTimeMS: number;
-    promptsExecuted: number;
-    promptsFailed: number;
-    avgExecutionTimeMS: number;
-    tokensUsed?: number;
-  };
+  /** Combined response when mergeResponses is true */
+  merged?: string;
+  /** Only included on failure */
   error?: string;
 }
 
 /**
- * Execution statistics for monitoring
+ * Internal execution statistics (not returned to caller)
  */
 export interface ExecutionStats {
   totalExecutionTimeMS: number;
@@ -37,7 +25,7 @@ export interface ExecutionStats {
 }
 
 /**
- * Merged response data
+ * Internal merged response data (not returned to caller)
  */
 export interface MergedResponse {
   totalPrompts: number;

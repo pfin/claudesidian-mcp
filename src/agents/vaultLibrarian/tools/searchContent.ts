@@ -27,7 +27,7 @@ interface ScoredSearchResult {
 
 export interface ContentSearchParams extends CommonParameters {
   query: string;
-  semantic: boolean;  // REQUIRED: true for vector/embedding search, false for keyword/fuzzy
+  semantic?: boolean;  // Default: false (keyword search). Set true for vector/embedding search
   limit?: number;
   includeContent?: boolean;
   snippetLength?: number;
@@ -105,18 +105,13 @@ export class SearchContentTool extends BaseTool<ContentSearchParams, ContentSear
         return this.prepareResult(false, undefined, 'Query parameter is required and cannot be empty');
       }
 
-      if (params.semantic === undefined) {
-        return this.prepareResult(false, undefined, 'semantic parameter is required. Set to true for AI-powered conceptual search, or false for keyword/fuzzy search.');
-      }
-
       const searchParams = {
         query: params.query.trim(),
-        semantic: params.semantic,
+        semantic: params.semantic ?? false, // Default to keyword search (always available)
         limit: params.limit || 10,
         includeContent: params.includeContent !== false,
         snippetLength: params.snippetLength || 200,
-        paths: params.paths || [],
-        context: params.context
+        paths: params.paths || []
       };
 
       // Use semantic search if requested
@@ -474,7 +469,8 @@ export class SearchContentTool extends BaseTool<ContentSearchParams, ContentSear
         },
         semantic: {
           type: 'boolean',
-          description: 'REQUIRED. true = AI-powered conceptual search using embeddings (best for finding related content, concepts, similar ideas). false = keyword/fuzzy search (best for exact text matches, file names).',
+          description: 'true = AI-powered conceptual search (desktop only, best for concepts/related ideas). false = keyword/fuzzy search (default, best for exact matches).',
+          default: false
         },
         limit: {
           type: 'number',
@@ -501,7 +497,7 @@ export class SearchContentTool extends BaseTool<ContentSearchParams, ContentSear
           items: { type: 'string' }
         }
       },
-      required: ['query', 'semantic'],
+      required: ['query'],
       additionalProperties: false
     };
 

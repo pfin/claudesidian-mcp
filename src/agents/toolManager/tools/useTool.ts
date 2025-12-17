@@ -281,7 +281,7 @@ export class UseToolTool implements ITool<UseToolParams, UseToolResult> {
 
     try {
       // Execute tool with ONLY its specific params
-      // Context is handled at useTool level for trace capture, not passed to individual tools
+      // Context is handled at useTool level - individual tools don't need it
       const toolResult = await toolInstance.execute(params || {});
 
       // Build minimal result

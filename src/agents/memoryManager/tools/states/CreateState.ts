@@ -21,8 +21,6 @@ import { MemoryService } from "../../services/MemoryService";
 import { WorkspaceService, GLOBAL_WORKSPACE_ID } from '../../../../services/WorkspaceService';
 import { createServiceIntegration, ValidationError } from '../../services/ValidationService';
 import { SchemaBuilder, SchemaType } from '../../../../utils/schemas/SchemaBuilder';
-import { CommonParameters } from '../../../../types/mcp/AgentTypes';
-import { addRecommendations } from '../../../../utils/recommendationUtils';
 
 /**
  * Consolidated CreateStateMode - combines all state creation functionality
@@ -125,7 +123,7 @@ export class CreateStateTool extends BaseTool<CreateStateParams, StateResult> {
 
             // Extract workspaceId and sessionId for verification
             const workspaceId = workspaceResult.data.workspaceId;
-            const sessionId = params.targetSessionId || params.context?.sessionId || 'current';
+            const sessionId = params.targetSessionId || 'current';
 
             // Phase 6: Verify persistence (data integrity check)
             const verificationResult = await this.verifyStatePersistence(workspaceId, sessionId, persistResult.stateId, memoryService);
@@ -310,7 +308,7 @@ export class CreateStateTool extends BaseTool<CreateStateParams, StateResult> {
                 context: context,  // The inner StateContext with activeTask, activeFiles, etc.
 
                 // Additional WorkspaceState fields
-                sessionId: params.targetSessionId || params.context?.sessionId || 'current',
+                sessionId: params.targetSessionId || 'current',
                 timestamp: now,
                 description: `${params.activeTask} - ${params.reasoning}`,
                 state: {
@@ -332,7 +330,7 @@ export class CreateStateTool extends BaseTool<CreateStateParams, StateResult> {
             };
 
             // Persist to MemoryService - pass the full WorkspaceState
-            const sessionId = params.targetSessionId || params.context?.sessionId || 'current';
+            const sessionId = params.targetSessionId || 'current';
             const stateId = await memoryService.saveState(
                 workspaceId,
                 sessionId,
@@ -387,7 +385,7 @@ export class CreateStateTool extends BaseTool<CreateStateParams, StateResult> {
     }
 
     /**
-     * Prepare final result
+     * Prepare final result - simplified to just return success with stateId
      */
     private prepareFinalResult(
         stateId: string,
@@ -397,56 +395,14 @@ export class CreateStateTool extends BaseTool<CreateStateParams, StateResult> {
         startTime: number,
         params: CreateStateParams
     ): StateResult {
-        const { workspace } = workspaceData;
-
+        // Simplified response - just success confirmation with essential info
         const resultData = {
             stateId: savedState.id,
             name: savedState.name,
-            workspaceId: savedState.workspaceId,
-            sessionId: savedState.sessionId,
-            timestamp: savedState.timestamp,
-            created: savedState.created,
-            summary: `State "${savedState.name}" saved successfully. Task: ${contextResult.context.activeTask}`,
-            metadata: {
-                persistenceVerified: true,
-                workspaceName: workspace.name,
-                totalActiveFiles: contextResult.context.activeFiles.length,
-                nextStepsCount: contextResult.context.nextSteps.length
-            },
-            capturedContext: {
-                summary: `${contextResult.context.activeTask} - ${contextResult.context.reasoning}`,
-                conversationContext: contextResult.context.conversationContext,
-                activeFiles: contextResult.context.activeFiles,
-                nextSteps: contextResult.context.nextSteps
-            },
-            performance: {
-                totalDuration: Date.now() - startTime,
-                persistenceVerified: true
-            }
+            message: `State "${savedState.name}" saved successfully`
         };
 
-        const contextString = `State "${savedState.name}" created and persisted successfully with ID: ${savedState.id}`;
-        // Use new ToolContext format
-        const workspaceContext = this.getInheritedWorkspaceContext({
-            context: params.context,
-            workspaceContext: { workspaceId: workspaceData.workspaceId }
-        } as CommonParameters);
-
-        const result = this.prepareResult(
-            true,
-            resultData,
-            undefined,
-            contextString,
-            workspaceContext || undefined
-        );
-
-        // Add standardized recommendation
-        return addRecommendations(result, [
-            {
-                type: "workspace_update",
-                message: "STRONGLY RECOMMENDED: Use the updateWorkspace tool to ensure you have the latest workspace information (such as preferences, workflow, etc.) based on this conversation before proceeding with any tasks."
-            }
-        ]);
+        return this.prepareResult(true, resultData);
     }
 
     /**

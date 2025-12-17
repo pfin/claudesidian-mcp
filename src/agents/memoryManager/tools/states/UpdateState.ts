@@ -18,7 +18,7 @@ import { EditStateParams, StateResult } from '../../types';
 import { createErrorMessage } from '../../../../utils/errorUtils';
 import { extractContextFromParams } from '../../../../utils/contextUtils';
 import { MemoryService } from "../../services/MemoryService";
-import { WorkspaceService } from '../../../../services/WorkspaceService';
+import { WorkspaceService, GLOBAL_WORKSPACE_ID } from '../../../../services/WorkspaceService';
 import { createServiceIntegration } from '../../services/ValidationService';
 import { SchemaBuilder, SchemaType } from '../../../../utils/schemas/SchemaBuilder';
 
@@ -79,8 +79,8 @@ export class UpdateStateTool extends BaseTool<UpdateStateParams, StateResult> {
         // Extract workspaceId and sessionId from params
         const parsedContext = params.workspaceContext ?
             (typeof params.workspaceContext === 'string' ? JSON.parse(params.workspaceContext) : params.workspaceContext) : null;
-        const workspaceId = parsedContext?.workspaceId || 'default-workspace';
-        const sessionId = params.context?.sessionId || 'current';
+        const workspaceId = parsedContext?.workspaceId || GLOBAL_WORKSPACE_ID;
+        const sessionId = 'current';
 
         // Get existing state using unified lookup (ID or name)
         const existingState = await memoryService.getStateByNameOrId(workspaceId, sessionId, params.stateId);

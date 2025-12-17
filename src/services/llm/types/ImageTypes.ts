@@ -24,8 +24,7 @@ export interface ImageGenerationParams {
   aspectRatio?: AspectRatio; // Nano Banana aspect ratios
   numberOfImages?: number; // 1-4 images
   imageSize?: NanoBananaImageSize; // Image resolution: 1K, 2K, or 4K
-  sampleImageSize?: '1K' | '2K'; // Legacy alias for imageSize
-  referenceImages?: string[]; // Vault-relative paths to reference images (max 14 for Pro, 6 for Flash)
+  referenceImages?: string[]; // Vault-relative paths (max 3 for 2.5-flash, max 14 for 3-pro)
   savePath: string; // vault relative path
   sessionId?: string;
   context?: string;

@@ -78,7 +78,7 @@ export class OpenNoteTool extends BaseTool<OpenNoteParams, OpenNoteResult> {
           path: file.path,
           opened: true,
           mode: mode
-        }, undefined, params.context, parseWorkspaceContext(params.workspaceContext) || undefined);
+        });
 
     } catch (error) {
       return this.prepareResult(false, undefined, createErrorMessage('Failed to open note: ', error));

@@ -1,36 +1,22 @@
-import { App, Plugin } from 'obsidian';
+import { App } from 'obsidian';
 import { BaseTool } from '../../baseTool';
 import { DuplicateNoteParams, DuplicateNoteResult } from '../types';
 import { FileOperations } from '../utils/FileOperations';
-import { MemoryService } from "../../memoryManager/services/MemoryService";
-import { parseWorkspaceContext } from '../../../utils/contextUtils';
 import { createErrorMessage } from '../../../utils/errorUtils';
 import { addRecommendations, Recommendation } from '../../../utils/recommendationUtils';
 import { NudgeHelpers } from '../../../utils/nudgeHelpers';
-import { getNexusPlugin } from '../../../utils/pluginLocator';
-
-/**
- * Interface for a plugin with services
- */
-interface PluginWithServices extends Plugin {
-  services?: {
-    memoryService?: MemoryService;
-  };
-}
 
 /**
  * Tool for duplicating a note
  */
 export class DuplicateNoteTool extends BaseTool<DuplicateNoteParams, DuplicateNoteResult> {
   private app: App;
-  private memoryService: MemoryService | null = null;
 
   /**
    * Create a new DuplicateNoteTool
    * @param app Obsidian app instance
-   * @param memoryService Optional memory service for activity recording
    */
-  constructor(app: App, memoryService?: MemoryService | null) {
+  constructor(app: App) {
     super(
       'duplicateNote',
       'Duplicate Note',
@@ -39,19 +25,6 @@ export class DuplicateNoteTool extends BaseTool<DuplicateNoteParams, DuplicateNo
     );
 
     this.app = app;
-    this.memoryService = memoryService || null;
-
-    // Try to get memory service from plugin if not provided
-    if (!this.memoryService) {
-      try {
-        const plugin = getNexusPlugin<PluginWithServices>(this.app);
-        if (plugin?.services?.memoryService) {
-          this.memoryService = plugin.services.memoryService;
-        }
-      } catch (error) {
-        console.error('Failed to get memory service:', error);
-      }
-    }
   }
 
   /**
@@ -79,9 +52,6 @@ export class DuplicateNoteTool extends BaseTool<DuplicateNoteParams, DuplicateNo
         params.autoIncrement || false
       );
 
-      // Record activity in workspace memory if applicable
-      await this.recordActivity(params, result);
-
       const response = this.prepareResult(true, {
         sourcePath: result.sourcePath,
         targetPath: result.targetPath,
@@ -95,82 +65,6 @@ export class DuplicateNoteTool extends BaseTool<DuplicateNoteParams, DuplicateNo
       return addRecommendations(response, nudges);
     } catch (error) {
       return this.prepareResult(false, undefined, createErrorMessage('Failed to duplicate note: ', error));
-    }
-  }
-
-  /**
-   * Record note duplication activity in workspace memory
-   * @param params Params used for note duplication
-   * @param result Result of duplication operation
-   */
-  private async recordActivity(
-    params: DuplicateNoteParams,
-    result: {
-      sourcePath: string;
-      targetPath: string;
-      wasAutoIncremented: boolean;
-      wasOverwritten: boolean;
-    }
-  ): Promise<void> {
-    // Parse workspace context
-    const parsedContext = parseWorkspaceContext(params.workspaceContext);
-
-    if (!parsedContext?.workspaceId || !this.memoryService) {
-      return; // Skip if no workspace context or memory service
-    }
-
-    try {
-      // Create a descriptive content about this operation
-      let action = 'Duplicated';
-      if (result.wasOverwritten) {
-        action += ' (overwritten target)';
-      } else if (result.wasAutoIncremented) {
-        action += ' (auto-incremented name)';
-      }
-
-      const content = `${action} note from ${result.sourcePath} to ${result.targetPath}`;
-
-      // Record the activity using memory service
-      await this.memoryService.recordActivityTrace({
-        workspaceId: parsedContext.workspaceId,
-        type: 'research', // Using supported activity type
-        content,
-        timestamp: Date.now(),
-          metadata: {
-            tool: 'DuplicateNoteTool',
-            params: {
-              sourcePath: params.sourcePath,
-              targetPath: params.targetPath,
-              overwrite: params.overwrite,
-              autoIncrement: params.autoIncrement
-            },
-            result: {
-              finalTargetPath: result.targetPath,
-              wasAutoIncremented: result.wasAutoIncremented,
-              wasOverwritten: result.wasOverwritten
-            },
-            relatedFiles: [result.sourcePath, result.targetPath]
-          },
-          sessionId: params.context.sessionId
-        }
-      );
-    } catch (error) {
-      // Log but don't fail the main operation
-      console.error('Failed to record note duplication activity:', createErrorMessage('', error));
-
-      // Try to get memory service from plugin if not available
-      if (!this.memoryService) {
-        try {
-          const plugin = getNexusPlugin<PluginWithServices>(this.app);
-          if (plugin?.services?.memoryService) {
-            this.memoryService = plugin.services.memoryService;
-            // Try again with the newly found service
-            await this.recordActivity(params, result);
-          }
-        } catch (retryError) {
-          console.error('Error accessing memory service for retry:', createErrorMessage('', retryError));
-        }
-      }
     }
   }
 

@@ -73,9 +73,9 @@ export class GeminiImageAdapter extends BaseImageAdapter {
   private vault: Vault | null = null;
   private readonly defaultModel = 'gemini-2.5-flash-image';
 
-  // Max reference images per model
+  // Max reference images per model (per Google docs Dec 2025)
   private readonly maxReferenceImages = {
-    'gemini-2.5-flash-image': 6,
+    'gemini-2.5-flash-image': 3,
     'gemini-3-pro-image-preview': 14
   };
 
@@ -147,14 +147,12 @@ export class GeminiImageAdapter extends BaseImageAdapter {
         };
 
         // Add image config if aspect ratio or size specified
-        const imageConfig: any = {};
+        const imageConfig: Record<string, string> = {};
         if (params.aspectRatio) {
           imageConfig.aspectRatio = params.aspectRatio;
         }
-        // Use imageSize or fall back to sampleImageSize (legacy)
-        const imageSize = params.imageSize || params.sampleImageSize;
-        if (imageSize) {
-          imageConfig.imageSize = imageSize;
+        if (params.imageSize) {
+          imageConfig.imageSize = params.imageSize;
         }
         if (Object.keys(imageConfig).length > 0) {
           config.imageConfig = imageConfig;
@@ -263,8 +261,8 @@ export class GeminiImageAdapter extends BaseImageAdapter {
     }
 
     // Validate image size
-    const imageSize = params.imageSize || params.sampleImageSize;
-    if (imageSize) {
+    if (params.imageSize) {
+      const imageSize = params.imageSize;
       const validSizes = ['1K', '2K', '4K'];
       if (!validSizes.includes(imageSize)) {
         errors.push('imageSize must be "1K", "2K", or "4K"');

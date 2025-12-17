@@ -97,9 +97,7 @@ export class ListDirectoryTool extends BaseDirectoryTool<ListDirectoryParams, Li
       return this.prepareResult(
         true,
         result,
-        message,
-        params.context,
-        parseWorkspaceContext(params.workspaceContext, 'default-workspace', params.context) || undefined
+        message
       );
 
     } catch (error) {

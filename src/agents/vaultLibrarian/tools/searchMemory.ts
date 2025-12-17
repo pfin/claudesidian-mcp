@@ -373,7 +373,7 @@ export class SearchMemoryTool extends BaseTool<SearchMemoryParams, SearchMemoryR
     return {
       dateRange: params.dateRange,
       toolCallFilters: params.toolCallFilters,
-      sessionId: params.context.sessionId,
+      sessionId: 'default',
       workspaceId: params.workspace || params.workspaceId,
       filterBySession: params.filterBySession
     };

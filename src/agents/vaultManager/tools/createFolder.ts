@@ -1,47 +1,20 @@
-import { App, Plugin } from 'obsidian';
+import { App } from 'obsidian';
 import { BaseTool } from '../../baseTool';
 import { CreateFolderParams, CreateFolderResult } from '../types';
 import { FileOperations } from '../utils/FileOperations';
-import { MemoryService } from "../../memoryManager/services/MemoryService";
-import {parseWorkspaceContext} from '../../../utils/contextUtils';
 import { createErrorMessage } from '../../../utils/errorUtils';
-import { getNexusPlugin } from '../../../utils/pluginLocator';
-
-/**
- * Type guard to check if plugin has services with memoryService
- */
-interface PluginWithServices extends Plugin {
-  services: {
-    memoryService: MemoryService;
-  };
-}
-
-/**
- * Type guard to check if object has services property with memoryService
- */
-function hasMemoryService(plugin: Plugin | null): plugin is PluginWithServices {
-  return plugin !== null &&
-         'services' in plugin &&
-         typeof plugin.services === 'object' &&
-         plugin.services !== null &&
-         'memoryService' in plugin.services &&
-         plugin.services.memoryService !== undefined &&
-         plugin.services.memoryService !== null;
-}
 
 /**
  * Tool to create a new folder
  */
 export class CreateFolderTool extends BaseTool<CreateFolderParams, CreateFolderResult> {
   private app: App;
-  private memoryService: MemoryService | null = null;
 
   /**
    * Create a new CreateFolderTool
    * @param app Obsidian app instance
-   * @param memoryService Optional memory service for activity recording
    */
-  constructor(app: App, memoryService?: MemoryService | null) {
+  constructor(app: App) {
     super(
       'createFolder',
       'Create Folder',
@@ -49,19 +22,6 @@ export class CreateFolderTool extends BaseTool<CreateFolderParams, CreateFolderR
       '1.0.0'
     );
     this.app = app;
-    this.memoryService = memoryService || null;
-
-    // Try to get memory service from plugin if not provided
-    if (!this.memoryService) {
-      try {
-        const plugin = getNexusPlugin<PluginWithServices>(this.app);
-        if (hasMemoryService(plugin)) {
-          this.memoryService = plugin.services?.memoryService || null;
-        }
-      } catch (error) {
-        console.error('Failed to get memory service:', error);
-      }
-    }
   }
 
   /**
@@ -96,13 +56,7 @@ export class CreateFolderTool extends BaseTool<CreateFolderParams, CreateFolderR
         }
       }
 
-      // Record this activity in workspace memory if applicable
-      const parsedContext = parseWorkspaceContext(params.workspaceContext) || undefined;
-  if (parsedContext?.workspaceId) {
-        await this.recordActivity(params, result);
-      }
-
-      return this.prepareResult(true, result, undefined, params.context, parseWorkspaceContext(params.workspaceContext) || undefined);
+      return this.prepareResult(true, result);
     } catch (error) {
       return this.prepareResult(false, undefined, createErrorMessage('Failed to create folder: ', error));
     }
@@ -126,65 +80,6 @@ export class CreateFolderTool extends BaseTool<CreateFolderParams, CreateFolderR
 
     // Merge with common schema (workspace context)
     return this.getMergedSchema(toolSchema);
-  }
-
-  /**
-   * Record folder creation activity in workspace memory
-   * @param params Params used for folder creation
-   * @param result Result of folder creation operation
-   */
-  private async recordActivity(
-    params: CreateFolderParams,
-    result: { path: string; existed: boolean }
-  ): Promise<void> {
-    // Parse workspace context
-    const parsedContext = parseWorkspaceContext(params.workspaceContext) || undefined;
-
-    if (!parsedContext?.workspaceId || !this.memoryService) {
-      return; // Skip if no workspace context or memory service
-    }
-
-    try {
-      // Create a descriptive content about this operation
-      const content = `${result.existed ? 'Found existing' : 'Created new'} folder: ${params.path}`;
-
-      // Record the activity using memory service
-      await this.memoryService.recordActivityTrace({
-        workspaceId: parsedContext.workspaceId,
-        type: 'research', // Using supported activity type
-        content,
-        timestamp: Date.now(),
-          metadata: {
-            tool: 'CreateFolderTool',
-            params: {
-              path: params.path
-            },
-            result: {
-              existed: result.existed
-            },
-            relatedFiles: []
-          },
-          sessionId: params.context.sessionId
-        }
-      );
-    } catch (error) {
-      // Log but don't fail the main operation
-      console.error('Failed to record folder creation activity:', createErrorMessage('', error));
-
-      // Try to get memory service from plugin if not available
-      if (!this.memoryService) {
-        try {
-          const plugin = getNexusPlugin<PluginWithServices>(this.app);
-          if (hasMemoryService(plugin)) {
-            this.memoryService = plugin.services?.memoryService || null;
-            // Try again with the newly found service
-            await this.recordActivity(params, result);
-          }
-        } catch (retryError) {
-          console.error('Error accessing memory service for retry:', createErrorMessage('', retryError));
-        }
-      }
-    }
   }
 
   /**

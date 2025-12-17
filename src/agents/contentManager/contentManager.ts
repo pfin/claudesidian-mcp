@@ -61,8 +61,8 @@ export class ContentManagerAgent extends BaseAgent {
       this.workspaceService = plugin.services.workspaceService;
     }
     
-    // Register tools with access to memory services
-    this.registerTool(new ReadContentTool(app, this.memoryService));
+    // Register tools
+    this.registerTool(new ReadContentTool(app));
     this.registerTool(new CreateContentTool(app));
     this.registerTool(new AppendContentTool(app));
     this.registerTool(new PrependContentTool(app));

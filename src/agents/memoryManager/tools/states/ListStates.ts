@@ -9,7 +9,7 @@ import { ListStatesParams, StateResult } from '../../types';
 import { createErrorMessage } from '../../../../utils/errorUtils';
 import { extractContextFromParams } from '../../../../utils/contextUtils';
 import { MemoryService } from "../../services/MemoryService";
-import { WorkspaceService } from '../../../../services/WorkspaceService';
+import { WorkspaceService, GLOBAL_WORKSPACE_ID } from '../../../../services/WorkspaceService';
 
 /**
  * Mode for listing states with filtering and sorting
@@ -54,8 +54,8 @@ export class ListStatesTool extends BaseTool<ListStatesParams, StateResult> {
 
       // Get states with true DB-level pagination
       const statesResult = await memoryService.getStates(
-        workspaceId || 'default-workspace',
-        params.context.sessionId,
+        workspaceId || GLOBAL_WORKSPACE_ID,
+        'current',
         paginationOptions
       );
 
