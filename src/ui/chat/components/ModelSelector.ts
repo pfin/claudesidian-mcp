@@ -1,9 +1,11 @@
 /**
  * ModelSelector - Dropdown for selecting LLM models from validated providers
- * 
+ *
  * Displays available models from providers that have valid API keys.
  * Updates the chat service with the selected model for subsequent requests.
  */
+
+import { Component } from 'obsidian';
 
 export interface ModelOption {
   providerId: string;
@@ -23,7 +25,8 @@ export class ModelSelector {
     private container: HTMLElement,
     private onModelChange: (model: ModelOption) => void,
     private getAvailableModels: () => Promise<ModelOption[]>,
-    private getDefaultModel?: () => Promise<{ provider: string; model: string }>
+    private getDefaultModel?: () => Promise<{ provider: string; model: string }>,
+    private component?: Component
   ) {
     this.render();
   }
@@ -58,9 +61,14 @@ export class ModelSelector {
     await this.loadModels();
 
     // Handle selection changes
-    this.selectElement.addEventListener('change', () => {
+    const changeHandler = () => {
       this.handleModelChange();
-    });
+    };
+    if (this.component) {
+      this.component.registerDomEvent(this.selectElement, 'change', changeHandler);
+    } else {
+      this.selectElement.addEventListener('change', changeHandler);
+    }
 
     this.element = this.container;
   }

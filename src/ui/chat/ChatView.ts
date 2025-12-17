@@ -279,7 +279,7 @@ export class ChatView extends ItemView {
     const uiStateEvents: UIStateControllerEvents = {
       onSidebarToggled: (visible) => { /* Sidebar toggled */ }
     };
-    this.uiStateController = new UIStateController(this.containerEl, uiStateEvents);
+    this.uiStateController = new UIStateController(this.containerEl, uiStateEvents, this);
     this.uiStateController.setOpenSettingsCallback(() => this.openChatSettingsModal());
     this.streamingController = new StreamingController(this.containerEl, this.app, this);
   }
@@ -292,7 +292,8 @@ export class ChatView extends ItemView {
       this.layoutElements.conversationListContainer,
       (conversation) => this.conversationManager.selectConversation(conversation),
       (conversationId) => this.conversationManager.deleteConversation(conversationId),
-      (conversationId, newTitle) => this.conversationManager.renameConversation(conversationId, newTitle)
+      (conversationId, newTitle) => this.conversationManager.renameConversation(conversationId, newTitle),
+      this // Pass Component for registerDomEvent
     );
 
     this.messageDisplay = new MessageDisplay(
@@ -314,7 +315,8 @@ export class ChatView extends ItemView {
       () => this.messageManager.getIsLoading(),
       this.app,
       () => this.handleStopGeneration(),
-      () => this.conversationManager.getCurrentConversation() !== null
+      () => this.conversationManager.getCurrentConversation() !== null,
+      this // Pass Component for registerDomEvent
     );
 
     this.contextProgressBar = new ContextProgressBar(
@@ -336,12 +338,14 @@ export class ChatView extends ItemView {
   private wireEventHandlers(): void {
     ChatEventBinder.bindNewChatButton(
       this.layoutElements.newChatButton,
-      () => this.conversationManager.createNewConversation()
+      () => this.conversationManager.createNewConversation(),
+      this
     );
 
     ChatEventBinder.bindSettingsButton(
       this.layoutElements.settingsButton,
-      () => this.openChatSettingsModal()
+      () => this.openChatSettingsModal(),
+      this
     );
 
     this.uiStateController.initializeEventListeners();
@@ -406,7 +410,8 @@ export class ChatView extends ItemView {
   private wireWelcomeButton(): void {
     ChatEventBinder.bindWelcomeButton(
       this.containerEl,
-      () => this.conversationManager.createNewConversation()
+      () => this.conversationManager.createNewConversation(),
+      this
     );
   }
 

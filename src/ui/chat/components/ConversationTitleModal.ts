@@ -31,13 +31,14 @@ export class ConversationTitleModal extends Modal {
           .setPlaceholder('e.g., "Help with React project"')
           .onChange((value) => {
             this.result = value;
-          })
-          .inputEl.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              this.submit();
-            }
           });
+        // Modal cleanup handles this automatically
+        text.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            this.submit();
+          }
+        });
 
         // Focus the input after a small delay to ensure modal is fully rendered
         setTimeout(() => {

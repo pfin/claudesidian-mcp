@@ -4,7 +4,7 @@
  * Displays list of conversations with create/delete/rename functionality
  */
 
-import { setIcon } from 'obsidian';
+import { setIcon, Component } from 'obsidian';
 import { ConversationData } from '../../../types/chat/ChatTypes';
 
 export class ConversationList {
@@ -15,7 +15,8 @@ export class ConversationList {
     private container: HTMLElement,
     private onConversationSelect: (conversation: ConversationData) => void,
     private onConversationDelete: (conversationId: string) => void,
-    private onConversationRename?: (conversationId: string, newTitle: string) => void
+    private onConversationRename?: (conversationId: string, newTitle: string) => void,
+    private component?: Component
   ) {
     this.render();
   }
@@ -58,9 +59,14 @@ export class ConversationList {
 
       // Main conversation content
       const content = item.createDiv('conversation-content');
-      content.addEventListener('click', () => {
+      const selectHandler = () => {
         this.onConversationSelect(conversation);
-      });
+      };
+      if (this.component) {
+        this.component.registerDomEvent(content, 'click', selectHandler);
+      } else {
+        content.addEventListener('click', selectHandler);
+      }
 
       // Title
       const title = content.createDiv('conversation-title');
@@ -90,10 +96,15 @@ export class ConversationList {
         });
         setIcon(editBtn, 'pencil');
         editBtn.setAttribute('aria-label', 'Rename conversation');
-        editBtn.addEventListener('click', (e) => {
+        const editHandler = (e: MouseEvent) => {
           e.stopPropagation();
           this.showRenameInput(item, content, conversation);
-        });
+        };
+        if (this.component) {
+          this.component.registerDomEvent(editBtn, 'click', editHandler);
+        } else {
+          editBtn.addEventListener('click', editHandler);
+        }
       }
 
       // Delete button - uses clickable-icon for proper icon sizing
@@ -102,12 +113,17 @@ export class ConversationList {
       });
       setIcon(deleteBtn, 'trash-2');
       deleteBtn.setAttribute('aria-label', 'Delete conversation');
-      deleteBtn.addEventListener('click', (e) => {
+      const deleteHandler = (e: MouseEvent) => {
         e.stopPropagation();
         if (confirm('Delete this conversation?')) {
           this.onConversationDelete(conversation.id);
         }
-      });
+      };
+      if (this.component) {
+        this.component.registerDomEvent(deleteBtn, 'click', deleteHandler);
+      } else {
+        deleteBtn.addEventListener('click', deleteHandler);
+      }
     });
   }
 
@@ -164,20 +180,28 @@ export class ConversationList {
     };
 
     // Handle blur (save on focus loss)
-    input.addEventListener('blur', () => finishRename(true));
+    const blurHandler = () => finishRename(true);
 
     // Handle keyboard events
-    input.addEventListener('keydown', (e) => {
+    const keydownHandler = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
         e.preventDefault();
         input.blur(); // Trigger blur handler to save
       } else if (e.key === 'Escape') {
         e.preventDefault();
         // Remove blur handler before restoring to avoid double-save
-        input.removeEventListener('blur', () => finishRename(true));
+        input.removeEventListener('blur', blurHandler);
         finishRename(false);
       }
-    });
+    };
+
+    if (this.component) {
+      this.component.registerDomEvent(input, 'blur', blurHandler);
+      this.component.registerDomEvent(input, 'keydown', keydownHandler);
+    } else {
+      input.addEventListener('blur', blurHandler);
+      input.addEventListener('keydown', keydownHandler);
+    }
   }
 
   /**

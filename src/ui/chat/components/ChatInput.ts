@@ -4,7 +4,7 @@
  * Provides text input, send button, and model selection
  */
 
-import { setIcon, App, Platform } from 'obsidian';
+import { setIcon, App, Platform, Component } from 'obsidian';
 import { initializeSuggesters, SuggesterInstances } from './suggesters/initializeSuggesters';
 import { ContentEditableHelper } from '../utils/ContentEditableHelper';
 import { ReferenceExtractor, ReferenceMetadata } from '../utils/ReferenceExtractor';
@@ -29,7 +29,8 @@ export class ChatInput {
     private getLoadingState: () => boolean,
     private app?: App,
     private onStopGeneration?: () => void,
-    private getHasConversation?: () => boolean
+    private getHasConversation?: () => boolean,
+    private component?: Component
   ) {
     this.render();
   }
@@ -77,7 +78,7 @@ export class ChatInput {
     this.inputElement.setAttribute('aria-multiline', 'true');
 
     // Handle Enter key (send) and Shift+Enter (new line)
-    this.inputElement.addEventListener('keydown', (e) => {
+    const keydownHandler = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         // Don't send if any suggester is active (let suggester handle it)
         const anySuggesterActive =
@@ -90,21 +91,26 @@ export class ChatInput {
           this.handleSendMessage();
         }
       }
-    });
+    };
 
     // Auto-resize on input
-    this.inputElement.addEventListener('input', () => {
+    const inputHandler = () => {
       this.autoResizeInput();
-    });
+    };
 
     // iOS: Scroll input into view when keyboard opens
+    const focusHandler = () => {
+      // Wait for keyboard animation to complete
+      setTimeout(() => {
+        this.inputElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    };
+
+    // Register events with component for auto-cleanup
+    this.component!.registerDomEvent(this.inputElement, 'keydown', keydownHandler);
+    this.component!.registerDomEvent(this.inputElement, 'input', inputHandler);
     if (isIOS()) {
-      this.inputElement.addEventListener('focus', () => {
-        // Wait for keyboard animation to complete
-        setTimeout(() => {
-          this.inputElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 300);
-      });
+      this.component!.registerDomEvent(this.inputElement, 'focus', focusHandler);
     }
 
     // Mobile: Add mobile-specific class for styling
@@ -122,9 +128,15 @@ export class ChatInput {
     setIcon(this.sendButton, 'arrow-up');
     this.sendButton.setAttribute('aria-label', 'Send message');
 
-    this.sendButton.addEventListener('click', () => {
+    const sendClickHandler = () => {
       this.handleSendOrStop();
-    });
+    };
+
+    if (this.component) {
+      this.component.registerDomEvent(this.sendButton, 'click', sendClickHandler);
+    } else {
+      this.sendButton.addEventListener('click', sendClickHandler);
+    }
 
     // Initialize suggesters if app is available
     if (this.app && this.inputElement) {

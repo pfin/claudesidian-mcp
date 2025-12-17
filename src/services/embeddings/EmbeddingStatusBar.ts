@@ -162,7 +162,7 @@ export class EmbeddingStatusBar {
     this.controlEl = newControlEl;
 
     if (onClick) {
-      this.controlEl.addEventListener('click', onClick);
+      this.plugin.registerDomEvent(this.controlEl, 'click', onClick);
     }
   }
 

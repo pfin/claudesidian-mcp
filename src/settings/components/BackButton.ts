@@ -3,6 +3,8 @@
  * Uses Obsidian-native styling patterns
  */
 
+import { Component } from 'obsidian';
+
 export class BackButton {
     private element: HTMLElement;
 
@@ -11,8 +13,9 @@ export class BackButton {
      * @param container Parent element to attach to
      * @param label Text to display (e.g., "Back to Workspaces")
      * @param onClick Callback when clicked
+     * @param component Optional Component for registerDomEvent
      */
-    constructor(container: HTMLElement, label: string, onClick: () => void) {
+    constructor(container: HTMLElement, label: string, onClick: () => void, component?: Component) {
         this.element = container.createDiv('nexus-back-button');
 
         // SVG arrow icon
@@ -23,7 +26,11 @@ export class BackButton {
         this.element.createSpan({ text: label });
 
         // Click handler
-        this.element.addEventListener('click', onClick);
+        if (component) {
+            component.registerDomEvent(this.element, 'click', onClick);
+        } else {
+            this.element.addEventListener('click', onClick);
+        }
     }
 
     /**

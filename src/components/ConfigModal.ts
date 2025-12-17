@@ -86,7 +86,7 @@ export class ConfigModal extends Modal {
         });
         windowsButton.addEventListener('click', () => this.showTab('windows'));
         this.tabButtons['windows'] = windowsButton;
-        
+
         // Mac tab button
         const macButton = tabButtonContainer.createEl('button', {
             text: 'Mac',
@@ -94,7 +94,7 @@ export class ConfigModal extends Modal {
         });
         macButton.addEventListener('click', () => this.showTab('mac'));
         this.tabButtons['mac'] = macButton;
-        
+
         // Linux tab button
         const linuxButton = tabButtonContainer.createEl('button', {
             text: 'Linux',
@@ -217,7 +217,7 @@ export class ConfigModal extends Modal {
 
         // Step 3: Copy configuration
         steps.createEl('li', { text: 'Copy the following JSON configuration:' });
-        
+
         const codeBlock = macContent.createEl('pre');
         const codeEl = codeBlock.createEl('code', {
             text: JSON.stringify(this.getConfigurationSyncPlaceholder(), null, 2)
@@ -281,7 +281,7 @@ export class ConfigModal extends Modal {
 
         // Step 3: Copy configuration
         steps.createEl('li', { text: 'Copy the following JSON configuration:' });
-        
+
         const codeBlock = linuxContent.createEl('pre');
         const codeEl = codeBlock.createEl('code', {
             text: JSON.stringify(this.getConfigurationSyncPlaceholder(), null, 2)

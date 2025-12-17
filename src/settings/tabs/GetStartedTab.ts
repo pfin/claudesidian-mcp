@@ -9,7 +9,7 @@
  * - Auto-detect and create Claude config
  */
 
-import { App, Setting, Notice, Platform } from 'obsidian';
+import { App, Setting, Notice, Platform, Component } from 'obsidian';
 import { BackButton } from '../components/BackButton';
 import { BRAND_NAME, getPrimaryServerKey } from '../../constants/branding';
 import * as path from 'path';
@@ -22,6 +22,7 @@ export interface GetStartedTabServices {
     pluginPath: string;
     vaultPath: string;
     onOpenProviders: () => void;
+    component?: Component;
 }
 
 export class GetStartedTab {
@@ -71,20 +72,30 @@ export class GetStartedTab {
         chatPath.createDiv('nexus-setup-path-icon').setText('💬');
         chatPath.createDiv('nexus-setup-path-title').setText('Internal Chat');
         chatPath.createDiv('nexus-setup-path-desc').setText('Use Nexus directly inside Obsidian');
-        chatPath.addEventListener('click', () => {
+        const chatClickHandler = () => {
             this.currentView = 'internal-chat';
             this.render();
-        });
+        };
+        if (this.services.component) {
+            this.services.component.registerDomEvent(chatPath, 'click', chatClickHandler);
+        } else {
+            chatPath.addEventListener('click', chatClickHandler);
+        }
 
         // Path 2: MCP Integration
         const mcpPath = paths.createDiv('nexus-setup-path');
         mcpPath.createDiv('nexus-setup-path-icon').setText('🔗');
         mcpPath.createDiv('nexus-setup-path-title').setText('MCP Integration');
         mcpPath.createDiv('nexus-setup-path-desc').setText('Connect Claude Desktop, LM Studio, etc.');
-        mcpPath.addEventListener('click', () => {
+        const mcpClickHandler = () => {
             this.currentView = 'mcp-setup';
             this.render();
-        });
+        };
+        if (this.services.component) {
+            this.services.component.registerDomEvent(mcpPath, 'click', mcpClickHandler);
+        } else {
+            mcpPath.addEventListener('click', mcpClickHandler);
+        }
     }
 
     /**
@@ -94,7 +105,7 @@ export class GetStartedTab {
         new BackButton(this.container, 'Back', () => {
             this.currentView = 'paths';
             this.render();
-        });
+        }, this.services.component);
 
         this.container.createEl('h3', { text: 'Internal Chat Setup' });
         this.container.createEl('p', {
@@ -147,7 +158,7 @@ export class GetStartedTab {
         new BackButton(this.container, 'Back', () => {
             this.currentView = 'paths';
             this.render();
-        });
+        }, this.services.component);
 
         this.container.createEl('h3', { text: 'Claude Desktop Setup' });
 
@@ -166,10 +177,20 @@ export class GetStartedTab {
 
             const actions = row.createDiv('nexus-mcp-actions');
             const downloadBtn = actions.createEl('button', { text: 'Download', cls: 'mod-cta' });
-            downloadBtn.addEventListener('click', () => window.open('https://claude.ai/download', '_blank'));
+            const downloadHandler = () => window.open('https://claude.ai/download', '_blank');
+            if (this.services.component) {
+                this.services.component.registerDomEvent(downloadBtn, 'click', downloadHandler);
+            } else {
+                downloadBtn.addEventListener('click', downloadHandler);
+            }
 
             const refreshBtn = actions.createEl('button', { text: 'Refresh' });
-            refreshBtn.addEventListener('click', () => this.render());
+            const refreshHandler = () => this.render();
+            if (this.services.component) {
+                this.services.component.registerDomEvent(refreshBtn, 'click', refreshHandler);
+            } else {
+                refreshBtn.addEventListener('click', refreshHandler);
+            }
 
             // Help text below
             this.container.createEl('p', {
@@ -186,10 +207,20 @@ export class GetStartedTab {
 
             const actions = row.createDiv('nexus-mcp-actions');
             const openBtn = actions.createEl('button', { text: 'Open Config' });
-            openBtn.addEventListener('click', () => this.openConfigFile(configPath));
+            const openHandler = () => this.openConfigFile(configPath);
+            if (this.services.component) {
+                this.services.component.registerDomEvent(openBtn, 'click', openHandler);
+            } else {
+                openBtn.addEventListener('click', openHandler);
+            }
 
             const revealBtn = actions.createEl('button', { text: this.getRevealButtonText() });
-            revealBtn.addEventListener('click', () => this.revealInFolder(configPath));
+            const revealHandler = () => this.revealInFolder(configPath);
+            if (this.services.component) {
+                this.services.component.registerDomEvent(revealBtn, 'click', revealHandler);
+            } else {
+                revealBtn.addEventListener('click', revealHandler);
+            }
 
             this.container.createEl('p', {
                 text: 'Restart Claude Desktop if you haven\'t already.',
@@ -205,7 +236,12 @@ export class GetStartedTab {
 
             const actions = row.createDiv('nexus-mcp-actions');
             const configBtn = actions.createEl('button', { text: 'Add Nexus to Claude', cls: 'mod-cta' });
-            configBtn.addEventListener('click', () => this.autoConfigureNexus(configPath));
+            const configHandler = () => this.autoConfigureNexus(configPath);
+            if (this.services.component) {
+                this.services.component.registerDomEvent(configBtn, 'click', configHandler);
+            } else {
+                configBtn.addEventListener('click', configHandler);
+            }
         }
     }
 

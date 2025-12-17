@@ -13,6 +13,7 @@
  */
 
 import { ConversationMessage } from '../../../types/chat/ChatTypes';
+import { Component } from 'obsidian';
 
 export class MessageEditController {
   /**
@@ -21,7 +22,8 @@ export class MessageEditController {
   static handleEdit(
     message: ConversationMessage,
     element: HTMLElement | null,
-    onEdit: (messageId: string, newContent: string) => void
+    onEdit: (messageId: string, newContent: string) => void,
+    component?: Component
   ): void {
     if (!element) return;
 
@@ -62,25 +64,35 @@ export class MessageEditController {
     textarea.focus();
 
     // Save handler
-    saveBtn.addEventListener('click', () => {
+    const saveHandler = () => {
       const newContent = textarea.value.trim();
       if (newContent && newContent !== message.content) {
         onEdit(message.id, newContent);
       }
       MessageEditController.exitEditMode(contentDiv, originalContent);
-    });
+    };
 
     // Cancel handler
-    cancelBtn.addEventListener('click', () => {
+    const cancelHandler = () => {
       MessageEditController.exitEditMode(contentDiv, originalContent);
-    });
+    };
 
     // ESC key handler
-    textarea.addEventListener('keydown', (e) => {
+    const keydownHandler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         MessageEditController.exitEditMode(contentDiv, originalContent);
       }
-    });
+    };
+
+    if (component) {
+      component.registerDomEvent(saveBtn, 'click', saveHandler);
+      component.registerDomEvent(cancelBtn, 'click', cancelHandler);
+      component.registerDomEvent(textarea, 'keydown', keydownHandler);
+    } else {
+      saveBtn.addEventListener('click', saveHandler);
+      cancelBtn.addEventListener('click', cancelHandler);
+      textarea.addEventListener('keydown', keydownHandler);
+    }
   }
 
   /**

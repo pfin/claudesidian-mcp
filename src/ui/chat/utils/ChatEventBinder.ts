@@ -11,28 +11,42 @@
  * following the Single Responsibility Principle.
  */
 
+import { Component } from 'obsidian';
+
 export class ChatEventBinder {
   /**
    * Wire up new chat button
    */
-  static bindNewChatButton(button: HTMLElement, createNewConversation: () => void): void {
-    button.addEventListener('click', () => createNewConversation());
+  static bindNewChatButton(button: HTMLElement, createNewConversation: () => void, component?: Component): void {
+    if (component) {
+      component.registerDomEvent(button, 'click', () => createNewConversation());
+    } else {
+      button.addEventListener('click', () => createNewConversation());
+    }
   }
 
   /**
    * Wire up settings button
    */
-  static bindSettingsButton(button: HTMLElement, openSettings: () => void): void {
-    button.addEventListener('click', () => openSettings());
+  static bindSettingsButton(button: HTMLElement, openSettings: () => void, component?: Component): void {
+    if (component) {
+      component.registerDomEvent(button, 'click', () => openSettings());
+    } else {
+      button.addEventListener('click', () => openSettings());
+    }
   }
 
   /**
    * Wire up welcome screen button
    */
-  static bindWelcomeButton(container: HTMLElement, createNewConversation: () => void): void {
+  static bindWelcomeButton(container: HTMLElement, createNewConversation: () => void, component?: Component): void {
     const welcomeButton = container.querySelector('.chat-welcome-button');
     if (welcomeButton) {
-      welcomeButton.addEventListener('click', () => createNewConversation());
+      if (component) {
+        component.registerDomEvent(welcomeButton as HTMLElement, 'click', () => createNewConversation());
+      } else {
+        welcomeButton.addEventListener('click', () => createNewConversation());
+      }
     }
   }
 }

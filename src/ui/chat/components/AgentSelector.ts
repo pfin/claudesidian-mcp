@@ -1,9 +1,11 @@
 /**
  * AgentSelector - Dropdown for selecting AI agents with custom prompts
- * 
+ *
  * Displays available agents from the agent manager.
  * When an agent is selected, its prompt becomes the system prompt.
  */
+
+import { Component } from 'obsidian';
 
 export interface AgentOption {
   id: string;
@@ -20,7 +22,8 @@ export class AgentSelector {
   constructor(
     private container: HTMLElement,
     private onAgentChange: (agent: AgentOption | null) => void,
-    private getAvailableAgents: () => Promise<AgentOption[]>
+    private getAvailableAgents: () => Promise<AgentOption[]>,
+    private component?: Component
   ) {
     this.render();
   }
@@ -55,9 +58,14 @@ export class AgentSelector {
     await this.loadAgents();
 
     // Handle selection changes
-    this.selectElement.addEventListener('change', () => {
+    const changeHandler = () => {
       this.handleAgentChange();
-    });
+    };
+    if (this.component) {
+      this.component.registerDomEvent(this.selectElement, 'change', changeHandler);
+    } else {
+      this.selectElement.addEventListener('change', changeHandler);
+    }
 
     this.element = this.container;
   }

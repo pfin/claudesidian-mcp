@@ -11,7 +11,7 @@
  * following the Factory pattern for consistent bubble creation.
  */
 
-import { setIcon } from 'obsidian';
+import { setIcon, Component } from 'obsidian';
 import { ConversationMessage } from '../../../../types/chat/ChatTypes';
 import { ProgressiveToolAccordion } from '../ProgressiveToolAccordion';
 import { formatToolDisplayName, normalizeToolName } from '../../../../utils/toolNameUtils';
@@ -21,6 +21,7 @@ export interface ToolBubbleFactoryOptions {
   parseParameterValue: (value: any) => any;
   getToolCallArguments: (toolCall: any) => any;
   progressiveToolAccordions: Map<string, ProgressiveToolAccordion>;
+  component?: Component;
 }
 
 export class ToolBubbleFactory {
@@ -28,7 +29,7 @@ export class ToolBubbleFactory {
    * Create tool bubble containing multiple tool accordions
    */
   static createToolBubble(options: ToolBubbleFactoryOptions): HTMLElement {
-    const { message, parseParameterValue, getToolCallArguments, progressiveToolAccordions } = options;
+    const { message, parseParameterValue, getToolCallArguments, progressiveToolAccordions, component } = options;
 
     const toolContainer = document.createElement('div');
     toolContainer.addClass('message-container');
@@ -47,7 +48,7 @@ export class ToolBubbleFactory {
 
     // Create reasoning accordion if message has persisted reasoning
     if (message.reasoning) {
-      const reasoningAccordion = new ProgressiveToolAccordion();
+      const reasoningAccordion = new ProgressiveToolAccordion(component);
       const reasoningEl = reasoningAccordion.createElement();
 
       // Create synthetic reasoning tool call for display
@@ -70,7 +71,7 @@ export class ToolBubbleFactory {
     // Create one ProgressiveToolAccordion per tool
     if (message.toolCalls) {
       message.toolCalls.forEach(toolCall => {
-        const accordion = new ProgressiveToolAccordion();
+        const accordion = new ProgressiveToolAccordion(component);
         const accordionEl = accordion.createElement();
 
         // Initialize accordion with completed state from JSON
@@ -117,7 +118,8 @@ export class ToolBubbleFactory {
     onCopy: (messageId: string) => void,
     showCopyFeedback: (button: HTMLElement) => void,
     messageBranchNavigator: any | null,
-    onMessageAlternativeChanged?: (messageId: string, alternativeIndex: number) => void
+    onMessageAlternativeChanged?: (messageId: string, alternativeIndex: number) => void,
+    component?: Component
   ): HTMLElement {
     const messageContainer = document.createElement('div');
     messageContainer.addClass('message-container');
@@ -149,10 +151,15 @@ export class ToolBubbleFactory {
       attr: { title: 'Copy message' }
     });
     setIcon(copyBtn, 'copy');
-    copyBtn.addEventListener('click', () => {
+    const copyHandler = () => {
       showCopyFeedback(copyBtn);
       onCopy(message.id);
-    });
+    };
+    if (component) {
+      component.registerDomEvent(copyBtn, 'click', copyHandler);
+    } else {
+      copyBtn.addEventListener('click', copyHandler);
+    }
 
     // Message branch navigator for messages with alternatives
     if (message.alternatives && message.alternatives.length > 0 && messageBranchNavigator) {

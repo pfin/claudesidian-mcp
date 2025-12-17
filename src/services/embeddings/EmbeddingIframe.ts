@@ -46,6 +46,7 @@ export class EmbeddingIframe {
   }> = new Map();
   private requestId: number = 0;
   private initPromise: Promise<void> | null = null;
+  private messageHandler: ((event: MessageEvent) => void) | null = null;
 
   private readonly MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
   private readonly DIMENSIONS = 384;
@@ -81,11 +82,11 @@ export class EmbeddingIframe {
     this.iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
 
     // Set up message listener before loading iframe
-    const messageHandler = (event: MessageEvent) => {
+    this.messageHandler = (event: MessageEvent) => {
       if (event.source !== this.iframe?.contentWindow) return;
       this.handleMessage(event.data);
     };
-    window.addEventListener('message', messageHandler);
+    window.addEventListener('message', this.messageHandler);
 
     // Wait for iframe to load and initialize
     await new Promise<void>((resolve, reject) => {
@@ -281,6 +282,12 @@ export class EmbeddingIframe {
    * Dispose of the iframe
    */
   async dispose(): Promise<void> {
+    // Remove window message listener
+    if (this.messageHandler) {
+      window.removeEventListener('message', this.messageHandler);
+      this.messageHandler = null;
+    }
+
     if (this.iframe) {
       try {
         await this.sendRequest({ method: 'dispose' });

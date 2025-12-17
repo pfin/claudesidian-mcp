@@ -1,4 +1,4 @@
-import { App, TFile, TFolder, setIcon, ButtonComponent, TextComponent, Modal } from 'obsidian';
+import { App, TFile, TFolder, setIcon, ButtonComponent, TextComponent, Modal, Component } from 'obsidian';
 
 const DEBOUNCE_MS = 150;
 
@@ -27,7 +27,8 @@ export class FilePickerRenderer {
     private onCancel: () => void,
     initialSelection?: string,
     workspaceRootFolder?: string,
-    title?: string
+    title?: string,
+    private component?: Component
   ) {
     // Support single or multiple initial selection
     this.selectedFiles = new Set(initialSelection ? [initialSelection] : []);
@@ -263,14 +264,19 @@ export class FilePickerRenderer {
     row.createSpan({ text: folder.name, cls: 'nexus-tree-name' });
 
     // Click to expand/collapse
-    row.addEventListener('click', () => {
+    const clickHandler = () => {
       if (isExpanded) {
         this.expandedFolders.delete(folder.path);
       } else {
         this.expandedFolders.add(folder.path);
       }
       this.renderRoot(); // Re-render tree
-    });
+    };
+    if (this.component) {
+      this.component.registerDomEvent(row, 'click', clickHandler);
+    } else {
+      row.addEventListener('click', clickHandler);
+    }
 
     // Render children if expanded
     if (isExpanded) {
@@ -291,14 +297,19 @@ export class FilePickerRenderer {
     // Checkbox
     const checkbox = row.createEl('input', { type: 'checkbox', cls: 'nexus-tree-checkbox' });
     checkbox.checked = isSelected;
-    checkbox.addEventListener('change', (e) => {
+    const changeHandler = (e: Event) => {
       e.stopPropagation();
       if (checkbox.checked) {
         this.selectedFiles.add(file.path);
       } else {
         this.selectedFiles.delete(file.path);
       }
-    });
+    };
+    if (this.component) {
+      this.component.registerDomEvent(checkbox, 'change', changeHandler);
+    } else {
+      checkbox.addEventListener('change', changeHandler);
+    }
 
     // File icon
     const iconEl = row.createSpan({ cls: 'nexus-tree-icon' });
@@ -308,12 +319,17 @@ export class FilePickerRenderer {
     row.createSpan({ text: file.name, cls: 'nexus-tree-name' });
 
     // Click row to toggle checkbox
-    row.addEventListener('click', (e) => {
+    const rowClickHandler = (e: MouseEvent) => {
       if (e.target !== checkbox) {
         checkbox.checked = !checkbox.checked;
         checkbox.dispatchEvent(new Event('change'));
       }
-    });
+    };
+    if (this.component) {
+      this.component.registerDomEvent(row, 'click', rowClickHandler);
+    } else {
+      row.addEventListener('click', rowClickHandler);
+    }
   }
 
   /**

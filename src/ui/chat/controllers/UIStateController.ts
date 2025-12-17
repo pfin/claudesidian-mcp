@@ -2,7 +2,7 @@
  * UIStateController - Manages all UI state transitions and visual feedback
  */
 
-import { setIcon, ButtonComponent } from 'obsidian';
+import { setIcon, ButtonComponent, Component } from 'obsidian';
 
 export interface UIStateControllerEvents {
   onSidebarToggled: (visible: boolean) => void;
@@ -14,7 +14,8 @@ export class UIStateController {
 
   constructor(
     private containerEl: HTMLElement,
-    private events: UIStateControllerEvents
+    private events: UIStateControllerEvents,
+    private component?: Component
   ) {}
 
   /**
@@ -97,11 +98,16 @@ export class UIStateController {
       const settingsBtnIcon = settingsBtn.createSpan({ cls: 'chat-welcome-button-icon' });
       setIcon(settingsBtnIcon, 'settings');
       settingsBtn.insertBefore(settingsBtnIcon, settingsBtn.firstChild);
-      settingsBtn.addEventListener('click', () => {
+      const settingsHandler = () => {
         if (this.onOpenSettings) {
           this.onOpenSettings();
         }
-      });
+      };
+      if (this.component) {
+        this.component.registerDomEvent(settingsBtn, 'click', settingsHandler);
+      } else {
+        settingsBtn.addEventListener('click', settingsHandler);
+      }
     }
   }
 
@@ -188,17 +194,27 @@ export class UIStateController {
     // Hamburger menu button
     const hamburgerButton = this.containerEl.querySelector('.chat-hamburger-button');
     if (hamburgerButton) {
-      hamburgerButton.addEventListener('click', () => this.toggleConversationList());
+      const hamburgerHandler = () => this.toggleConversationList();
+      if (this.component) {
+        this.component.registerDomEvent(hamburgerButton as HTMLElement, 'click', hamburgerHandler);
+      } else {
+        hamburgerButton.addEventListener('click', hamburgerHandler);
+      }
     }
 
     // Backdrop click to close sidebar
     const backdrop = this.containerEl.querySelector('.chat-backdrop');
     if (backdrop) {
-      backdrop.addEventListener('click', () => {
+      const backdropHandler = () => {
         if (this.sidebarVisible) {
           this.toggleConversationList();
         }
-      });
+      };
+      if (this.component) {
+        this.component.registerDomEvent(backdrop as HTMLElement, 'click', backdropHandler);
+      } else {
+        backdrop.addEventListener('click', backdropHandler);
+      }
     }
   }
 

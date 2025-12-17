@@ -56,8 +56,8 @@ export class Accordion extends Component {
             cls: `mcp-accordion-content ${this.isOpen ? 'is-open' : ''}`
         });
 
-        // Toggle on click
-        toggleButton.addEventListener('click', () => {
+        // Toggle on click - using registerDomEvent for auto-cleanup
+        this.registerDomEvent(toggleButton, 'click', () => {
             this.toggle(accordionContainer);
         });
     }

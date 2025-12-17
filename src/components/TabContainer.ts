@@ -3,6 +3,8 @@
  * Matches the existing Memory Manager tab styling and behavior
  */
 
+import { Component } from 'obsidian';
+
 export interface TabConfig {
   key: string;
   label: string;
@@ -16,16 +18,19 @@ export class TabContainer {
   private contents: Record<string, HTMLElement> = {};
   private activeTabKey: string;
   private onTabChange?: (tabKey: string) => void;
+  private component?: Component;
 
   constructor(
     containerEl: HTMLElement,
     tabConfigs: TabConfig[],
     defaultTab: string = tabConfigs[0]?.key,
-    onTabChange?: (tabKey: string) => void
+    onTabChange?: (tabKey: string) => void,
+    component?: Component
   ) {
     this.containerEl = containerEl;
     this.activeTabKey = defaultTab;
     this.onTabChange = onTabChange;
+    this.component = component;
 
     this.createTabStructure(tabConfigs);
   }
@@ -39,12 +44,17 @@ export class TabContainer {
     
     // Create tab buttons
     tabConfigs.forEach(config => {
-      const tabEl = this.tabContainer.createDiv({ 
-        cls: 'memory-tab', 
-        text: config.label 
+      const tabEl = this.tabContainer.createDiv({
+        cls: 'memory-tab',
+        text: config.label
       });
-      
-      tabEl.addEventListener('click', () => this.switchToTab(config.key));
+
+      const clickHandler = () => this.switchToTab(config.key);
+      if (this.component) {
+        this.component.registerDomEvent(tabEl, 'click', clickHandler);
+      } else {
+        tabEl.addEventListener('click', clickHandler);
+      }
       this.tabs[config.key] = tabEl;
     });
 

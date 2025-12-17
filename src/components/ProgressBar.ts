@@ -1,4 +1,4 @@
-import { type App } from 'obsidian';
+import { type App, Component } from 'obsidian';
 
 /**
  * Interface for progress update data
@@ -37,24 +37,26 @@ export class ProgressBar {
     private progressBar: HTMLElement;
     private progressText: HTMLElement;
     private cancelButton: HTMLElement;
-    // app instance not used but kept for future use
-    
+    private component?: Component;
+
     private progress = 0;
     private total = 0;
     private operationId = '';
-    
+
     // Custom event handlers
     private onProgressHandler!: (data: ProgressUpdateData) => void;
     private onCompleteHandler!: (data: ProgressCompleteData) => void;
-    
+
     /**
      * Create a new progress bar component
-     * 
+     *
      * @param containerEl Container element to append to
      * @param app Obsidian app instance for event handling
+     * @param component Optional Component for registerDomEvent
      */
-    constructor(containerEl: HTMLElement, _app: App) {
+    constructor(containerEl: HTMLElement, _app: App, component?: Component) {
         // App parameter marked with underscore as it's not currently used
+        this.component = component;
         
         // Create the container
         this.container = containerEl.createDiv({ cls: 'mcp-progress-container' });
@@ -73,10 +75,15 @@ export class ProgressBar {
             cls: 'mcp-progress-cancel',
             text: 'Cancel'
         });
-        
-        this.cancelButton.addEventListener('click', () => {
+
+        const cancelHandler = () => {
             this.triggerCancel();
-        });
+        };
+        if (this.component) {
+            this.component.registerDomEvent(this.cancelButton, 'click', cancelHandler);
+        } else {
+            this.cancelButton.addEventListener('click', cancelHandler);
+        }
         
         // Create event handlers
         this.setupEventHandlers();

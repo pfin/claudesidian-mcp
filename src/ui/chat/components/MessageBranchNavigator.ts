@@ -6,7 +6,7 @@
  */
 
 import { ConversationMessage } from '../../../types/chat/ChatTypes';
-import { setIcon } from 'obsidian';
+import { setIcon, Component } from 'obsidian';
 
 export interface MessageBranchNavigatorEvents {
   onAlternativeChanged: (messageId: string, alternativeIndex: number) => void;
@@ -22,7 +22,8 @@ export class MessageBranchNavigator {
 
   constructor(
     container: HTMLElement,
-    private events: MessageBranchNavigatorEvents
+    private events: MessageBranchNavigatorEvents,
+    private component?: Component
   ) {
     this.container = container;
     this.createBranchNavigator();
@@ -60,8 +61,15 @@ export class MessageBranchNavigator {
     this.nextButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,18 15,12 9,6"></polyline></svg>`;
 
     // Event listeners
-    this.prevButton.addEventListener('click', () => this.handlePreviousAlternative());
-    this.nextButton.addEventListener('click', () => this.handleNextAlternative());
+    const prevHandler = () => this.handlePreviousAlternative();
+    const nextHandler = () => this.handleNextAlternative();
+    if (this.component) {
+      this.component.registerDomEvent(this.prevButton, 'click', prevHandler);
+      this.component.registerDomEvent(this.nextButton, 'click', nextHandler);
+    } else {
+      this.prevButton.addEventListener('click', prevHandler);
+      this.nextButton.addEventListener('click', nextHandler);
+    }
   }
 
   /**

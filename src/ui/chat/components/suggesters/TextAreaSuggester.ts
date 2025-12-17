@@ -3,7 +3,7 @@
  * Similar to EditorSuggest but works with textarea instead of Obsidian Editor
  */
 
-import { App } from 'obsidian';
+import { App, Component } from 'obsidian';
 import { SuggesterConfig, SuggestionItem } from './base/SuggesterInterfaces';
 
 export abstract class TextAreaSuggester<T> {
@@ -14,13 +14,14 @@ export abstract class TextAreaSuggester<T> {
   protected suggestions: SuggestionItem<T>[] = [];
   protected selectedIndex = 0;
   protected isActive = false;
+  protected component?: Component;
 
-  constructor(app: App, textarea: HTMLTextAreaElement, config: SuggesterConfig) {
+  constructor(app: App, textarea: HTMLTextAreaElement, config: SuggesterConfig, component?: Component) {
     this.app = app;
     this.textarea = textarea;
     this.config = config;
+    this.component = component;
 
-    console.log('[TextAreaSuggester] Initialized for textarea');
     this.attachEventListeners();
   }
 
@@ -37,8 +38,16 @@ export abstract class TextAreaSuggester<T> {
   // ==========================================================================
 
   private attachEventListeners(): void {
-    this.textarea.addEventListener('input', this.onInput.bind(this));
-    this.textarea.addEventListener('keydown', this.onKeyDown.bind(this));
+    const inputHandler = this.onInput.bind(this);
+    const keydownHandler = this.onKeyDown.bind(this);
+
+    if (this.component) {
+      this.component.registerDomEvent(this.textarea, 'input', inputHandler);
+      this.component.registerDomEvent(this.textarea, 'keydown', keydownHandler);
+    } else {
+      this.textarea.addEventListener('input', inputHandler);
+      this.textarea.addEventListener('keydown', keydownHandler);
+    }
 
     // Don't close on blur - let user click suggestions
     // Suggestions will close on selection or Escape key
@@ -131,6 +140,7 @@ export abstract class TextAreaSuggester<T> {
     this.isActive = true;
 
     // Add click-outside handler to close
+    // Note: document click handlers can't use registerDomEvent easily, so we add/remove manually
     setTimeout(() => {
       document.addEventListener('click', this.handleClickOutside);
     }, 100);
@@ -162,17 +172,25 @@ export abstract class TextAreaSuggester<T> {
       this.renderSuggestion(suggestion, el);
 
       // Click handler
-      el.addEventListener('mousedown', (e) => {
+      const mousedownHandler = (e: MouseEvent) => {
         e.preventDefault(); // Prevent textarea blur
         this.selectedIndex = index;
         this.confirmSelection();
-      });
+      };
 
       // Hover handler
-      el.addEventListener('mouseenter', () => {
+      const mouseenterHandler = () => {
         this.selectedIndex = index;
         this.renderSuggestions();
-      });
+      };
+
+      if (this.component) {
+        this.component.registerDomEvent(el, 'mousedown', mousedownHandler);
+        this.component.registerDomEvent(el, 'mouseenter', mouseenterHandler);
+      } else {
+        el.addEventListener('mousedown', mousedownHandler);
+        el.addEventListener('mouseenter', mouseenterHandler);
+      }
     });
   }
 

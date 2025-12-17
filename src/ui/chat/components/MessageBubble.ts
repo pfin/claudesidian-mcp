@@ -68,7 +68,8 @@ export class MessageBubble extends Component {
         message: renderMessage,
         parseParameterValue: ToolEventParser.parseParameterValue,
         getToolCallArguments: ToolEventParser.getToolCallArguments,
-        progressiveToolAccordions: this.progressiveToolAccordions
+        progressiveToolAccordions: this.progressiveToolAccordions,
+        component: this
       });
       wrapper.appendChild(this.toolBubbleElement);
 
@@ -92,7 +93,8 @@ export class MessageBubble extends Component {
           this.onCopy,
           (button) => this.showCopyFeedback(button),
           this.messageBranchNavigator,
-          this.onMessageAlternativeChanged
+          this.onMessageAlternativeChanged,
+          this
         );
         wrapper.appendChild(this.textBubbleElement);
 
@@ -109,7 +111,7 @@ export class MessageBubble extends Component {
               onError: (message) => console.error('[MessageBubble] Branch navigation error:', message)
             };
 
-            this.messageBranchNavigator = new MessageBranchNavigator(actions, navigatorEvents);
+            this.messageBranchNavigator = new MessageBranchNavigator(actions, navigatorEvents, this);
             this.messageBranchNavigator.updateMessage(renderMessage);
           }
         }
@@ -180,7 +182,7 @@ export class MessageBubble extends Component {
           attr: { title: 'Edit message' }
         });
         setIcon(editBtn, 'edit');
-        editBtn.addEventListener('click', () => MessageEditController.handleEdit(this.message, this.element, this.onEdit!));
+        this.registerDomEvent(editBtn, 'click', () => MessageEditController.handleEdit(this.message, this.element, this.onEdit!, this));
       }
 
       // Retry button for user messages
@@ -189,7 +191,7 @@ export class MessageBubble extends Component {
         attr: { title: 'Retry message' }
       });
       setIcon(retryBtn, 'rotate-ccw');
-      retryBtn.addEventListener('click', (event) => {
+      this.registerDomEvent(retryBtn, 'click', (event) => {
         event.preventDefault();
         event.stopPropagation();
         if (this.onRetry) {
@@ -203,7 +205,7 @@ export class MessageBubble extends Component {
         attr: { title: 'Copy tool execution details' }
       });
       setIcon(copyBtn, 'copy');
-      copyBtn.addEventListener('click', () => {
+      this.registerDomEvent(copyBtn, 'click', () => {
         this.showCopyFeedback(copyBtn);
         this.onCopy(this.message.id);
       });
@@ -214,7 +216,7 @@ export class MessageBubble extends Component {
         attr: { title: 'Copy message' }
       });
       setIcon(copyBtn, 'copy');
-      copyBtn.addEventListener('click', () => {
+      this.registerDomEvent(copyBtn, 'click', () => {
         this.showCopyFeedback(copyBtn);
         this.onCopy(this.message.id);
       });
@@ -230,7 +232,7 @@ export class MessageBubble extends Component {
           onError: (message) => console.error('[MessageBubble] Branch navigation error:', message)
         };
 
-        this.messageBranchNavigator = new MessageBranchNavigator(actions, navigatorEvents);
+        this.messageBranchNavigator = new MessageBranchNavigator(actions, navigatorEvents, this);
         this.messageBranchNavigator.updateMessage(this.message);
       }
     }
@@ -385,7 +387,7 @@ export class MessageBubble extends Component {
     let accordion = this.progressiveToolAccordions.get(toolId);
 
     if (!accordion && (event === 'detected' || event === 'started')) {
-      accordion = new ProgressiveToolAccordion();
+      accordion = new ProgressiveToolAccordion(this);
       const accordionElement = accordion.createElement();
 
       if (!this.toolBubbleElement) {
@@ -549,7 +551,7 @@ export class MessageBubble extends Component {
     const openButton = bubble.createEl('button', { cls: 'generated-image-open-btn' });
     setIcon(openButton, 'external-link');
     openButton.createSpan({ text: 'Open in Obsidian' });
-    openButton.addEventListener('click', () => {
+    this.registerDomEvent(openButton, 'click', () => {
       this.app.workspace.openLinkText(imageData.imagePath, '', false);
     });
 

@@ -7,7 +7,7 @@
  * - Provides rich visual feedback during execution
  */
 
-import { setIcon } from 'obsidian';
+import { setIcon, Component } from 'obsidian';
 
 export interface ProgressiveToolCall {
   id: string;
@@ -29,7 +29,7 @@ export class ProgressiveToolAccordion {
   private isExpanded = false;
   private tools: ProgressiveToolCall[] = [];
 
-  constructor() {}
+  constructor(private component?: Component) {}
 
   /**
    * Create the progressive tool accordion element
@@ -40,7 +40,12 @@ export class ProgressiveToolAccordion {
 
     // Header with summary (initially hidden until first tool)
     const header = accordion.createDiv('progressive-tool-header');
-    header.addEventListener('click', () => this.toggle());
+    const toggleHandler = () => this.toggle();
+    if (this.component) {
+      this.component.registerDomEvent(header, 'click', toggleHandler);
+    } else {
+      header.addEventListener('click', toggleHandler);
+    }
     header.style.display = 'none'; // Hidden until first tool starts
 
     // Status summary

@@ -3,6 +3,8 @@
  * Exact replication of Memory Manager tab pattern for consistent UI across the plugin
  */
 
+import { Component } from 'obsidian';
+
 export interface UnifiedTabConfig {
   key: string;
   label: string;
@@ -13,6 +15,7 @@ export interface UnifiedTabsOptions {
   tabs: UnifiedTabConfig[];
   defaultTab?: string;
   onTabChange?: (tabKey: string) => void;
+  component?: Component;
 }
 
 export class UnifiedTabs {
@@ -23,11 +26,13 @@ export class UnifiedTabs {
   private contents: Record<string, HTMLElement> = {};
   private activeTabKey: string;
   private onTabChange?: (tabKey: string) => void;
+  private component?: Component;
 
   constructor(options: UnifiedTabsOptions) {
     this.containerEl = options.containerEl;
     this.activeTabKey = options.defaultTab || options.tabs[0]?.key || '';
     this.onTabChange = options.onTabChange;
+    this.component = options.component;
 
     this.createTabStructure(options.tabs);
     this.activateDefaultTab();
@@ -60,9 +65,14 @@ export class UnifiedTabs {
 
     // Setup tab switching logic exactly like Memory Manager
     Object.entries(this.tabs).forEach(([key, tab]) => {
-      tab.addEventListener('click', () => {
+      const clickHandler = () => {
         this.switchToTab(key);
-      });
+      };
+      if (this.component) {
+        this.component.registerDomEvent(tab, 'click', clickHandler);
+      } else {
+        tab.addEventListener('click', clickHandler);
+      }
     });
   }
 

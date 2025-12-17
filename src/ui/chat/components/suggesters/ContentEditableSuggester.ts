@@ -5,7 +5,7 @@
  * using the Selection/Range API instead of textarea's selectionStart/selectionEnd
  */
 
-import { App } from 'obsidian';
+import { App, Component } from 'obsidian';
 import { SuggesterConfig, SuggestionItem } from './base/SuggesterInterfaces';
 import { ContentEditableHelper } from '../../utils/ContentEditableHelper';
 
@@ -18,11 +18,14 @@ export abstract class ContentEditableSuggester<T> {
   protected currentSuggestions: SuggestionItem<T>[] = [];
   protected debounceTimer: NodeJS.Timeout | null = null;
   protected isActive = false;
+  protected component?: Component;
+  private clickOutsideHandler?: (e: MouseEvent) => void;
 
-  constructor(app: App, element: HTMLElement, config: SuggesterConfig) {
+  constructor(app: App, element: HTMLElement, config: SuggesterConfig, component?: Component) {
     this.app = app;
     this.element = element;
     this.config = config;
+    this.component = component;
 
     this.setupEventListeners();
   }
@@ -46,16 +49,25 @@ export abstract class ContentEditableSuggester<T> {
    * Setup event listeners
    */
   private setupEventListeners(): void {
-    this.element.addEventListener('input', () => this.onInput());
-    this.element.addEventListener('keydown', (e) => this.onKeyDown(e));
+    const inputHandler = () => this.onInput();
+    const keydownHandler = (e: KeyboardEvent) => this.onKeyDown(e);
 
-    // Click outside to close
-    document.addEventListener('click', (e) => {
+    if (this.component) {
+      this.component.registerDomEvent(this.element, 'input', inputHandler);
+      this.component.registerDomEvent(this.element, 'keydown', keydownHandler);
+    } else {
+      this.element.addEventListener('input', inputHandler);
+      this.element.addEventListener('keydown', keydownHandler);
+    }
+
+    // Click outside to close - stored as instance property for cleanup
+    this.clickOutsideHandler = (e: MouseEvent) => {
       if (!this.suggestionContainer?.contains(e.target as Node) &&
           e.target !== this.element) {
         setTimeout(() => this.closeSuggestions(), 100);
       }
-    });
+    };
+    document.addEventListener('click', this.clickOutsideHandler);
   }
 
   /**
@@ -157,12 +169,18 @@ export abstract class ContentEditableSuggester<T> {
       this.renderSuggestion(suggestion, item);
 
       // Click to select
-      item.addEventListener('click', (e) => {
+      const clickHandler = (e: MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
         this.selectedIndex = index;
         this.selectCurrentSuggestion();
-      });
+      };
+
+      if (this.component) {
+        this.component.registerDomEvent(item, 'click', clickHandler);
+      } else {
+        item.addEventListener('click', clickHandler);
+      }
     });
 
     // Position above the input
