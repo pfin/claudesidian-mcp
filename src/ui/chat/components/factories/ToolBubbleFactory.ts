@@ -157,8 +157,8 @@ export class ToolBubbleFactory {
     };
     component!.registerDomEvent(copyBtn, 'click', copyHandler);
 
-    // Message branch navigator for messages with alternatives
-    if (message.alternatives && message.alternatives.length > 0 && messageBranchNavigator) {
+    // Message branch navigator for messages with branches
+    if (message.branches && message.branches.length > 0 && messageBranchNavigator) {
       const navigatorEvents = {
         onAlternativeChanged: (messageId: string, alternativeIndex: number) => {
           if (onMessageAlternativeChanged) {
@@ -202,7 +202,7 @@ export class ToolBubbleFactory {
   }
 
   /**
-   * Get the active content for the message (original or alternative)
+   * Get the active content for the message (original or from branch)
    */
   private static getActiveMessageContent(message: ConversationMessage): string {
     const activeIndex = message.activeAlternativeIndex || 0;
@@ -212,11 +212,14 @@ export class ToolBubbleFactory {
       return message.content;
     }
 
-    // Alternative messages start at index 1
-    if (message.alternatives && message.alternatives.length > 0) {
-      const alternativeIndex = activeIndex - 1;
-      if (alternativeIndex >= 0 && alternativeIndex < message.alternatives.length) {
-        return message.alternatives[alternativeIndex].content;
+    // Branch messages start at index 1
+    if (message.branches && message.branches.length > 0) {
+      const branchIndex = activeIndex - 1;
+      if (branchIndex >= 0 && branchIndex < message.branches.length) {
+        const branch = message.branches[branchIndex];
+        if (branch.messages.length > 0) {
+          return branch.messages[branch.messages.length - 1].content;
+        }
       }
     }
 

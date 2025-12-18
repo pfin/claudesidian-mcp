@@ -1,8 +1,8 @@
 /**
- * MessageBranchNavigator - UI component for navigating between message alternatives
- * 
- * Shows mini "< X/Y >" navigation for individual messages that have multiple alternatives
- * Only displays when message has alternatives
+ * MessageBranchNavigator - UI component for navigating between message branches
+ *
+ * Shows mini "< X/Y >" navigation for individual messages that have multiple branches
+ * Only displays when message has branches (human or subagent)
  */
 
 import { ConversationMessage } from '../../../types/chat/ChatTypes';
@@ -138,18 +138,18 @@ export class MessageBranchNavigator {
   }
 
   /**
-   * Check if current message has alternatives
+   * Check if current message has branches
    */
   private hasAlternatives(): boolean {
-    return !!(this.currentMessage?.alternatives && this.currentMessage.alternatives.length > 0);
+    return !!(this.currentMessage?.branches && this.currentMessage.branches.length > 0);
   }
 
   /**
-   * Get total alternative count (including the original message)
+   * Get total branch count (including the original message)
    */
   private getAlternativeCount(): number {
     if (!this.hasAlternatives()) return 1;
-    return (this.currentMessage!.alternatives!.length) + 1; // +1 for original message
+    return (this.currentMessage!.branches!.length) + 1; // +1 for original message
   }
 
   /**
