@@ -9,11 +9,9 @@ import {
   ExecutePromptsTool,
   GenerateImageTool,
   SubagentTool,
-  CancelSubagentTool
 } from './tools';
 import type { SubagentExecutor } from '../../services/chat/SubagentExecutor';
 import type { SubagentToolContext } from './tools/subagent';
-import type { CancelSubagentToolContext } from './tools/cancelSubagent';
 import { CustomPromptStorageService } from './services/CustomPromptStorageService';
 import { Settings } from '../../settings';
 import { sanitizeVaultName } from '../../utils/vaultUtils';
@@ -69,10 +67,9 @@ export class AgentManagerAgent extends BaseAgent {
   private settingsEventRef: EventRef | null = null;
 
   /**
-   * Subagent tools - stored for later executor wiring
+   * Subagent tool - stored for later executor wiring
    */
   private subagentTool: SubagentTool;
-  private cancelSubagentTool: CancelSubagentTool;
 
   /**
    * Create a new AgentManagerAgent with dependency injection
@@ -135,11 +132,10 @@ export class AgentManagerAgent extends BaseAgent {
       }));
     }
 
-    // Register subagent tools (internal chat only - executor wired up separately)
+    // Register subagent tool (internal chat only - executor wired up separately)
+    // Supports both spawn and cancel actions via action parameter
     this.subagentTool = new SubagentTool();
-    this.cancelSubagentTool = new CancelSubagentTool();
     this.registerTool(this.subagentTool);
-    this.registerTool(this.cancelSubagentTool);
 
     // Subscribe to settings changes to dynamically register/unregister tools (Obsidian Events API)
     this.settingsEventRef = LLMSettingsNotifier.onSettingsChanged((newSettings) => {
@@ -248,19 +244,17 @@ export class AgentManagerAgent extends BaseAgent {
   }
 
   /**
-   * Wire up the SubagentExecutor to the subagent tools
+   * Wire up the SubagentExecutor to the subagent tool
    * Called after the executor is created (typically in ChatView or ChatService)
    * @param executor The SubagentExecutor instance
    * @param contextProvider Function that provides execution context
    */
   setSubagentExecutor(
     executor: SubagentExecutor,
-    contextProvider: () => SubagentToolContext & CancelSubagentToolContext
+    contextProvider: () => SubagentToolContext
   ): void {
     this.subagentTool.setSubagentExecutor(executor);
     this.subagentTool.setContextProvider(contextProvider);
-    this.cancelSubagentTool.setSubagentExecutor(executor);
-    this.cancelSubagentTool.setContextProvider(contextProvider);
   }
 
   /**
@@ -269,14 +263,6 @@ export class AgentManagerAgent extends BaseAgent {
    */
   getSubagentTool(): SubagentTool {
     return this.subagentTool;
-  }
-
-  /**
-   * Get the CancelSubagentTool instance for external access
-   * @returns CancelSubagentTool instance
-   */
-  getCancelSubagentTool(): CancelSubagentTool {
-    return this.cancelSubagentTool;
   }
 
   /**

@@ -7,20 +7,66 @@
  * - Clicking opens AgentStatusModal
  *
  * Uses Obsidian's setIcon helper for consistent iconography.
+ * Uses event-based updates instead of polling for efficiency.
  */
 
-import { setIcon, Component } from 'obsidian';
+import { setIcon, Component, Events } from 'obsidian';
 import type { SubagentExecutor } from '../../../services/chat/SubagentExecutor';
+import type { SubagentExecutorEvents } from '../../../types/branch/BranchTypes';
 
 export interface AgentStatusMenuCallbacks {
   onOpenModal: () => void;
 }
 
+/**
+ * Event emitter for subagent status updates
+ * Allows UI components to subscribe to status changes without polling
+ */
+export class SubagentEventBus extends Events {
+  trigger(name: 'status-changed'): void {
+    super.trigger(name);
+  }
+
+  on(name: 'status-changed', callback: () => void): ReturnType<Events['on']> {
+    return super.on(name, callback);
+  }
+}
+
+// Singleton event bus for subagent status updates
+let globalEventBus: SubagentEventBus | null = null;
+
+export function getSubagentEventBus(): SubagentEventBus {
+  if (!globalEventBus) {
+    globalEventBus = new SubagentEventBus();
+  }
+  return globalEventBus;
+}
+
+/**
+ * Create event handlers that notify the event bus
+ * Wire these to SubagentExecutor.setEventHandlers()
+ */
+export function createSubagentEventHandlers(): Partial<SubagentExecutorEvents> {
+  const eventBus = getSubagentEventBus();
+
+  return {
+    onSubagentStarted: () => {
+      eventBus.trigger('status-changed');
+    },
+    onSubagentComplete: () => {
+      eventBus.trigger('status-changed');
+    },
+    onSubagentError: () => {
+      eventBus.trigger('status-changed');
+    },
+  };
+}
+
 export class AgentStatusMenu {
   private element: HTMLElement | null = null;
   private badgeEl: HTMLElement | null = null;
-  private updateInterval: number | null = null;
   private lastCount: number = 0;
+  private eventRef: ReturnType<Events['on']> | null = null;
 
   constructor(
     private container: HTMLElement,
@@ -63,8 +109,8 @@ export class AgentStatusMenu {
     this.element = button;
     this.container.appendChild(button);
 
-    // Start polling for updates
-    this.startPolling();
+    // Subscribe to event bus for status updates (replaces polling)
+    this.subscribeToEvents();
 
     // Initial update
     this.updateDisplay();
@@ -78,6 +124,16 @@ export class AgentStatusMenu {
   setSubagentExecutor(executor: SubagentExecutor): void {
     this.subagentExecutor = executor;
     this.updateDisplay();
+  }
+
+  /**
+   * Subscribe to subagent status events
+   */
+  private subscribeToEvents(): void {
+    const eventBus = getSubagentEventBus();
+    this.eventRef = eventBus.on('status-changed', () => {
+      this.updateDisplay();
+    });
   }
 
   /**
@@ -119,28 +175,6 @@ export class AgentStatusMenu {
   }
 
   /**
-   * Start polling for agent status updates
-   * Poll every 2 seconds to keep badge updated
-   */
-  private startPolling(): void {
-    if (this.updateInterval !== null) return;
-
-    this.updateInterval = window.setInterval(() => {
-      this.updateDisplay();
-    }, 2000);
-  }
-
-  /**
-   * Stop polling
-   */
-  private stopPolling(): void {
-    if (this.updateInterval !== null) {
-      window.clearInterval(this.updateInterval);
-      this.updateInterval = null;
-    }
-  }
-
-  /**
    * Force refresh the display (call after agent state changes)
    */
   refresh(): void {
@@ -164,7 +198,12 @@ export class AgentStatusMenu {
    * Cleanup
    */
   cleanup(): void {
-    this.stopPolling();
+    // Unsubscribe from events
+    if (this.eventRef) {
+      getSubagentEventBus().offref(this.eventRef);
+      this.eventRef = null;
+    }
+
     this.element?.remove();
     this.element = null;
     this.badgeEl = null;

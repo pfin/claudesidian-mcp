@@ -8,11 +8,13 @@
  * - Status badge (running, complete, paused, etc.)
  *
  * Uses Obsidian's setIcon helper for consistent iconography.
+ * Uses shared utilities for status display (DRY).
  */
 
 import { setIcon, Component } from 'obsidian';
-import type { BranchState, SubagentBranchMetadata, HumanBranchMetadata } from '../../../types/branch/BranchTypes';
+import type { SubagentBranchMetadata, HumanBranchMetadata } from '../../../types/branch/BranchTypes';
 import { isSubagentMetadata } from '../../../types/branch/BranchTypes';
+import { getStatusText, createStateIcon } from '../../../utils/branchStatusUtils';
 
 export interface BranchViewContext {
   conversationId: string;
@@ -125,16 +127,18 @@ export class BranchHeader {
       });
       taskEl.setAttribute('title', task);
 
-      // Status badge
+      // Status badge using shared utilities
       const statusContainer = info.createSpan('nexus-branch-status');
-      const statusText = this.getStatusText(metadata);
-      const statusIcon = this.getStatusIcon(metadata.state);
+      const statusText = getStatusText(metadata);
 
       statusContainer.createSpan({
         text: statusText,
         cls: `nexus-status-text nexus-status-${metadata.state || 'running'}`,
       });
-      statusContainer.createSpan({ text: ` ${statusIcon}` });
+
+      // Use setIcon-based status icon
+      const iconEl = statusContainer.createSpan('nexus-status-icon');
+      createStateIcon(metadata.state, iconEl);
 
       // Action buttons for running/paused agents
       if (metadata.state === 'running' && this.callbacks.onCancel && metadata.subagentId) {
@@ -180,48 +184,6 @@ export class BranchHeader {
 
     this.element = header;
     this.container.prepend(header);
-  }
-
-  /**
-   * Get status text for the badge
-   */
-  private getStatusText(metadata: SubagentBranchMetadata): string {
-    const { state, iterations } = metadata;
-
-    switch (state) {
-      case 'running':
-        return `Running ${iterations || 0}/${metadata.maxIterations || 10}`;
-      case 'complete':
-        return `Complete (${iterations || 0} iterations)`;
-      case 'cancelled':
-        return 'Cancelled';
-      case 'max_iterations':
-        return `Paused ${iterations || 0}/${metadata.maxIterations || 10}`;
-      case 'abandoned':
-        return 'Abandoned';
-      default:
-        return '';
-    }
-  }
-
-  /**
-   * Get status icon
-   */
-  private getStatusIcon(state?: BranchState): string {
-    switch (state) {
-      case 'running':
-        return '🔄';
-      case 'complete':
-        return '✓';
-      case 'cancelled':
-        return '✗';
-      case 'max_iterations':
-        return '⏸';
-      case 'abandoned':
-        return '⚠️';
-      default:
-        return '';
-    }
   }
 
   /**

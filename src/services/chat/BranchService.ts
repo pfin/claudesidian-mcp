@@ -17,6 +17,10 @@ import type {
   BranchState,
   SubagentBranchMetadata,
 } from '../../types/branch/BranchTypes';
+import {
+  createSubagentBranch as createSubagentBranchFactory,
+  createHumanBranch as createHumanBranchFactory,
+} from '../../types/branch/BranchTypes';
 
 export interface BranchServiceDependencies {
   conversationService: {
@@ -71,17 +75,14 @@ export class BranchService {
     description?: string
   ): Promise<string> {
     const branchId = `branch_human_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const now = Date.now();
 
-    const branch: ConversationBranch = {
-      id: branchId,
-      type: 'human',
-      inheritContext: true,
-      messages: [],
-      created: now,
-      updated: now,
-      metadata: description ? { description } : undefined,
-    };
+    // Use factory function from BranchTypes (DRY)
+    const branch = createHumanBranchFactory(branchId);
+
+    // Add optional description to metadata
+    if (description) {
+      branch.metadata = { description };
+    }
 
     await this.createBranch(conversationId, messageId, branch);
     return branchId;
@@ -98,24 +99,9 @@ export class BranchService {
     maxIterations: number = 10
   ): Promise<string> {
     const branchId = `branch_subagent_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const now = Date.now();
 
-    const branch: ConversationBranch = {
-      id: branchId,
-      type: 'subagent',
-      inheritContext: false,
-      messages: [],
-      created: now,
-      updated: now,
-      metadata: {
-        task,
-        subagentId,
-        state: 'running',
-        iterations: 0,
-        maxIterations,
-        startedAt: now,
-      } satisfies SubagentBranchMetadata,
-    };
+    // Use factory function from BranchTypes (DRY)
+    const branch = createSubagentBranchFactory(branchId, subagentId, task, maxIterations);
 
     await this.createBranch(conversationId, messageId, branch);
     return branchId;

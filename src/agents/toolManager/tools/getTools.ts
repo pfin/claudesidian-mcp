@@ -17,8 +17,7 @@ import { SchemaData } from '../toolManager';
  * These tools are available in internal chat but filtered from discovery/listing.
  */
 const INTERNAL_ONLY_TOOLS = new Set([
-  'subagent',       // Subagent spawning (internal chat only)
-  'cancelSubagent', // Subagent cancellation (internal chat only)
+  'subagent', // Subagent management (internal chat only - spawn/cancel)
 ]);
 
 /**

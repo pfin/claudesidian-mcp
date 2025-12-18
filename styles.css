@@ -5993,6 +5993,62 @@ body.is-mobile .chat-loading-overlay {
     color: var(--color-orange);
 }
 
+/* State icons (using Obsidian setIcon) */
+.nexus-state-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-left: 4px;
+}
+
+.nexus-state-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Running state - spinning animation */
+.nexus-state-icon-running svg {
+    animation: nexus-spin 1.5s linear infinite;
+}
+
+@keyframes nexus-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* State icon colors */
+.nexus-state-icon-running {
+    color: var(--color-blue);
+}
+
+.nexus-state-icon-complete {
+    color: var(--color-green);
+}
+
+.nexus-state-icon-cancelled {
+    color: var(--color-red);
+}
+
+.nexus-state-icon-max_iterations {
+    color: var(--color-yellow);
+}
+
+.nexus-state-icon-abandoned {
+    color: var(--color-orange);
+}
+
+/* Status icon in branch header */
+.nexus-status-icon {
+    display: inline-flex;
+    align-items: center;
+}
+
 /* Branch action buttons */
 .nexus-branch-action-btn {
     padding: 4px 12px;
@@ -6370,6 +6426,62 @@ body.is-mobile .chat-loading-overlay {
 .nexus-status-abandoned {
     background: rgba(var(--color-orange-rgb), 0.15);
     color: var(--color-orange);
+}
+
+/* State icons (using Obsidian setIcon) */
+.nexus-state-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-left: 4px;
+}
+
+.nexus-state-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Running state - spinning animation */
+.nexus-state-icon-running svg {
+    animation: nexus-spin 1.5s linear infinite;
+}
+
+@keyframes nexus-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* State icon colors */
+.nexus-state-icon-running {
+    color: var(--color-blue);
+}
+
+.nexus-state-icon-complete {
+    color: var(--color-green);
+}
+
+.nexus-state-icon-cancelled {
+    color: var(--color-red);
+}
+
+.nexus-state-icon-max_iterations {
+    color: var(--color-yellow);
+}
+
+.nexus-state-icon-abandoned {
+    color: var(--color-orange);
+}
+
+/* Status icon in branch header */
+.nexus-status-icon {
+    display: inline-flex;
+    align-items: center;
 }
 
 /* Branch action buttons */

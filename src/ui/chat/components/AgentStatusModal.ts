@@ -8,11 +8,14 @@
  * - Continue button for paused (max_iterations) agents
  *
  * Uses Obsidian's Modal and Setting components for consistent UI.
+ * Uses shared utilities for status display and time formatting (DRY).
  */
 
 import { App, Modal, Setting } from 'obsidian';
 import type { SubagentExecutor } from '../../../services/chat/SubagentExecutor';
 import type { AgentStatusItem, BranchState } from '../../../types/branch/BranchTypes';
+import { formatTimeAgo } from '../../../utils/timeUtils';
+import { getStateIconName, buildStatusDescription } from '../../../utils/branchStatusUtils';
 
 export interface AgentStatusModalCallbacks {
   onViewBranch: (branchId: string) => void;
@@ -85,9 +88,10 @@ export class AgentStatusModal extends Modal {
   private renderAgentRow(container: HTMLElement, agent: AgentStatusItem): void {
     const isRunning = agent.state === 'running';
     const isPaused = agent.state === 'max_iterations';
+    const iconName = getStateIconName(agent.state);
 
     const setting = new Setting(container)
-      .setName(`${agent.task} ${this.getStatusIcon(agent.state)}`)
+      .setName(agent.task)
       .setDesc(this.buildDescription(agent))
       .addButton(btn =>
         btn.setButtonText('View').onClick(() => {
@@ -95,6 +99,15 @@ export class AgentStatusModal extends Modal {
           this.callbacks.onViewBranch(agent.branchId);
         })
       );
+
+    // Add status icon to the name
+    const nameEl = setting.nameEl;
+    const iconEl = nameEl.createSpan('nexus-agent-status-icon');
+    iconEl.addClass(`nexus-state-icon-${agent.state}`);
+    // Use Obsidian setIcon
+    import('obsidian').then(({ setIcon }) => {
+      setIcon(iconEl, iconName);
+    });
 
     if (isRunning) {
       setting.addButton(btn =>
@@ -124,51 +137,23 @@ export class AgentStatusModal extends Modal {
     setting.settingEl.addClass(`nexus-agent-row-${agent.state}`);
   }
 
-  private getStatusIcon(state: BranchState): string {
-    switch (state) {
-      case 'running':
-        return '🔄';
-      case 'complete':
-        return '✓';
-      case 'cancelled':
-        return '✗';
-      case 'max_iterations':
-        return '⏸';
-      case 'abandoned':
-        return '⚠️';
-      default:
-        return '';
-    }
-  }
-
+  /**
+   * Build description using shared utilities
+   */
   private buildDescription(agent: AgentStatusItem): string {
-    const timeAgo = this.formatTimeAgo(agent.startedAt);
+    const timeAgo = formatTimeAgo(agent.startedAt);
 
-    switch (agent.state) {
-      case 'running':
-        return `${agent.iterations}/${agent.maxIterations} iterations · Started ${timeAgo}`;
-      case 'complete':
-        return `Completed in ${agent.iterations} iterations · ${timeAgo}`;
-      case 'cancelled':
-        return `Cancelled after ${agent.iterations} iterations · ${timeAgo}`;
-      case 'max_iterations':
-        return `Paused at max iterations (${agent.iterations}/${agent.maxIterations}) · ${timeAgo}`;
-      case 'abandoned':
-        return `Abandoned after ${agent.iterations} iterations · ${timeAgo}`;
-      default:
-        return `${agent.iterations} iterations · ${timeAgo}`;
-    }
-  }
+    // Convert AgentStatusItem to SubagentBranchMetadata-compatible object
+    const metadataLike = {
+      state: agent.state,
+      iterations: agent.iterations,
+      maxIterations: agent.maxIterations,
+      task: agent.task,
+      subagentId: agent.subagentId,
+      startedAt: agent.startedAt,
+    };
 
-  private formatTimeAgo(timestamp: number): string {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
-    if (seconds < 60) return 'just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
+    return buildStatusDescription(metadataLike, timeAgo);
   }
 
   onClose(): void {

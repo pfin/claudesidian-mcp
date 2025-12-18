@@ -8,6 +8,5 @@ export { ListModelsTool } from './listModels';
 export { ExecutePromptsTool } from './batchExecutePrompt';
 export { GenerateImageTool } from './generateImage';
 
-// Subagent tools (internal chat only)
+// Subagent tool (internal chat only - supports spawn and cancel actions)
 export { SubagentTool } from './subagent';
-export { CancelSubagentTool } from './cancelSubagent';
