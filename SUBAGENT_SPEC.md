@@ -1628,34 +1628,178 @@ Location: `/src/ui/chat/components/AgentStatusMenu.ts`
 
 ### Component: Agent Status Modal
 
-Clicking the agent status icon opens a modal:
+Location: `/src/ui/chat/components/AgentStatusModal.ts`
+
+Extends Obsidian's `Modal` class. Uses `Setting` components for consistent UI.
+
+**ASCII Mockup (maps to Obsidian components):**
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Running Agents                                    [×]  │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │ 🔄 "Analyze authentication system"              │   │
-│  │    Iterations: 3/10  •  Started: 2m ago         │   │
-│  │    [View Branch]  [Cancel]                      │   │
-│  └─────────────────────────────────────────────────┘   │
-│                                                         │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │ 🔄 "Search for API patterns"                    │   │
-│  │    Iterations: 7/10  •  Started: 5m ago         │   │
-│  │    [View Branch]  [Cancel]                      │   │
-│  └─────────────────────────────────────────────────┘   │
-│                                                         │
-│  ─────────────── Completed ───────────────             │
-│                                                         │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │ ✓ "Review database schema"                      │   │
-│  │    Completed: 4 iterations  •  1m ago           │   │
-│  │    [View Branch]                                │   │
-│  └─────────────────────────────────────────────────┘   │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  Running Agents                                            [×]  │
+│  ↑ this.titleEl.setText()                     Obsidian close ↑  │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ Analyze authentication system                       🔄  │   │
+│  │ 3/10 iterations · Started 2m ago                        │   │
+│  │                                      [View]  [Cancel]   │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│    ↑ new Setting(contentEl)                                    │
+│        .setName(task)           ← agent.task                   │
+│        .setDesc(status)         ← "3/10 iterations · 2m ago"   │
+│        .addButton() [View]                                     │
+│        .addButton() [Cancel]    ← .setWarning()                │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ Search for API patterns                             🔄  │   │
+│  │ 7/10 iterations · Started 5m ago                        │   │
+│  │                                      [View]  [Cancel]   │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  Completed                                                      │
+│  ↑ contentEl.createEl('h4', { text: 'Completed' })             │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ Review database schema                              ✓   │   │
+│  │ Completed in 4 iterations · 1m ago                      │   │
+│  │                                              [View]     │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│    ↑ Same Setting pattern, no Cancel button                    │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ Fetch user preferences                              ⏸   │   │
+│  │ Paused at max iterations (10/10) · 3m ago               │   │
+│  │                                    [View]  [Continue]   │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│    ↑ max_iterations state gets Continue button                 │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Implementation using Obsidian API:**
+
+```typescript
+import { App, Modal, Setting } from 'obsidian';
+import { SubagentExecutor, AgentStatusItem } from '../../../services/chat/SubagentExecutor';
+
+export class AgentStatusModal extends Modal {
+  constructor(
+    app: App,
+    private subagentExecutor: SubagentExecutor,
+    private onViewBranch: (branchId: string) => void,
+    private onContinueAgent: (branchId: string) => void
+  ) {
+    super(app);
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass('nexus-agent-status-modal');
+
+    this.titleEl.setText('Running Agents');
+
+    const agents = this.subagentExecutor.getAgentStatusList();
+    const running = agents.filter(a => a.state === 'running');
+    const completed = agents.filter(a => a.state !== 'running');
+
+    // Running section
+    if (running.length === 0) {
+      contentEl.createEl('p', {
+        text: 'No agents currently running',
+        cls: 'nexus-agent-empty'
+      });
+    } else {
+      for (const agent of running) {
+        this.renderAgentRow(contentEl, agent);
+      }
+    }
+
+    // Completed section
+    if (completed.length > 0) {
+      contentEl.createEl('h4', { text: 'Completed' });
+      for (const agent of completed) {
+        this.renderAgentRow(contentEl, agent);
+      }
+    }
+  }
+
+  private renderAgentRow(container: HTMLElement, agent: AgentStatusItem) {
+    const isRunning = agent.state === 'running';
+    const isPaused = agent.state === 'max_iterations';
+
+    const setting = new Setting(container)
+      .setName(`${agent.task} ${this.getStatusIcon(agent.state)}`)
+      .setDesc(this.buildDescription(agent))
+      .addButton(btn => btn
+        .setButtonText('View')
+        .onClick(() => {
+          this.close();
+          this.onViewBranch(agent.branchId);
+        }));
+
+    if (isRunning) {
+      setting.addButton(btn => btn
+        .setButtonText('Cancel')
+        .setWarning()
+        .onClick(async () => {
+          this.subagentExecutor.cancelSubagent(agent.subagentId);
+          this.onOpen(); // Refresh modal
+        }));
+    }
+
+    if (isPaused) {
+      setting.addButton(btn => btn
+        .setButtonText('Continue')
+        .setCta()
+        .onClick(() => {
+          this.close();
+          this.onContinueAgent(agent.branchId);
+        }));
+    }
+  }
+
+  private getStatusIcon(state: string): string {
+    switch (state) {
+      case 'running': return '🔄';
+      case 'complete': return '✓';
+      case 'cancelled': return '✗';
+      case 'max_iterations': return '⏸';
+      default: return '';
+    }
+  }
+
+  private buildDescription(agent: AgentStatusItem): string {
+    const timeAgo = this.formatTimeAgo(agent.startedAt);
+
+    switch (agent.state) {
+      case 'running':
+        return `${agent.iterations}/${agent.maxIterations} iterations · Started ${timeAgo}`;
+      case 'complete':
+        return `Completed in ${agent.iterations} iterations · ${timeAgo}`;
+      case 'cancelled':
+        return `Cancelled after ${agent.iterations} iterations · ${timeAgo}`;
+      case 'max_iterations':
+        return `Paused at max iterations (${agent.iterations}/${agent.maxIterations}) · ${timeAgo}`;
+      default:
+        return `${agent.iterations} iterations · ${timeAgo}`;
+    }
+  }
+
+  private formatTimeAgo(timestamp: number): string {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ago`;
+  }
+
+  onClose() {
+    this.contentEl.empty();
+  }
+}
 ```
 
 **Data Structure:**
@@ -1670,14 +1814,15 @@ interface AgentStatusItem {
   maxIterations: number;
   startedAt: number;
   completedAt?: number;
-  parentMessageId: string;  // For navigation back
+  parentMessageId: string;
 }
 
-// In SubagentExecutor - expose for UI
+// In SubagentExecutor
+private agentStatus: Map<string, AgentStatusItem> = new Map();
+
 getAgentStatusList(): AgentStatusItem[] {
   return Array.from(this.agentStatus.values())
     .sort((a, b) => {
-      // Running first, then by start time
       if (a.state === 'running' && b.state !== 'running') return -1;
       if (b.state === 'running' && a.state !== 'running') return 1;
       return b.startedAt - a.startedAt;
@@ -1685,37 +1830,126 @@ getAgentStatusList(): AgentStatusItem[] {
 }
 ```
 
+**Opening the modal (in ChatView):**
+
+```typescript
+// When agent status icon clicked
+private openAgentStatusModal(): void {
+  const modal = new AgentStatusModal(
+    this.app,
+    this.subagentExecutor,
+    (branchId) => this.navigateToBranch(branchId),
+    (branchId) => this.continueSubagent(branchId)
+  );
+  modal.open();
+}
+```
+
 ### Branch Navigation
 
 **Subagent Branch Header:**
 
-When viewing a subagent branch, show navigation header:
+When viewing a subagent branch, render a header bar above the messages.
+
+**ASCII Mockup:**
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  ◀ Back to Main  │  Subagent: "Analyze auth system"    │
-│                  │  Status: Running (3/10)  [Cancel]   │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  System: You are an autonomous subagent...              │
-│                                                         │
-│  User: Analyze the authentication system                │
-│                                                         │
-│  Assistant: I'll search for auth-related files...       │
-│    └─ 🔧 vaultLibrarian.search [5 files]               │
-│                                                         │
-│  Assistant: Found these patterns...                     │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  [◀ Back]  Subagent: "Analyze auth system"   Running 3/10  🔄  │
+│            ↑ clickable                        ↑ status badge   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─ System ─────────────────────────────────────────────────┐  │
+│  │ You are an autonomous subagent...                        │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  ┌─ User ───────────────────────────────────────────────────┐  │
+│  │ Analyze the authentication system                        │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  ┌─ Assistant ──────────────────────────────────────────────┐  │
+│  │ I'll search for auth-related files...                    │  │
+│  │ └─ 🔧 vaultLibrarian.search                     [5 files]│  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Implementation:**
+**Implementation using Obsidian API:**
+
+```typescript
+// In ChatView - renders above message list when viewing a branch
+
+private renderBranchHeader(container: HTMLElement): void {
+  if (!this.currentBranchContext) return;
+
+  const ctx = this.currentBranchContext;
+  const header = container.createDiv({ cls: 'nexus-branch-header' });
+
+  // Back button (using Obsidian's setIcon helper)
+  const backBtn = header.createEl('button', {
+    cls: 'nexus-branch-back clickable-icon'
+  });
+  setIcon(backBtn, 'arrow-left');
+  backBtn.createSpan({ text: ' Back' });
+  backBtn.onclick = () => this.navigateToParent();
+
+  // Branch info
+  const info = header.createDiv({ cls: 'nexus-branch-info' });
+
+  if (ctx.branchType === 'subagent' && ctx.metadata) {
+    info.createSpan({
+      text: `Subagent: "${ctx.metadata.task}"`,
+      cls: 'nexus-branch-task'
+    });
+
+    const status = info.createSpan({ cls: 'nexus-branch-status' });
+    status.createSpan({
+      text: this.getBranchStatusText(ctx.metadata),
+      cls: `nexus-status-${ctx.metadata.state}`
+    });
+    status.createSpan({ text: this.getStatusIcon(ctx.metadata.state || '') });
+  } else {
+    info.createSpan({ text: 'Branch', cls: 'nexus-branch-task' });
+  }
+}
+
+private getBranchStatusText(metadata: BranchViewContext['metadata']): string {
+  if (!metadata) return '';
+  const { state, iterations, maxIterations } = metadata;
+
+  switch (state) {
+    case 'running':
+      return `Running ${iterations}/${maxIterations}`;
+    case 'complete':
+      return `Complete (${iterations} iterations)`;
+    case 'cancelled':
+      return 'Cancelled';
+    case 'max_iterations':
+      return `Paused ${iterations}/${maxIterations}`;
+    default:
+      return '';
+  }
+}
+
+private getStatusIcon(state: string): string {
+  switch (state) {
+    case 'running': return ' 🔄';
+    case 'complete': return ' ✓';
+    case 'cancelled': return ' ✗';
+    case 'max_iterations': return ' ⏸';
+    default: return '';
+  }
+}
+```
+
+**Data Structure:**
 
 ```typescript
 interface BranchViewContext {
   conversationId: string;
   branchId: string;
-  parentMessageId: string;  // For "Back" navigation
+  parentMessageId: string;
   branchType: 'human' | 'subagent';
   metadata?: {
     task?: string;
@@ -1744,7 +1978,6 @@ async navigateToBranch(branchId: string): Promise<void> {
     metadata: branchInfo.branch.metadata
   };
 
-  // Re-render with branch messages
   await this.renderBranchView();
 }
 
@@ -1754,17 +1987,19 @@ async navigateToParent(): Promise<void> {
 }
 ```
 
-**"View Branch" in Tool Result:**
+**"View Branch" in Tool Result (ToolResultDisplay):**
 
 ```typescript
-// In ToolResultDisplay component
+// When rendering subagent tool result, add View link
 if (toolCall.name === 'agentManager.subagent' && result.branchId) {
-  // Add clickable link
-  const viewLink = createEl('a', {
+  const viewLink = container.createEl('a', {
     text: 'View Branch →',
-    cls: 'subagent-view-link'
+    cls: 'nexus-subagent-view-link clickable-icon'
   });
-  viewLink.onclick = () => this.chatView.navigateToBranch(result.branchId);
+  viewLink.onclick = (e) => {
+    e.preventDefault();
+    this.chatView.navigateToBranch(result.branchId);
+  };
 }
 ```
 
