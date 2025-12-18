@@ -3,6 +3,8 @@
  * Pure JSON-based chat
  */
 
+import type { ConversationBranch } from '../branch/BranchTypes';
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system' | 'tool';
@@ -12,12 +14,18 @@ export interface ChatMessage {
   state?: 'draft' | 'streaming' | 'complete' | 'aborted' | 'invalid'; // Message lifecycle state
   toolCalls?: ToolCall[];
   tokens?: number;
-  alternatives?: ChatMessage[];
-  activeAlternativeIndex?: number;
   isLoading?: boolean;
   metadata?: Record<string, any>;
   // Reasoning/thinking content from LLMs that support it (Claude, GPT-5, Gemini)
   reasoning?: string;
+
+  /**
+   * Conversation branches from this message point.
+   * Replaces the old alternatives[] system with unified branching.
+   * - Human branches: inheritContext=true (includes parent context)
+   * - Subagent branches: inheritContext=false (fresh start)
+   */
+  branches?: ConversationBranch[];
 }
 
 export interface ToolCall {
@@ -68,14 +76,6 @@ export interface ChatContext {
     output: number;
     total: number;
   };
-}
-
-export interface MessageBranch {
-  id: string;
-  parentId?: string;
-  message: ChatMessage;
-  children: string[];
-  isActive: boolean;
 }
 
 // Legacy type aliases for compatibility
