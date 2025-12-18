@@ -98,8 +98,8 @@ export class MessageBubble extends Component {
         );
         wrapper.appendChild(this.textBubbleElement);
 
-        // Add branch navigator for assistant messages with tool bubbles
-        if (renderMessage.alternatives && renderMessage.alternatives.length > 0) {
+        // Add branch navigator for assistant messages with branches
+        if (renderMessage.branches && renderMessage.branches.length > 0) {
           const actions = this.textBubbleElement.querySelector('.message-actions-external');
           if (actions instanceof HTMLElement) {
             const navigatorEvents: MessageBranchNavigatorEvents = {
@@ -222,8 +222,8 @@ export class MessageBubble extends Component {
         this.onCopy(this.message.id);
       });
 
-      // Message branch navigator for AI messages with alternatives
-      if (this.message.alternatives && this.message.alternatives.length > 0) {
+      // Message branch navigator for AI messages with branches
+      if (this.message.branches && this.message.branches.length > 0) {
         const navigatorEvents: MessageBranchNavigatorEvents = {
           onAlternativeChanged: (messageId, alternativeIndex) => {
             if (this.onMessageAlternativeChanged) {
@@ -567,7 +567,7 @@ export class MessageBubble extends Component {
   }
 
   /**
-   * Get the active content for the message (original or alternative)
+   * Get the active content for the message (original or from branch)
    */
   private getActiveMessageContent(message: ConversationMessage): string {
     const activeIndex = message.activeAlternativeIndex || 0;
@@ -576,10 +576,14 @@ export class MessageBubble extends Component {
       return message.content;
     }
 
-    if (message.alternatives && message.alternatives.length > 0) {
-      const alternativeIndex = activeIndex - 1;
-      if (alternativeIndex >= 0 && alternativeIndex < message.alternatives.length) {
-        return message.alternatives[alternativeIndex].content;
+    // Use branches (new unified model)
+    if (message.branches && message.branches.length > 0) {
+      const branchIndex = activeIndex - 1;
+      if (branchIndex >= 0 && branchIndex < message.branches.length) {
+        const branch = message.branches[branchIndex];
+        if (branch.messages.length > 0) {
+          return branch.messages[branch.messages.length - 1].content;
+        }
       }
     }
 
@@ -587,7 +591,7 @@ export class MessageBubble extends Component {
   }
 
   /**
-   * Get the active tool calls for the message (original or alternative)
+   * Get the active tool calls for the message (original or from branch)
    */
   private getActiveToolCalls(message: ConversationMessage): any[] | undefined {
     const activeIndex = message.activeAlternativeIndex || 0;
@@ -596,10 +600,14 @@ export class MessageBubble extends Component {
       return message.toolCalls;
     }
 
-    if (message.alternatives && message.alternatives.length > 0) {
-      const alternativeIndex = activeIndex - 1;
-      if (alternativeIndex >= 0 && alternativeIndex < message.alternatives.length) {
-        return message.alternatives[alternativeIndex].toolCalls;
+    // Use branches (new unified model)
+    if (message.branches && message.branches.length > 0) {
+      const branchIndex = activeIndex - 1;
+      if (branchIndex >= 0 && branchIndex < message.branches.length) {
+        const branch = message.branches[branchIndex];
+        if (branch.messages.length > 0) {
+          return branch.messages[branch.messages.length - 1].toolCalls;
+        }
       }
     }
 
@@ -607,7 +615,7 @@ export class MessageBubble extends Component {
   }
 
   /**
-   * Get the active reasoning for the message (original or alternative)
+   * Get the active reasoning for the message (original or from branch)
    */
   private getActiveReasoning(message: ConversationMessage): string | undefined {
     const activeIndex = message.activeAlternativeIndex || 0;
@@ -616,10 +624,14 @@ export class MessageBubble extends Component {
       return message.reasoning;
     }
 
-    if (message.alternatives && message.alternatives.length > 0) {
-      const alternativeIndex = activeIndex - 1;
-      if (alternativeIndex >= 0 && alternativeIndex < message.alternatives.length) {
-        return message.alternatives[alternativeIndex].reasoning;
+    // Use branches (new unified model)
+    if (message.branches && message.branches.length > 0) {
+      const branchIndex = activeIndex - 1;
+      if (branchIndex >= 0 && branchIndex < message.branches.length) {
+        const branch = message.branches[branchIndex];
+        if (branch.messages.length > 0) {
+          return branch.messages[branch.messages.length - 1].reasoning;
+        }
       }
     }
 

@@ -7,3 +7,6 @@ export { DeleteAgentTool } from './deleteAgent';
 export { ListModelsTool } from './listModels';
 export { ExecutePromptsTool } from './batchExecutePrompt';
 export { GenerateImageTool } from './generateImage';
+
+// Subagent tool (internal chat only - supports spawn and cancel actions)
+export { SubagentTool } from './subagent';

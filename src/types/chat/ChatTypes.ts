@@ -3,6 +3,8 @@
  * Pure JSON-based chat
  */
 
+import type { ConversationBranch } from '../branch/BranchTypes';
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system' | 'tool';
@@ -12,12 +14,30 @@ export interface ChatMessage {
   state?: 'draft' | 'streaming' | 'complete' | 'aborted' | 'invalid'; // Message lifecycle state
   toolCalls?: ToolCall[];
   tokens?: number;
-  alternatives?: ChatMessage[];
-  activeAlternativeIndex?: number;
   isLoading?: boolean;
   metadata?: Record<string, any>;
   // Reasoning/thinking content from LLMs that support it (Claude, GPT-5, Gemini)
   reasoning?: string;
+
+  /**
+   * Conversation branches from this message point.
+   * Replaces the old alternatives[] system with unified branching.
+   * - Human branches: inheritContext=true (includes parent context)
+   * - Subagent branches: inheritContext=false (fresh start)
+   */
+  branches?: ConversationBranch[];
+
+  /**
+   * @deprecated Use branches[] instead. Legacy field for backward compatibility.
+   * Will be migrated to branches[] on load by BranchMigrationService.
+   */
+  alternatives?: ChatMessage[];
+
+  /**
+   * @deprecated Use branches[] instead. Legacy field for backward compatibility.
+   * Tracks which alternative is active: 0 = original, 1+ = alternative index + 1
+   */
+  activeAlternativeIndex?: number;
 }
 
 export interface ToolCall {
@@ -68,14 +88,6 @@ export interface ChatContext {
     output: number;
     total: number;
   };
-}
-
-export interface MessageBranch {
-  id: string;
-  parentId?: string;
-  message: ChatMessage;
-  children: string[];
-  isActive: boolean;
 }
 
 // Legacy type aliases for compatibility

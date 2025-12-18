@@ -22,6 +22,7 @@ import { ConversationData } from '../../types/chat/ChatTypes';
 import { ConversationContextBuilder } from './ConversationContextBuilder';
 import { ToolCallService } from './ToolCallService';
 import { CostTrackingService } from './CostTrackingService';
+import type { MessageQueueService } from './MessageQueueService';
 
 export interface StreamingOptions {
   provider?: string;
@@ -51,6 +52,7 @@ export interface StreamingDependencies {
   conversationService: any;
   toolCallService: ToolCallService;
   costTrackingService: CostTrackingService;
+  messageQueueService?: MessageQueueService; // Optional: for subagent result queueing
 }
 
 export class StreamingResponseService {
@@ -70,6 +72,9 @@ export class StreamingResponseService {
     userMessage: string,
     options?: StreamingOptions
   ): AsyncGenerator<StreamingChunk, void, unknown> {
+    // Notify queue service that generation is starting (pauses processing)
+    this.dependencies.messageQueueService?.onGenerationStart?.();
+
     try {
       const messageId = options?.messageId || `msg_${Date.now()}_ai`;
       let accumulatedContent = '';
@@ -269,6 +274,9 @@ export class StreamingResponseService {
     } catch (error) {
       console.error('Error in generateResponse:', error);
       throw error;
+    } finally {
+      // Notify queue service that generation is complete (resumes processing)
+      this.dependencies.messageQueueService?.onGenerationComplete?.();
     }
   }
 

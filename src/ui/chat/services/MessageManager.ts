@@ -12,6 +12,7 @@ import { MessageStreamHandler } from './MessageStreamHandler';
 import { MessageStateManager } from './MessageStateManager';
 import { AbortHandler } from '../utils/AbortHandler';
 import { getWebLLMLifecycleManager } from '../../../services/llm/adapters/webllm/WebLLMLifecycleManager';
+import type { MessageQueueService, QueuedMessage } from '../../../services/chat/MessageQueueService';
 
 export interface MessageManagerEvents {
   onMessageAdded: (message: ConversationMessage) => void;
@@ -37,6 +38,9 @@ export class MessageManager {
   private abortHandler: AbortHandler;
   private stateManager: MessageStateManager;
   private alternativeService: MessageAlternativeService;
+
+  // Optional queue service for subagent result processing
+  private messageQueueService: MessageQueueService | null = null;
 
   constructor(
     private chatService: ChatService,
@@ -81,6 +85,34 @@ export class MessageManager {
    */
   getIsLoading(): boolean {
     return this.isLoading;
+  }
+
+  /**
+   * Set the message queue service for subagent result processing
+   * This enables queued delivery of subagent results
+   */
+  setMessageQueueService(queueService: MessageQueueService): void {
+    console.log('[MessageManager] Setting message queue service');
+    this.messageQueueService = queueService;
+
+    // Set up the message processor to handle queued messages
+    queueService.setProcessor(async (message: QueuedMessage) => {
+      console.log('[MessageManager] Processing queued message:', message.type, message.id);
+
+      if (message.type === 'subagent_result') {
+        // Subagent completed - notify UI to refresh/display results
+        console.log('[MessageManager] Subagent result:', {
+          subagentId: message.metadata?.subagentId,
+          branchId: message.metadata?.branchId,
+          success: message.metadata?.success,
+        });
+
+        // The subagent result is already stored in the branch
+        // We just need to trigger a UI update
+        // This will be handled by ChatView's event system
+        this.events.onConversationUpdated?.(null as any); // Force UI refresh
+      }
+    });
   }
 
   /**

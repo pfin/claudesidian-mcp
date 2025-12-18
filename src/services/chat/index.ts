@@ -14,3 +14,6 @@
 
 // Business logic services (from services/chat/)
 export * from './ChatService';
+export * from './BranchService';
+export * from './MessageQueueService';
+export * from './SubagentExecutor';
