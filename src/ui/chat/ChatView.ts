@@ -55,6 +55,11 @@ import type { AgentManager } from '../../services/AgentManager';
 import type { DirectToolExecutor } from '../../services/chat/DirectToolExecutor';
 import type { AgentManagerAgent } from '../../agents/agentManager/agentManager';
 
+// Subagent UI components
+import { AgentStatusMenu } from './components/AgentStatusMenu';
+import { AgentStatusModal } from './components/AgentStatusModal';
+import { BranchHeader, BranchViewContext } from './components/BranchHeader';
+
 export const CHAT_VIEW_TYPE = CHAT_VIEW_TYPES.current;
 
 export class ChatView extends ItemView {
@@ -79,6 +84,11 @@ export class ChatView extends ItemView {
   private branchService: BranchService | null = null;
   private messageQueueService: MessageQueueService | null = null;
   private subagentExecutor: SubagentExecutor | null = null;
+
+  // Subagent UI components
+  private agentStatusMenu: AgentStatusMenu | null = null;
+  private branchHeader: BranchHeader | null = null;
+  private currentBranchContext: BranchViewContext | null = null;
 
   // Layout elements
   private layoutElements!: ChatLayoutElements;
@@ -542,6 +552,21 @@ export class ChatView extends ItemView {
         return context;
       });
 
+      // Initialize AgentStatusMenu in the header (next to settings button)
+      console.log('[ChatView:Subagent] Creating AgentStatusMenu...');
+      if (this.layoutElements.settingsButton?.parentElement) {
+        this.agentStatusMenu = new AgentStatusMenu(
+          this.layoutElements.settingsButton.parentElement,
+          this.subagentExecutor,
+          {
+            onOpenModal: () => this.openAgentStatusModal(),
+          },
+          this
+        );
+        this.agentStatusMenu.render();
+        console.log('[ChatView:Subagent] ✓ AgentStatusMenu created');
+      }
+
       console.log('[ChatView:Subagent] ✅ Subagent infrastructure initialized successfully!');
       console.log('[ChatView:Subagent] Subagent tools should now be available in the agentManager agent');
 
@@ -946,6 +971,164 @@ export class ChatView extends ItemView {
     }, 300);
   }
 
+  // Branch navigation methods for subagent viewing
+
+  /**
+   * Navigate to a specific branch (subagent or human)
+   * Shows the branch messages in the message display with a back header
+   */
+  async navigateToBranch(branchId: string): Promise<void> {
+    console.log('[ChatView] Navigating to branch:', branchId);
+
+    if (!this.branchService) {
+      console.warn('[ChatView] BranchService not available - cannot navigate to branch');
+      return;
+    }
+
+    const currentConversation = this.conversationManager.getCurrentConversation();
+    if (!currentConversation) {
+      console.warn('[ChatView] No current conversation - cannot navigate to branch');
+      return;
+    }
+
+    try {
+      const branchInfo = await this.branchService.getBranch(currentConversation.id, branchId);
+      if (!branchInfo) {
+        console.warn('[ChatView] Branch not found:', branchId);
+        return;
+      }
+
+      // Build the branch view context
+      this.currentBranchContext = {
+        conversationId: currentConversation.id,
+        branchId,
+        parentMessageId: branchInfo.parentMessageId,
+        branchType: branchInfo.branch.type,
+        metadata: branchInfo.branch.metadata as any,
+      };
+
+      // Show branch header
+      if (!this.branchHeader) {
+        this.branchHeader = new BranchHeader(
+          this.layoutElements.messageContainer,
+          {
+            onNavigateToParent: () => this.navigateToParent(),
+            onCancel: (subagentId) => this.cancelSubagent(subagentId),
+            onContinue: (branchId) => this.continueSubagent(branchId),
+          },
+          this
+        );
+      }
+      this.branchHeader.show(this.currentBranchContext);
+
+      // Display branch messages
+      // Create a temporary conversation-like structure for the branch
+      const branchConversation: ConversationData = {
+        id: branchId,
+        title: `Branch: ${branchInfo.branch.metadata?.task || 'Alternative'}`,
+        messages: branchInfo.branch.messages,
+        created: branchInfo.branch.created,
+        updated: branchInfo.branch.updated,
+      };
+
+      this.messageDisplay.setConversation(branchConversation);
+      console.log('[ChatView] Displaying branch with', branchInfo.branch.messages.length, 'messages');
+
+    } catch (error) {
+      console.error('[ChatView] Failed to navigate to branch:', error);
+    }
+  }
+
+  /**
+   * Navigate back to the parent conversation from a branch view
+   */
+  async navigateToParent(): Promise<void> {
+    console.log('[ChatView] Navigating back to parent conversation');
+
+    // Hide branch header
+    this.branchHeader?.hide();
+    this.currentBranchContext = null;
+
+    // Restore the main conversation view
+    const currentConversation = this.conversationManager.getCurrentConversation();
+    if (currentConversation) {
+      this.messageDisplay.setConversation(currentConversation);
+    }
+  }
+
+  /**
+   * Cancel a running subagent
+   */
+  private cancelSubagent(subagentId: string): void {
+    console.log('[ChatView] Cancelling subagent:', subagentId);
+
+    if (!this.subagentExecutor) {
+      console.warn('[ChatView] SubagentExecutor not available - cannot cancel');
+      return;
+    }
+
+    const cancelled = this.subagentExecutor.cancelSubagent(subagentId);
+    if (cancelled) {
+      console.log('[ChatView] Subagent cancelled successfully');
+      // Update the branch header if we're viewing this branch
+      if (this.currentBranchContext?.metadata?.subagentId === subagentId) {
+        this.branchHeader?.update({
+          metadata: { ...this.currentBranchContext.metadata, state: 'cancelled' },
+        });
+      }
+      // Refresh the agent status menu
+      this.agentStatusMenu?.refresh();
+    }
+  }
+
+  /**
+   * Continue a paused subagent (hit max_iterations)
+   */
+  private async continueSubagent(branchId: string): Promise<void> {
+    console.log('[ChatView] Continuing subagent for branch:', branchId);
+
+    // Navigate back to parent first
+    await this.navigateToParent();
+
+    // TODO: Implement subagent continuation
+    // This would call the subagent tool with continueBranchId parameter
+    console.log('[ChatView] Subagent continuation not yet fully implemented');
+  }
+
+  /**
+   * Open the agent status modal
+   */
+  private openAgentStatusModal(): void {
+    if (!this.subagentExecutor) {
+      console.warn('[ChatView] SubagentExecutor not available - cannot open modal');
+      return;
+    }
+
+    const modal = new AgentStatusModal(
+      this.app,
+      this.subagentExecutor,
+      {
+        onViewBranch: (branchId) => this.navigateToBranch(branchId),
+        onContinueAgent: (branchId) => this.continueSubagent(branchId),
+      }
+    );
+    modal.open();
+  }
+
+  /**
+   * Check if currently viewing a branch
+   */
+  isViewingBranch(): boolean {
+    return this.currentBranchContext !== null;
+  }
+
+  /**
+   * Get current branch context (for external use)
+   */
+  getCurrentBranchContext(): BranchViewContext | null {
+    return this.currentBranchContext;
+  }
+
   private cleanup(): void {
     this.conversationList?.cleanup();
     this.messageDisplay?.cleanup();
@@ -953,5 +1136,7 @@ export class ChatView extends ItemView {
     this.contextProgressBar?.cleanup();
     this.uiStateController?.cleanup();
     this.streamingController?.cleanup();
+    this.agentStatusMenu?.cleanup();
+    this.branchHeader?.cleanup();
   }
 }

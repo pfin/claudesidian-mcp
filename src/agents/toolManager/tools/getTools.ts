@@ -13,6 +13,15 @@ import { getErrorMessage } from '../../../utils/errorUtils';
 import { SchemaData } from '../toolManager';
 
 /**
+ * Internal-only tools that should be hidden from external clients (MCP, Claude Desktop)
+ * These tools are available in internal chat but filtered from discovery/listing.
+ */
+const INTERNAL_ONLY_TOOLS = new Set([
+  'subagent',       // Subagent spawning (internal chat only)
+  'cancelSubagent', // Subagent cancellation (internal chat only)
+]);
+
+/**
  * Tool for discovering available tools and their schemas
  * Implements ITool directly since it doesn't need context parameters
  */
@@ -41,6 +50,7 @@ export class GetToolsTool implements ITool<GetToolsParams, GetToolsResult> {
 
   /**
    * Build the dynamic description from actual registered agents
+   * Filters out internal-only tools that should not be exposed to MCP clients
    */
   private buildDescription(schemaData: SchemaData): string {
     const lines = [
@@ -49,11 +59,17 @@ export class GetToolsTool implements ITool<GetToolsParams, GetToolsResult> {
     ];
 
     // Build from actual registered agents (single source of truth)
+    // Filter out internal-only tools that shouldn't be exposed externally
     lines.push('Agents:');
     for (const [agentName, agent] of this.agentRegistry) {
       if (agentName === 'toolManager') continue;
-      const tools = agent.getTools().map(t => t.slug);
-      lines.push(`${agentName}: [${tools.join(',')}]`);
+      const tools = agent.getTools()
+        .map(t => t.slug)
+        .filter(slug => !INTERNAL_ONLY_TOOLS.has(slug));
+      // Only list agent if it has visible tools
+      if (tools.length > 0) {
+        lines.push(`${agentName}: [${tools.join(',')}]`);
+      }
     }
 
     // Custom agents section

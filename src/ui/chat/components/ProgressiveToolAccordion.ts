@@ -24,12 +24,26 @@ export interface ProgressiveToolCall {
   isVirtual?: boolean; // True for synthetic tools like reasoning (not executable)
 }
 
+export interface ProgressiveToolAccordionCallbacks {
+  onViewBranch?: (branchId: string) => void;
+}
+
 export class ProgressiveToolAccordion {
   private element: HTMLElement | null = null;
   private isExpanded = false;
   private tools: ProgressiveToolCall[] = [];
+  private callbacks: ProgressiveToolAccordionCallbacks = {};
 
-  constructor(private component?: Component) {}
+  constructor(private component?: Component, callbacks?: ProgressiveToolAccordionCallbacks) {
+    this.callbacks = callbacks || {};
+  }
+
+  /**
+   * Set callbacks (can be called after construction if needed)
+   */
+  setCallbacks(callbacks: ProgressiveToolAccordionCallbacks): void {
+    this.callbacks = { ...this.callbacks, ...callbacks };
+  }
 
   /**
    * Create the progressive tool accordion element
@@ -440,6 +454,9 @@ export class ProgressiveToolAccordion {
       } else {
         resultContent.textContent = JSON.stringify(tool.result, null, 2);
       }
+
+      // Add [View Branch] link for subagent tool results
+      this.addViewBranchLink(resultSection, tool);
     }
 
     // Show error section if failed
@@ -574,10 +591,53 @@ export class ProgressiveToolAccordion {
   }
 
   /**
+   * Add [View Branch] link for subagent tool results
+   * Shows only for agentManager.subagent tool results that have a branchId
+   */
+  private addViewBranchLink(resultSection: HTMLElement, tool: ProgressiveToolCall): void {
+    // Check if this is a subagent tool result with a branchId
+    const isSubagentTool = tool.name?.toLowerCase().includes('subagent') ||
+                           tool.technicalName?.includes('subagent') ||
+                           tool.name === 'Spawn Subagent';
+
+    if (!isSubagentTool || !this.callbacks.onViewBranch) {
+      return;
+    }
+
+    // Extract branchId from result
+    let branchId: string | null = null;
+    try {
+      const result = typeof tool.result === 'string' ? JSON.parse(tool.result) : tool.result;
+      branchId = result?.data?.branchId || result?.branchId || null;
+    } catch {
+      // Not JSON or no branchId - ignore
+    }
+
+    if (!branchId) {
+      return;
+    }
+
+    // Create the view branch link
+    const linkContainer = resultSection.createDiv('nexus-view-branch-link-container');
+    const viewLink = linkContainer.createEl('a', {
+      text: 'View Branch →',
+      cls: 'nexus-view-branch-link clickable-icon',
+      href: '#',
+    });
+
+    viewLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.callbacks.onViewBranch?.(branchId!);
+    });
+  }
+
+  /**
    * Cleanup resources
    */
   cleanup(): void {
     this.tools = [];
     this.element = null;
+    this.callbacks = {};
   }
 }
