@@ -12,7 +12,7 @@
  * Follows Single Responsibility Principle - only handles subagent execution.
  */
 
-import type { ChatMessage } from '../../types/chat/ChatTypes';
+import type { ChatMessage, ToolCall } from '../../types/chat/ChatTypes';
 import type {
   SubagentParams,
   SubagentResult,
@@ -359,6 +359,12 @@ export class SubagentExecutor {
       );
 
       // Add assistant message to branch
+      // Convert SubagentToolCall[] to ToolCall[] (add required 'type' field)
+      const convertedToolCalls: ToolCall[] | undefined = toolCalls?.map(tc => ({
+        ...tc,
+        type: tc.type || 'function',
+      }));
+
       const assistantMessage: ChatMessage = {
         id: `msg_${Date.now()}_assistant`,
         role: 'assistant',
@@ -366,7 +372,7 @@ export class SubagentExecutor {
         timestamp: Date.now(),
         conversationId: params.parentConversationId,
         state: 'complete',
-        toolCalls,
+        toolCalls: convertedToolCalls,
         reasoning: reasoning || undefined,
       };
 
@@ -530,16 +536,17 @@ Instructions:
 
     for (const file of files) {
       try {
-        const result = await this.dependencies.directToolExecutor.executeToolCall({
+        const results = await this.dependencies.directToolExecutor.executeToolCalls([{
           id: `ctx_${Date.now()}`,
           function: {
             name: 'contentManager.readContent',
             arguments: JSON.stringify({ filePath: file }),
           },
-        });
+        }]);
+        const result = results[0];
 
-        if (result.success && result.result?.content) {
-          contents.push(`--- ${file} ---\n${result.result.content}`);
+        if (result?.success && (result.result as { content?: string })?.content) {
+          contents.push(`--- ${file} ---\n${(result.result as { content: string }).content}`);
         } else {
           contents.push(`--- ${file} --- (failed to read)`);
         }
@@ -556,14 +563,15 @@ Instructions:
    */
   private async executeToolCall(toolCall: SubagentToolCall): Promise<ToolExecutionResult> {
     try {
-      const result = await this.dependencies.directToolExecutor.executeToolCall({
+      const results = await this.dependencies.directToolExecutor.executeToolCalls([{
         id: toolCall.id,
         function: toolCall.function,
-      });
+      }]);
+      const result = results[0];
       return {
-        success: result.success,
-        result: result.result,
-        error: result.error,
+        success: result?.success ?? false,
+        result: result?.result,
+        error: result?.error,
       };
     } catch (error) {
       return {

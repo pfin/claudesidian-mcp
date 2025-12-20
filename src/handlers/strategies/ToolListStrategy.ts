@@ -18,11 +18,11 @@ interface ToolListResponse {
 }
 
 /**
- * Two-Tool Architecture: Returns only toolManager.getTools and toolManager.useTool
+ * Two-Tool Architecture: Returns only toolManager_getTools and toolManager_useTool
  *
  * This replaces the old 50+ tool surface with just 2 tools:
- * - toolManager.getTools: Discovery - returns tool schemas for LLM reference
- * - toolManager.useTool: Execution - single entry point with context-first design
+ * - toolManager_getTools: Discovery - returns tool schemas for LLM reference
+ * - toolManager_useTool: Execution - single entry point with context-first design
  *
  * Token savings: ~95% reduction in upfront schemas (~15,000 → ~500 tokens)
  */

@@ -99,7 +99,7 @@ export function getSessionSchema(): any {
  * Get schema for context parameter - NEW ToolContext format
  * Uses memory → goal → constraints flow (1-3 sentences each)
  *
- * Note: When tools are accessed via toolManager.useTool, context is injected automatically.
+ * Note: When tools are accessed via toolManager_useTool, context is injected automatically.
  * This schema is used for direct tool access (backward compatibility).
  *
  * @returns JSON schema for context
@@ -131,7 +131,7 @@ export function getContextSchema(): any {
         }
       },
       required: ['workspaceId', 'sessionId', 'memory', 'goal'],
-      description: 'Context for this tool call. Use toolManager.useTool for automatic context handling.'
+      description: 'Context for this tool call. Use toolManager_useTool for automatic context handling.'
     }
   });
 }

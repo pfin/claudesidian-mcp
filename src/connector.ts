@@ -255,7 +255,7 @@ export class MCPConnector {
 
     /**
      * Get available tools for ChatService - Two-Tool Architecture
-     * Returns only toolManager.getTools and toolManager.useTool
+     * Returns only toolManager_getTools and toolManager_useTool
      *
      * This is the new two-tool architecture that replaces the old 50+ tool surface.
      * LLMs discover tools via getTools (which lists all available agents/tools in its description),
@@ -274,8 +274,9 @@ export class MCPConnector {
         const toolManagerTools = toolManagerAgent.getTools();
 
         // Convert to MCP tool format
+        // Use underscore separator (not dots) for API compatibility
         return toolManagerTools.map((tool: ITool<unknown, unknown>) => ({
-            name: `toolManager.${tool.slug}`,
+            name: `toolManager_${tool.slug}`,
             description: tool.description,
             inputSchema: tool.getParameterSchema()
         }));

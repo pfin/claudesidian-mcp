@@ -12,16 +12,16 @@ export type { ToolContext } from '../../types/mcp/AgentTypes';
 // ==================== GetTools Types ====================
 
 /**
- * Request format for getTools
- * Maps agent names to arrays of tool names (or null/empty for all tools)
- *
- * Example:
- * {
- *   "vaultManager": ["listDirectory", "createFolder"],
- *   "contentManager": null  // gets all tools from contentManager
- * }
+ * Single request item for getTools
+ * Explicit structure with named fields for LLM clarity
  */
-export type ToolRequest = Record<string, string[] | null>;
+export interface ToolRequestItem {
+  /** Agent name (e.g., "vaultManager", "contentManager") */
+  agent: string;
+
+  /** Array of tool names to get schemas for */
+  tools: string[];
+}
 
 /**
  * GetTools parameters - requires context for session tracking
@@ -31,12 +31,10 @@ export interface GetToolsParams {
   context: ToolContext;
 
   /**
-   * Map of agent names to tool names
-   * - Array of tool names: get specific tools from that agent
-   *
-   * Example: { "vaultManager": ["listDirectory"], "contentManager": ["readContent"] }
+   * Array of agent/tools requests
+   * Example: [{ agent: "vaultManager", tools: ["listDirectory"] }]
    */
-  request: ToolRequest;
+  request: ToolRequestItem[];
 }
 
 /**

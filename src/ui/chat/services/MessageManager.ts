@@ -12,7 +12,8 @@ import { MessageStreamHandler } from './MessageStreamHandler';
 import { MessageStateManager } from './MessageStateManager';
 import { AbortHandler } from '../utils/AbortHandler';
 import { getWebLLMLifecycleManager } from '../../../services/llm/adapters/webllm/WebLLMLifecycleManager';
-import type { MessageQueueService, QueuedMessage } from '../../../services/chat/MessageQueueService';
+import type { MessageQueueService } from '../../../services/chat/MessageQueueService';
+import type { QueuedMessage } from '../../../types/branch/BranchTypes';
 
 export interface MessageManagerEvents {
   onMessageAdded: (message: ConversationMessage) => void;
@@ -104,7 +105,7 @@ export class MessageManager {
         console.log('[MessageManager] Subagent result:', {
           subagentId: message.metadata?.subagentId,
           branchId: message.metadata?.branchId,
-          success: message.metadata?.success,
+          error: message.metadata?.error,
         });
 
         // The subagent result is already stored in the branch

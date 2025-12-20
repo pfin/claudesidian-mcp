@@ -375,6 +375,124 @@ export interface MessageUpdatedEvent extends BaseStorageEvent {
 }
 
 // ============================================================================
+// Branch Events (Append-Only for Conflict-Free Sync)
+// ============================================================================
+
+/**
+ * Event: Branch created on a message
+ *
+ * Branches are stored separately from messages to enable append-only writes.
+ * This eliminates race conditions when multiple devices create branches concurrently.
+ */
+export interface BranchCreatedEvent extends BaseStorageEvent {
+  type: 'branch_created';
+  /** Parent conversation ID */
+  conversationId: string;
+  /** Message ID this branch is attached to */
+  parentMessageId: string;
+  data: {
+    /** Unique branch identifier */
+    id: string;
+    /** Branch type */
+    type: 'human' | 'subagent';
+    /** Whether LLM context includes parent conversation */
+    inheritContext: boolean;
+    /** Type-specific metadata (JSON stringified for subagent) */
+    metadataJson?: string;
+  };
+}
+
+/**
+ * Event: Message added to a branch
+ *
+ * Branch messages are separate from main conversation messages.
+ * Append-only: each message is a new event line, no conflicts.
+ */
+export interface BranchMessageEvent extends BaseStorageEvent {
+  type: 'branch_message';
+  /** Parent conversation ID */
+  conversationId: string;
+  /** Branch ID this message belongs to */
+  branchId: string;
+  data: {
+    /** Unique message identifier */
+    id: string;
+    /** Message role */
+    role: 'system' | 'user' | 'assistant' | 'tool';
+    /** Message content (null for tool calls) */
+    content: string | null;
+    /** Tool calls (OpenAI format) */
+    tool_calls?: Array<{
+      id: string;
+      type: 'function' | string;
+      function: { name: string; arguments: string };
+      // Extended properties for tool bubbles
+      name?: string;
+      parameters?: Record<string, unknown>;
+      result?: unknown;
+      success?: boolean;
+      error?: string;
+    }>;
+    /** Tool call ID (for tool role messages) */
+    tool_call_id?: string;
+    /** Message lifecycle state */
+    state?: string;
+    /** Reasoning/thinking content */
+    reasoning?: string;
+    /** Sequence number for ordering within branch */
+    sequenceNumber: number;
+  };
+}
+
+/**
+ * Event: Branch message updated (streaming completion, state changes)
+ */
+export interface BranchMessageUpdatedEvent extends BaseStorageEvent {
+  type: 'branch_message_updated';
+  /** Parent conversation ID */
+  conversationId: string;
+  /** Branch ID */
+  branchId: string;
+  /** Target message ID */
+  messageId: string;
+  /** Partial update data */
+  data: Partial<{
+    content: string;
+    state: string;
+    reasoning: string;
+    tool_calls: Array<{
+      id: string;
+      type: 'function' | string;
+      function: { name: string; arguments: string };
+      result?: unknown;
+      success?: boolean;
+      error?: string;
+    }>;
+    tool_call_id: string;
+  }>;
+}
+
+/**
+ * Event: Branch state/metadata updated
+ *
+ * Used for subagent state transitions: running → complete, cancelled, etc.
+ */
+export interface BranchUpdatedEvent extends BaseStorageEvent {
+  type: 'branch_updated';
+  /** Parent conversation ID */
+  conversationId: string;
+  /** Target branch ID */
+  branchId: string;
+  /** Partial update data */
+  data: Partial<{
+    /** Updated metadata (JSON stringified) */
+    metadataJson: string;
+    /** Updated timestamp */
+    updated: number;
+  }>;
+}
+
+// ============================================================================
 // Union Types and Type Guards
 // ============================================================================
 
@@ -398,7 +516,11 @@ export type ConversationEvent =
   | ConversationCreatedEvent
   | ConversationUpdatedEvent
   | MessageEvent
-  | MessageUpdatedEvent;
+  | MessageUpdatedEvent
+  | BranchCreatedEvent
+  | BranchMessageEvent
+  | BranchMessageUpdatedEvent
+  | BranchUpdatedEvent;
 
 /**
  * Union of all storage events
@@ -430,6 +552,10 @@ export function isConversationEvent(event: StorageEvent): event is ConversationE
     'conversation_updated',
     'message',
     'message_updated',
+    'branch_created',
+    'branch_message',
+    'branch_message_updated',
+    'branch_updated',
   ].includes(event.type);
 }
 
@@ -444,6 +570,8 @@ export function isCreationEvent(event: StorageEvent): boolean {
     'trace_added',
     'metadata',
     'message',
+    'branch_created',
+    'branch_message',
   ].includes(event.type);
 }
 
@@ -456,6 +584,8 @@ export function isUpdateEvent(event: StorageEvent): boolean {
     'session_updated',
     'conversation_updated',
     'message_updated',
+    'branch_message_updated',
+    'branch_updated',
   ].includes(event.type);
 }
 

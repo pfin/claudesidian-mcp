@@ -20,8 +20,9 @@ import type { ConversationBranch, HumanBranchMetadata } from '../../types/branch
 /**
  * Legacy message structure with alternatives
  * This represents what might be in old JSON files
+ * We use Omit to override the alternatives type from ChatMessage
  */
-interface LegacyMessage extends ChatMessage {
+interface LegacyMessage extends Omit<ChatMessage, 'alternatives'> {
   alternatives?: LegacyAlternativeMessage[];
   activeAlternativeIndex?: number;
 }

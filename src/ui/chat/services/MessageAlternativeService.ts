@@ -119,7 +119,7 @@ export class MessageAlternativeService {
       };
 
       // Add alternative using BranchManager
-      await this.branchManager.createMessageAlternative(
+      await this.branchManager.createHumanBranch(
         conversation,
         aiMessageId,
         alternativeResponse

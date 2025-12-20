@@ -235,7 +235,11 @@ export class UseToolTool implements ITool<UseToolParams, UseToolResult> {
    * Execute a single tool call
    */
   private async executeCall(context: ToolContext, call: ToolCallParams): Promise<ToolCallResult> {
-    const { agent: agentName, tool: toolSlug, params } = call;
+    const { agent: agentName, tool: toolSlug } = call;
+
+    // Handle LLM confusion: accept both "params" and "parameters"
+    const callWithAny = call as ToolCallParams & { parameters?: Record<string, unknown> };
+    const params = call.params || callWithAny.parameters || {};
 
     // Validate agent and tool are provided
     if (!agentName) {
@@ -333,15 +337,15 @@ export class UseToolTool implements ITool<UseToolParams, UseToolResult> {
             properties: {
               agent: {
                 type: 'string',
-                description: 'Agent name (e.g., "vaultManager")'
+                description: 'Agent name (e.g., "vaultManager", "agentManager")'
               },
               tool: {
                 type: 'string',
-                description: 'Tool name (e.g., "listDirectory")'
+                description: 'Tool name (e.g., "listDirectory", "subagent")'
               },
               params: {
                 type: 'object',
-                description: 'Tool-specific parameters'
+                description: 'Tool-specific parameters ONLY (NOT sessionId/workspaceId - those go in context). Example for subagent: { "task": "research topic X" }'
               },
               continueOnFailure: {
                 type: 'boolean',
@@ -351,7 +355,7 @@ export class UseToolTool implements ITool<UseToolParams, UseToolResult> {
             required: ['agent', 'tool', 'params']
           },
           minItems: 1,
-          description: 'Tool calls to execute'
+          description: 'Tool calls to execute. Use "params" (not "parameters") for tool-specific args.'
         }
       },
       required: ['context', 'calls']

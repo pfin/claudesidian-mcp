@@ -11,7 +11,7 @@
  * Uses shared utilities for status display and time formatting (DRY).
  */
 
-import { App, Modal, Setting } from 'obsidian';
+import { App, Modal, Setting, setIcon } from 'obsidian';
 import type { SubagentExecutor } from '../../../services/chat/SubagentExecutor';
 import type { AgentStatusItem, BranchState } from '../../../types/branch/BranchTypes';
 import { formatTimeAgo } from '../../../utils/timeUtils';
@@ -104,10 +104,7 @@ export class AgentStatusModal extends Modal {
     const nameEl = setting.nameEl;
     const iconEl = nameEl.createSpan('nexus-agent-status-icon');
     iconEl.addClass(`nexus-state-icon-${agent.state}`);
-    // Use Obsidian setIcon
-    import('obsidian').then(({ setIcon }) => {
-      setIcon(iconEl, iconName);
-    });
+    setIcon(iconEl, iconName);
 
     if (isRunning) {
       setting.addButton(btn =>

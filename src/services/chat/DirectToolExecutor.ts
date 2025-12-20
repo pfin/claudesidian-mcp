@@ -99,7 +99,7 @@ export class DirectToolExecutor {
 
     /**
      * Get available tools in OpenAI format - Two-Tool Architecture
-     * Returns only toolManager.getTools and toolManager.useTool
+     * Returns only toolManager_getTools and toolManager_useTool
      *
      * This is the new two-tool architecture that replaces the old 50+ tool surface.
      * LLMs discover tools via getTools (which lists all available agents/tools in its description),
@@ -118,10 +118,11 @@ export class DirectToolExecutor {
         const tools = toolManagerAgent.getTools();
 
         // Convert to OpenAI format
+        // Use underscore separator (not dots) - OpenAI requires ^[a-zA-Z0-9_-]+$
         return tools.map(tool => ({
             type: 'function',
             function: {
-                name: `toolManager.${tool.slug}`,
+                name: `toolManager_${tool.slug}`,
                 description: tool.description,
                 parameters: tool.getParameterSchema()
             }

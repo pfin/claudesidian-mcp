@@ -54,6 +54,9 @@ import { SubagentExecutor } from '../../services/chat/SubagentExecutor';
 import type { AgentManager } from '../../services/AgentManager';
 import type { DirectToolExecutor } from '../../services/chat/DirectToolExecutor';
 import type { AgentManagerAgent } from '../../agents/agentManager/agentManager';
+import type { ToolSchemaInfo } from '../../types/branch/BranchTypes';
+import { isSubagentMetadata } from '../../types/branch/BranchTypes';
+import type { HybridStorageAdapter } from '../../database/adapters/HybridStorageAdapter';
 
 // Subagent UI components
 import { AgentStatusMenu } from './components/AgentStatusMenu';
@@ -254,8 +257,8 @@ export class ChatView extends ItemView {
   private initializeServices(): void {
     // Branch management
     const branchEvents: BranchManagerEvents = {
-      onMessageAlternativeCreated: (messageId, alternativeIndex) => this.handleMessageAlternativeCreated(messageId, alternativeIndex),
-      onMessageAlternativeSwitched: (messageId, alternativeIndex) => this.handleMessageAlternativeSwitched(messageId, alternativeIndex),
+      onBranchCreated: (messageId: string, branchId: string) => this.handleBranchCreated(messageId, branchId),
+      onBranchSwitched: (messageId: string, branchId: string) => this.handleBranchSwitched(messageId, branchId),
       onError: (message) => this.uiStateController.showError(message)
     };
     this.branchManager = new BranchManager(this.chatService.getConversationRepository(), branchEvents);
@@ -330,7 +333,7 @@ export class ChatView extends ItemView {
       (messageId) => this.handleRetryMessage(messageId),
       (messageId, newContent) => this.handleEditMessage(messageId, newContent),
       (messageId, event, data) => this.handleToolEvent(messageId, event, data),
-      (messageId, alternativeIndex) => this.handleMessageAlternativeSwitched(messageId, alternativeIndex)
+      (messageId: string, alternativeIndex: number) => this.handleBranchSwitchedByIndex(messageId, alternativeIndex)
     );
 
     // Initialize tool event coordinator after messageDisplay is created
@@ -417,25 +420,80 @@ export class ChatView extends ItemView {
       }
       console.log('[ChatView:Subagent] ✓ AgentManagerAgent obtained');
 
-      // Create BranchService
+      // Get HybridStorageAdapter for BranchRepository
+      console.log('[ChatView:Subagent] Getting HybridStorageAdapter...');
+      const storageAdapter = await plugin.getService<HybridStorageAdapter>('hybridStorageAdapter');
+      if (!storageAdapter) {
+        console.warn('[ChatView:Subagent] HybridStorageAdapter not available - subagent features disabled');
+        return;
+      }
+      const branchRepository = storageAdapter.getBranchRepository();
+      console.log('[ChatView:Subagent] ✓ BranchRepository obtained');
+
+      // Create BranchService with repository (eliminates race conditions)
       console.log('[ChatView:Subagent] Creating BranchService...');
       const conversationService = this.chatService.getConversationService();
-      this.branchService = new BranchService(conversationService);
+      this.branchService = new BranchService({
+        branchRepository,
+        conversationService,
+      });
       console.log('[ChatView:Subagent] ✓ BranchService created');
 
       // Create MessageQueueService
       console.log('[ChatView:Subagent] Creating MessageQueueService...');
-      this.messageQueueService = new MessageQueueService({
-        processMessage: async (message) => {
-          console.log('[ChatView:Subagent] Processing queued message:', message.type, message.id);
-          // For now just log - actual processing will depend on message type
-          // User messages should trigger normal chat flow
-          // Subagent results should update the UI
-          if (message.type === 'subagent_result') {
-            console.log('[ChatView:Subagent] Subagent result received:', message.content?.substring(0, 100) + '...');
-            // TODO: Update UI with subagent result
+      this.messageQueueService = new MessageQueueService();
+      this.messageQueueService.setProcessor(async (message) => {
+        console.log('[ChatView:Subagent] Processing queued message:', message.type, message.id);
+
+        if (message.type === 'subagent_result') {
+          console.log('[ChatView:Subagent] Subagent result received:', message.content?.substring(0, 100) + '...');
+
+          try {
+            // Parse the result
+            const result = JSON.parse(message.content || '{}');
+            const metadata = message.metadata || {};
+
+            // Get the parent conversation
+            const conversationId = metadata.conversationId;
+            if (!conversationId) {
+              console.warn('[ChatView:Subagent] No conversationId in subagent result metadata');
+              return;
+            }
+
+            // Format the result for display
+            const resultSummary = result.success
+              ? `Subagent completed: ${result.result?.substring?.(0, 500) || 'Task complete'}`
+              : `Subagent ${result.status === 'max_iterations' ? 'paused (max iterations)' : 'failed'}: ${result.error || 'Unknown error'}`;
+
+            // Add tool result message to parent conversation via ChatService
+            await this.chatService.addMessage({
+              conversationId,
+              role: 'assistant',
+              content: `**[Subagent Result: ${metadata.subagentTask || 'Task'}]**\n\n${resultSummary}`,
+              metadata: {
+                type: 'subagent_result',
+                branchId: metadata.branchId,
+                subagentId: metadata.subagentId,
+                success: result.success,
+                iterations: result.iterations,
+              },
+            });
+
+            // Refresh UI if viewing the parent conversation
+            const currentConversation = this.conversationManager.getCurrentConversation();
+            if (currentConversation?.id === conversationId && !this.isViewingBranch()) {
+              // Re-render the conversation to show the new message
+              const updated = await this.chatService.getConversation(conversationId);
+              if (updated) {
+                this.messageDisplay.setConversation(updated);
+              }
+            }
+
+            console.log('[ChatView:Subagent] ✓ Subagent result added to conversation:', conversationId);
+          } catch (error) {
+            console.error('[ChatView:Subagent] Failed to process subagent result:', error);
           }
-        },
+        }
       });
       console.log('[ChatView:Subagent] ✓ MessageQueueService created');
 
@@ -464,6 +522,10 @@ export class ChatView extends ItemView {
           });
 
           try {
+            // Get available tools for the subagent
+            const tools = await directToolExecutor.getAvailableTools();
+            console.log('[ChatView:Subagent] Got', tools.length, 'tools for subagent');
+
             // Use the LLMService's generateResponseStream for real streaming
             const streamOptions = {
               provider: options?.provider,
@@ -471,9 +533,10 @@ export class ChatView extends ItemView {
               systemPrompt: options?.systemPrompt,
               sessionId: options?.sessionId,
               workspaceId: options?.workspaceId,
+              tools: tools as any[], // Pass tools so LLM can make tool calls
             };
 
-            console.log('[ChatView:Subagent] Calling llmService.generateResponseStream...');
+            console.log('[ChatView:Subagent] Calling llmService.generateResponseStream with tools...');
             for await (const chunk of llmService.generateResponseStream(messages, streamOptions)) {
               // Check for abort
               if (options?.abortSignal?.aborted) {
@@ -501,14 +564,14 @@ export class ChatView extends ItemView {
             throw error;
           }
         },
-        getToolSchemas: async (agentName, toolSlugs) => {
+        getToolSchemas: async (agentName: string, toolSlugs: string[]): Promise<ToolSchemaInfo[]> => {
           console.log('[ChatView:Subagent] getToolSchemas called:', agentName, toolSlugs);
           // Get tool schemas from DirectToolExecutor
           try {
-            const tools = await directToolExecutor.getAvailableTools();
-            const matchedTools = tools.filter((t: any) => toolSlugs.includes(t.name));
+            const tools = await directToolExecutor.getAvailableTools() as Array<{ name?: string }>;
+            const matchedTools = tools.filter(t => t.name && toolSlugs.includes(t.name));
             console.log('[ChatView:Subagent] Found', matchedTools.length, 'matching tool schemas');
-            return matchedTools;
+            return matchedTools as ToolSchemaInfo[];
           } catch (error) {
             console.error('[ChatView:Subagent] Failed to get tool schemas:', error);
             return [];
@@ -519,19 +582,16 @@ export class ChatView extends ItemView {
 
       // Set event handlers
       this.subagentExecutor.setEventHandlers({
-        onSubagentStarted: (subagentId, branchId) => {
-          console.log('[ChatView:Subagent] Subagent started:', subagentId, 'branch:', branchId);
+        onSubagentStarted: (subagentId: string, task: string, branchId: string) => {
+          console.log('[ChatView:Subagent] Subagent started:', subagentId, 'task:', task, 'branch:', branchId);
         },
-        onSubagentIteration: (subagentId, iteration, maxIterations) => {
-          console.log(`[ChatView:Subagent] Subagent ${subagentId} iteration ${iteration}/${maxIterations}`);
+        onSubagentProgress: (subagentId: string, message: string, iteration: number) => {
+          console.log(`[ChatView:Subagent] Subagent ${subagentId} progress: ${message} (iteration ${iteration})`);
         },
-        onSubagentCompleted: (subagentId, result) => {
+        onSubagentComplete: (subagentId: string, result) => {
           console.log('[ChatView:Subagent] Subagent completed:', subagentId, 'success:', result.success);
         },
-        onSubagentCancelled: (subagentId) => {
-          console.log('[ChatView:Subagent] Subagent cancelled:', subagentId);
-        },
-        onSubagentError: (subagentId, error) => {
+        onSubagentError: (subagentId: string, error: string) => {
           console.error('[ChatView:Subagent] Subagent error:', subagentId, error);
         },
       });
@@ -540,11 +600,19 @@ export class ChatView extends ItemView {
       console.log('[ChatView:Subagent] Wiring up SubagentExecutor to AgentManagerAgent...');
       agentManagerAgent.setSubagentExecutor(this.subagentExecutor, () => {
         const currentConversation = this.conversationManager?.getCurrentConversation();
+        // Get the last message ID from the conversation (subagent branch attaches to a message)
+        const messages = currentConversation?.messages || [];
+        const lastMessage = messages[messages.length - 1];
+
+        // Get workspace and session from modelAgentManager
+        const workspaceId = this.modelAgentManager?.getSelectedWorkspaceId() || undefined;
+        const sessionId = currentConversation?.metadata?.chatSettings?.sessionId || undefined;
+
         const context = {
           conversationId: currentConversation?.id || 'unknown',
-          messageId: 'current', // TODO: Track current message ID
-          workspaceId: undefined, // TODO: Get from modelAgentManager
-          sessionId: undefined, // TODO: Get from session
+          messageId: lastMessage?.id || 'unknown',
+          workspaceId,
+          sessionId,
           source: 'internal' as const,
           isSubagentBranch: false,
         };
@@ -880,17 +948,38 @@ export class ChatView extends ItemView {
 
   // Branch event handlers
 
-  private handleMessageAlternativeCreated(messageId: string, alternativeIndex: number): void {
+  private handleBranchCreated(messageId: string, branchId: string): void {
     const currentConversation = this.conversationManager.getCurrentConversation();
     if (currentConversation) {
       this.messageDisplay.setConversation(currentConversation);
     }
   }
 
-  private async handleMessageAlternativeSwitched(messageId: string, alternativeIndex: number): Promise<void> {
+  private async handleBranchSwitched(messageId: string, branchId: string): Promise<void> {
     const currentConversation = this.conversationManager.getCurrentConversation();
     if (currentConversation) {
-      const success = await this.branchManager.switchToMessageAlternative(
+      const success = await this.branchManager.switchToBranch(
+        currentConversation,
+        messageId,
+        branchId
+      );
+
+      if (success) {
+        const updatedMessage = currentConversation.messages.find(msg => msg.id === messageId);
+        if (updatedMessage) {
+          this.messageDisplay.updateMessage(messageId, updatedMessage);
+        }
+      }
+    }
+  }
+
+  /**
+   * Handle branch switch by index (for MessageDisplay callback compatibility)
+   */
+  private async handleBranchSwitchedByIndex(messageId: string, alternativeIndex: number): Promise<void> {
+    const currentConversation = this.conversationManager.getCurrentConversation();
+    if (currentConversation) {
+      const success = await this.branchManager.switchToBranchByIndex(
         currentConversation,
         messageId,
         alternativeIndex
@@ -1023,9 +1112,13 @@ export class ChatView extends ItemView {
 
       // Display branch messages
       // Create a temporary conversation-like structure for the branch
+      const branchMetadata = branchInfo.branch.metadata;
+      const branchTitle = isSubagentMetadata(branchMetadata)
+        ? branchMetadata.task
+        : 'Alternative';
       const branchConversation: ConversationData = {
         id: branchId,
-        title: `Branch: ${branchInfo.branch.metadata?.task || 'Alternative'}`,
+        title: `Branch: ${branchTitle}`,
         messages: branchInfo.branch.messages,
         created: branchInfo.branch.created,
         updated: branchInfo.branch.updated,
@@ -1071,9 +1164,10 @@ export class ChatView extends ItemView {
     if (cancelled) {
       console.log('[ChatView] Subagent cancelled successfully');
       // Update the branch header if we're viewing this branch
-      if (this.currentBranchContext?.metadata?.subagentId === subagentId) {
+      const contextMetadata = this.currentBranchContext?.metadata;
+      if (isSubagentMetadata(contextMetadata) && contextMetadata.subagentId === subagentId) {
         this.branchHeader?.update({
-          metadata: { ...this.currentBranchContext.metadata, state: 'cancelled' },
+          metadata: { ...contextMetadata, state: 'cancelled' },
         });
       }
       // Refresh the agent status menu

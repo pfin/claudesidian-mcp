@@ -13,11 +13,19 @@ import { getErrorMessage } from '../../../utils/errorUtils';
 import { SchemaData } from '../toolManager';
 
 /**
- * Internal-only tools that should be hidden from external clients (MCP, Claude Desktop)
- * These tools are available in internal chat but filtered from discovery/listing.
+ * Internal-only tools that should be hidden from external MCP clients (Claude Desktop)
+ *
+ * TODO: Currently both internal chat and MCP share the same ToolManager instance,
+ * so filtering here affects both. To properly separate:
+ * - Option 1: Pass an `isInternal` flag via SchemaData when instantiating GetToolsTool
+ * - Option 2: Filter in connector.ts before returning tools to MCP
+ * - Option 3: Add source tracking in ToolContext to filter at execution time
+ *
+ * For now, subagent is visible to all clients. MCP users could technically
+ * discover and call it, but it requires internal chat context to function properly.
  */
-const INTERNAL_ONLY_TOOLS = new Set([
-  'subagent', // Subagent management (internal chat only - spawn/cancel)
+const INTERNAL_ONLY_TOOLS = new Set<string>([
+  // No tools are currently hidden - subagent is visible for internal chat discovery
 ]);
 
 /**
@@ -53,7 +61,10 @@ export class GetToolsTool implements ITool<GetToolsParams, GetToolsResult> {
    */
   private buildDescription(schemaData: SchemaData): string {
     const lines = [
-      'Get parameter schemas for specific tools. You MUST specify which tools you need.',
+      'Get parameter schemas for specific tools.',
+      '',
+      'REQUIRED: Specify at least one agent and tool in the request array.',
+      'Example: { "request": [{ "agent": "vaultManager", "tools": ["listDirectory"] }] }',
       ''
     ];
 
@@ -96,7 +107,7 @@ export class GetToolsTool implements ITool<GetToolsParams, GetToolsResult> {
 
   /**
    * Execute the tool
-   * @param params Tool parameters with request map
+   * @param params Tool parameters with request array
    * @returns Promise that resolves with tool schemas
    */
   async execute(params: GetToolsParams): Promise<GetToolsResult> {
@@ -105,38 +116,46 @@ export class GetToolsTool implements ITool<GetToolsParams, GetToolsResult> {
       const resultSchemas: ToolSchema[] = [];
       const notFound: string[] = [];
 
-      // If no request provided, return empty with helpful message
-      if (!request || Object.keys(request).length === 0) {
+      // REQUIRE at least 1 agent/tool - don't allow empty requests
+      if (!request || !Array.isArray(request) || request.length === 0) {
         return {
-          success: true,
-          data: { tools: [] },
-          error: 'No request provided. Use format: { "request": { "agentName": ["tool1"] } }'
+          success: false,
+          error: 'Request array is required. Example: { "request": [{ "agent": "vaultManager", "tools": ["listDirectory"] }] }. See tool description for available agents and tools.'
         };
       }
 
-      // Process each agent in the request
-      for (const [agentName, toolNames] of Object.entries(request)) {
+      // Process each request item in the array
+      for (const item of request) {
+        const agentName = item.agent;
+        const toolNames = item.tools;
+
+        // Validate item structure
+        if (!agentName || typeof agentName !== 'string') {
+          notFound.push('Missing or invalid "agent" field in request item');
+          continue;
+        }
+
         const agent = this.agentRegistry.get(agentName);
         if (!agent) {
           notFound.push(`Agent "${agentName}" not found`);
           continue;
         }
 
-        // null, undefined, or empty array is NOT allowed - must specify tools
-        if (!toolNames || toolNames.length === 0) {
-          notFound.push(`Agent "${agentName}" requires specific tool names - use getTools description to see available tools`);
+        // Validate tools array
+        if (!toolNames || !Array.isArray(toolNames) || toolNames.length === 0) {
+          notFound.push(`Agent "${agentName}" requires "tools" array with at least one tool name`);
           continue;
-        } else {
-          // Get specific tools
-          for (const toolSlug of toolNames) {
-            const tool = agent.getTool(toolSlug);
-            if (!tool) {
-              notFound.push(`Tool "${toolSlug}" not found in agent "${agentName}"`);
-              continue;
-            }
-            const schema = this.buildToolSchema(agentName, tool);
-            resultSchemas.push(schema);
+        }
+
+        // Get specific tools
+        for (const toolSlug of toolNames) {
+          const tool = agent.getTool(toolSlug);
+          if (!tool) {
+            notFound.push(`Tool "${toolSlug}" not found in agent "${agentName}"`);
+            continue;
           }
+          const schema = this.buildToolSchema(agentName, tool);
+          resultSchemas.push(schema);
         }
       }
 
@@ -213,13 +232,25 @@ export class GetToolsTool implements ITool<GetToolsParams, GetToolsResult> {
       properties: {
         context: getToolContextSchema(),
         request: {
-          type: 'object',
-          additionalProperties: {
-            type: 'array',
-            items: { type: 'string' },
-            minItems: 1
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              agent: {
+                type: 'string',
+                description: 'Agent name (e.g., "vaultManager", "contentManager", "agentManager")'
+              },
+              tools: {
+                type: 'array',
+                items: { type: 'string' },
+                minItems: 1,
+                description: 'Tool names to get schemas for'
+              }
+            },
+            required: ['agent', 'tools']
           },
-          description: 'Map of agent names to tool arrays. You MUST specify which tools you need. Example: { "vaultManager": ["listDirectory"], "contentManager": ["readContent", "createContent"] }'
+          minItems: 1,
+          description: 'REQUIRED: Array of agent/tools requests. Example: [{ "agent": "vaultManager", "tools": ["listDirectory"] }]'
         }
       },
       required: ['context', 'request']

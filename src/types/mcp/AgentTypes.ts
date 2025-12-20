@@ -58,7 +58,7 @@ export type ModeCall = ToolCall;
  * Uses memory → goal → constraints flow instead of verbose legacy fields
  *
  * This is the CANONICAL context format used by:
- * - toolManager.useTool (required)
+ * - toolManager_useTool (required)
  * - All tools via CommonParameters (optional, for backward compatibility)
  */
 export interface ToolContext {
