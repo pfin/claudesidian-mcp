@@ -173,14 +173,15 @@ export class ConversationRepository
     const now = Date.now();
 
     try {
-      // 1. Write metadata event to JSONL
+      // 1. Write metadata event to JSONL (includes settings for branch metadata, etc.)
       const eventData: Omit<ConversationCreatedEvent, 'id' | 'deviceId' | 'timestamp'> = {
         type: 'metadata',
         data: {
           id,
           title: data.title,
           created: data.created ?? now,
-          vault: data.vaultName
+          vault: data.vaultName,
+          settings: data.metadata  // Store arbitrary metadata (parentConversationId, branchType, etc.)
         }
       };
       await this.writeEvent<ConversationCreatedEvent>(

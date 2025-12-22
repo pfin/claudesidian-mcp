@@ -84,30 +84,30 @@ export class BranchService {
     subagentId: string,
     maxIterations: number = 10
   ): Promise<string> {
+    console.log('[SUBAGENT-DEBUG] createSubagentBranch START', { conversationId, messageId, task, subagentId });
     const now = Date.now();
     const title = `Subagent: ${task.slice(0, 50)}${task.length > 50 ? '...' : ''}`;
 
+    // Build subagent metadata for atomic creation (no two-phase update needed)
+    const subagentMeta: SubagentBranchMetadata = {
+      task,
+      subagentId,
+      state: 'running',
+      iterations: 0,
+      maxIterations,
+      startedAt: now,
+    };
+
+    // Create branch with ALL metadata atomically
     const branch = await this.conversationService.createBranchConversation(
       conversationId,
       messageId,
       'subagent',
       title,
-      task
+      task,
+      subagentMeta  // Pass full subagent state
     );
-
-    // Store subagent-specific metadata
-    if (branch.metadata) {
-      const subagentMeta: SubagentBranchMetadata = {
-        task,
-        subagentId,
-        state: 'running',
-        iterations: 0,
-        maxIterations,
-        startedAt: now,
-      };
-      branch.metadata.subagent = subagentMeta;
-      branch.metadata.inheritContext = false;
-    }
+    console.log('[SUBAGENT-DEBUG] Branch created with metadata', { branchId: branch.id, subagentMeta });
 
     return branch.id;
   }

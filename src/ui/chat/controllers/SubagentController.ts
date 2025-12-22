@@ -71,12 +71,26 @@ export class SubagentController {
 
   private currentBranchContext: BranchViewContext | null = null;
   private initialized = false;
+  private navigationCallback: ((branchId: string) => void) | null = null;
+  private continueCallback: ((branchId: string) => void) | null = null;
 
   constructor(
     private app: App,
     private component: Component,
     private events: SubagentControllerEvents
   ) {}
+
+  /**
+   * Set navigation callbacks (called by ChatView after initialization)
+   */
+  setNavigationCallbacks(callbacks: {
+    onNavigateToBranch: (branchId: string) => void;
+    onContinueAgent: (branchId: string) => void;
+  }): void {
+    console.log('[SUBAGENT-DEBUG] setNavigationCallbacks called');
+    this.navigationCallback = callbacks.onNavigateToBranch;
+    this.continueCallback = callbacks.onContinueAgent;
+  }
 
   /**
    * Initialize subagent infrastructure
@@ -443,11 +457,18 @@ export class SubagentController {
       this.subagentExecutor,
       {
         onViewBranch: (branchId) => {
-          // This needs to be wired up by ChatView
-          console.log('[SubagentController] View branch requested:', branchId);
+          console.log('[SubagentController] View branch:', branchId);
+          if (this.navigationCallback) {
+            this.navigationCallback(branchId);
+          } else {
+            console.warn('[SubagentController] No navigation callback set');
+          }
         },
         onContinueAgent: (branchId) => {
-          console.log('[SubagentController] Continue agent requested:', branchId);
+          console.log('[SubagentController] Continue agent:', branchId);
+          if (this.continueCallback) {
+            this.continueCallback(branchId);
+          }
         },
       },
       this.branchService,

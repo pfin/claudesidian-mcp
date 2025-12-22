@@ -165,6 +165,13 @@ export class AgentStatusMenu {
     const completedCount = statusList.filter(a =>
       ['complete', 'cancelled', 'max_iterations', 'abandoned'].includes(a.state)
     ).length;
+    console.log('[SUBAGENT-DEBUG] AgentStatusMenu.updateDisplay', {
+      hasExecutor: !!this.subagentExecutor,
+      statusListLength: statusList.length,
+      runningCount,
+      completedCount,
+      states: statusList.map(a => ({ id: a.subagentId?.slice(-8), state: a.state })),
+    });
 
     // Update badge
     this.badgeEl.textContent = runningCount.toString();

@@ -275,7 +275,8 @@ export class ConversationService {
         updated: data.updated ?? Date.now(),
         vaultName: data.vault_name || this.plugin.app.vault.getName(),
         workspaceId: data.metadata?.chatSettings?.workspaceId,
-        sessionId: data.metadata?.chatSettings?.sessionId
+        sessionId: data.metadata?.chatSettings?.sessionId,
+        metadata: data.metadata  // Pass full metadata for branch support (parentConversationId, branchType, etc.)
       });
 
       // Get created conversation
@@ -319,15 +320,18 @@ export class ConversationService {
       const existing = await this.storageAdapter.getConversation(id);
       const existingMetadata = existing?.metadata || {};
 
+      // IMPORTANT: Preserve ALL existing metadata fields (parentConversationId, parentMessageId, branchType, etc.)
+      // Then apply updates on top, with special handling for nested chatSettings
       const mergedMetadata = {
         ...existingMetadata,
+        ...updates.metadata,
         chatSettings: {
           ...(existingMetadata.chatSettings || {}),
           ...(updates.metadata?.chatSettings || {}),
           workspaceId: updates.metadata?.chatSettings?.workspaceId ?? existingMetadata.chatSettings?.workspaceId,
           sessionId: updates.metadata?.chatSettings?.sessionId ?? existingMetadata.chatSettings?.sessionId
         },
-        cost: updates.cost || existingMetadata.cost
+        cost: updates.cost || updates.metadata?.cost || existingMetadata.cost
       };
 
       // If messages are provided, persist message-level updates through the adapter
@@ -874,8 +878,12 @@ export class ConversationService {
         alternatives: msg.alternatives as unknown as import('../types/storage/StorageTypes').ConversationMessage[] | undefined,
         activeAlternativeIndex: msg.activeAlternativeIndex
       })),
+      // Preserve ALL metadata from storage (parentConversationId, branchType, subagent, etc.)
+      // while ensuring chatSettings structure is maintained for compatibility
       metadata: {
+        ...meta,  // Spread stored metadata first (parentConversationId, branchType, subagent, etc.)
         chatSettings: {
+          ...meta.chatSettings,
           workspaceId: metadata.workspaceId,
           sessionId: metadata.sessionId
         },
@@ -962,6 +970,7 @@ export class ConversationService {
    * @param branchType - Type of branch
    * @param title - Branch title
    * @param task - Optional task description for subagent branches
+   * @param subagentMetadata - Optional full subagent metadata (for atomic creation)
    * @returns Created branch conversation
    */
   async createBranchConversation(
@@ -969,7 +978,8 @@ export class ConversationService {
     parentMessageId: string,
     branchType: 'subagent' | 'alternative',
     title: string,
-    task?: string
+    task?: string,
+    subagentMetadata?: Record<string, any>
   ): Promise<IndividualConversation> {
     const branchId = `branch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -982,6 +992,8 @@ export class ConversationService {
         parentMessageId,
         branchType,
         subagentTask: task,
+        subagent: subagentMetadata,  // Full subagent state (atomic creation)
+        inheritContext: false,
       }
     });
 

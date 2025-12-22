@@ -90,6 +90,7 @@ export class SubagentExecutor {
    */
   async executeSubagent(params: SubagentParams): Promise<{ subagentId: string; branchId: string }> {
     const subagentId = `subagent_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    console.log('[SUBAGENT-DEBUG] executeSubagent START', { subagentId, task: params.task });
 
     const abortController = new AbortController();
     this.activeSubagents.set(subagentId, abortController);
@@ -104,8 +105,9 @@ export class SubagentExecutor {
         subagentId,
         params.maxIterations ?? 10
       );
+      console.log('[SUBAGENT-DEBUG] Branch created', { subagentId, branchId });
     } catch (error) {
-      console.error('[Subagent] Failed to create branch:', error);
+      console.error('[SUBAGENT-DEBUG] Failed to create branch:', error);
       throw error;
     }
 
@@ -124,25 +126,30 @@ export class SubagentExecutor {
       startedAt: Date.now(),
     };
     this.agentStatus.set(subagentId, statusItem);
+    console.log('[SUBAGENT-DEBUG] Status set to RUNNING', { subagentId, agentStatusSize: this.agentStatus.size });
 
     // Fire started event
     this.events.onSubagentStarted?.(subagentId, params.task, branchId);
+    console.log('[SUBAGENT-DEBUG] onSubagentStarted fired');
 
     // Fire and forget - don't await
     this.runSubagentLoop(subagentId, branchId, params, abortController.signal)
       .then(result => {
+        console.log('[SUBAGENT-DEBUG] runSubagentLoop COMPLETED', { subagentId, success: result.success });
         this.activeSubagents.delete(subagentId);
         this.updateStatus(subagentId, { state: result.success ? 'complete' : 'max_iterations' });
         this.events.onSubagentComplete?.(subagentId, result);
         this.queueResultToParent(params, result);
       })
       .catch(error => {
+        console.error('[SUBAGENT-DEBUG] runSubagentLoop FAILED', { subagentId, error });
         this.activeSubagents.delete(subagentId);
         const errorMessage = error instanceof Error ? error.message : String(error);
         this.updateStatus(subagentId, { state: 'cancelled' });
         this.events.onSubagentError?.(subagentId, errorMessage);
       });
 
+    console.log('[SUBAGENT-DEBUG] executeSubagent RETURNING (loop running in background)', { subagentId, branchId });
     return { subagentId, branchId };
   }
 

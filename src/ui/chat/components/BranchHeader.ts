@@ -44,6 +44,7 @@ export class BranchHeader {
    * Show the branch header with the given context
    */
   show(context: BranchViewContext): void {
+    console.log('[SUBAGENT-DEBUG] BranchHeader.show', { branchId: context.branchId, branchType: context.branchType });
     this.context = context;
     this.render();
   }

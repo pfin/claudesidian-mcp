@@ -81,6 +81,7 @@ export class MessageStreamHandler {
     aiMessageId: string,
     options: StreamOptions
   ): Promise<StreamResult> {
+    console.log('[StreamHandler] streamResponse START', { conversationId: conversation.id, aiMessageId });
     let streamedContent = '';
     let toolCalls: any[] | undefined = undefined;
     let hasStartedStreaming = false;

@@ -398,6 +398,12 @@ export class ChatView extends ItemView {
         this.layoutElements.settingsButton
       );
 
+      // Wire up navigation callbacks for agent status modal
+      this.subagentController.setNavigationCallbacks({
+        onNavigateToBranch: (branchId) => this.navigateToBranch(branchId),
+        onContinueAgent: (branchId) => this.continueSubagent(branchId),
+      });
+
     } catch (error) {
       console.error('[ChatView] Failed to initialize subagent infrastructure:', error);
       throw error;
@@ -740,8 +746,10 @@ export class ChatView extends ItemView {
    * the branch conversation via ChatService - no special routing needed.
    */
   async navigateToBranch(branchId: string): Promise<void> {
+    console.log('[SUBAGENT-DEBUG] navigateToBranch START', { branchId });
     const currentConversation = this.conversationManager.getCurrentConversation();
     if (!currentConversation) {
+      console.log('[SUBAGENT-DEBUG] navigateToBranch: no current conversation');
       return;
     }
 
@@ -749,8 +757,12 @@ export class ChatView extends ItemView {
       // In the new architecture, branchId IS the conversation ID
       // Load the branch conversation directly from storage
       const branchConversation = await this.chatService.getConversation(branchId);
+      console.log('[SUBAGENT-DEBUG] navigateToBranch: loaded branch', {
+        found: !!branchConversation,
+        messageCount: branchConversation?.messages?.length,
+      });
       if (!branchConversation) {
-        console.error('[ChatView] Branch conversation not found:', branchId);
+        console.error('[SUBAGENT-DEBUG] Branch conversation not found:', branchId);
         return;
       }
 
