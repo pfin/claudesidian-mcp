@@ -139,7 +139,10 @@ export class StreamingResponseService {
       }
 
       // Get tools from ToolCallService in OpenAI format
-      const openAITools = this.dependencies.toolCallService.getAvailableTools();
+      // NOTE: WebLLM/Nexus models are fine-tuned with tool knowledge baked in
+      // They don't need tool schemas passed - they generate [TOOL_CALLS] naturally
+      const isWebLLM = provider === 'webllm';
+      const openAITools = isWebLLM ? [] : this.dependencies.toolCallService.getAvailableTools();
 
       // Prepare LLM options with converted tools
       const llmOptions: any = {

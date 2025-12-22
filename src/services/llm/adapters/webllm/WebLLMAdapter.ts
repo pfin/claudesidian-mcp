@@ -324,12 +324,24 @@ export class WebLLMAdapter extends BaseAdapter {
 
           // Handle [TOOL_CALLS] or <tool_call> format at completion
           if (hasToolCallsFormat) {
+            // DEBUG: Log raw content before parsing
+            console.log('[NEXUS_TOOL_DEBUG] Raw accumulated content:', accumulatedContent);
+
             const parsed = ToolCallContentParser.parse(accumulatedContent);
 
+            // DEBUG: Log parsed result
+            console.log('[NEXUS_TOOL_DEBUG] Parsed result:', JSON.stringify(parsed, null, 2));
+
             if (parsed.hasToolCalls) {
+              // DEBUG: Log tool calls before conversion
+              console.log('[NEXUS_TOOL_DEBUG] Tool calls before conversion:', JSON.stringify(parsed.toolCalls, null, 2));
+
               // Convert old-style tool calls to useTool format
               // Nexus models are trained on the full toolset - wrap in useTool
               const convertedToolCalls = this.toolCallConverter.convertToolCalls(parsed.toolCalls);
+
+              // DEBUG: Log converted tool calls
+              console.log('[NEXUS_TOOL_DEBUG] Converted tool calls:', JSON.stringify(convertedToolCalls, null, 2));
 
               yield {
                 content: parsed.cleanContent,
@@ -340,6 +352,7 @@ export class WebLLMAdapter extends BaseAdapter {
               };
             } else {
               // Parsing failed - yield raw content
+              console.log('[NEXUS_TOOL_DEBUG] Parsing failed - no tool calls found');
               yield {
                 content: accumulatedContent,
                 complete: true,

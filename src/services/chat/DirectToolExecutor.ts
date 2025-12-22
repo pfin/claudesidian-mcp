@@ -18,6 +18,60 @@ import { SessionContextManager } from '../SessionContextManager';
 import { ToolListService } from '../../handlers/services/ToolListService';
 import { IAgent } from '../../agents/interfaces/IAgent';
 
+/**
+ * Map of bare tool names to their correct full format
+ * Used for helpful "did you mean X?" error messages
+ */
+const TOOL_SUGGESTIONS: Record<string, string> = {
+    // toolManager
+    getTools: 'toolManager_getTools',
+    useTool: 'toolManager_useTool',
+    // agentManager
+    listModels: 'agentManager_listModels',
+    executePrompts: 'agentManager_executePrompts',
+    createAgent: 'agentManager_createAgent',
+    updateAgent: 'agentManager_updateAgent',
+    deleteAgent: 'agentManager_deleteAgent',
+    listAgents: 'agentManager_listAgents',
+    getAgent: 'agentManager_getAgent',
+    generateImage: 'agentManager_generateImage',
+    // contentManager
+    readContent: 'contentManager_readContent',
+    createContent: 'contentManager_createContent',
+    appendContent: 'contentManager_appendContent',
+    prependContent: 'contentManager_prependContent',
+    replaceContent: 'contentManager_replaceContent',
+    replaceByLine: 'contentManager_replaceByLine',
+    deleteContent: 'contentManager_deleteContent',
+    findReplaceContent: 'contentManager_findReplaceContent',
+    // commandManager
+    listCommands: 'commandManager_listCommands',
+    executeCommand: 'commandManager_executeCommand',
+    // vaultManager
+    listDirectory: 'vaultManager_listDirectory',
+    createFolder: 'vaultManager_createFolder',
+    moveNote: 'vaultManager_moveNote',
+    duplicateNote: 'vaultManager_duplicateNote',
+    deleteNote: 'vaultManager_deleteNote',
+    renameNote: 'vaultManager_renameNote',
+    // vaultLibrarian
+    searchContent: 'vaultLibrarian_searchContent',
+    searchDirectory: 'vaultLibrarian_searchDirectory',
+    searchMemory: 'vaultLibrarian_searchMemory',
+    // memoryManager
+    createSession: 'memoryManager_createSession',
+    loadSession: 'memoryManager_loadSession',
+    listSessions: 'memoryManager_listSessions',
+    createWorkspace: 'memoryManager_createWorkspace',
+    loadWorkspace: 'memoryManager_loadWorkspace',
+    listWorkspaces: 'memoryManager_listWorkspaces',
+    createState: 'memoryManager_createState',
+    loadState: 'memoryManager_loadState',
+    listStates: 'memoryManager_listStates',
+    updateState: 'memoryManager_updateState',
+    deleteState: 'memoryManager_deleteState',
+};
+
 export interface DirectToolCall {
     id: string;
     function: {
@@ -197,6 +251,12 @@ export class DirectToolExecutor {
         params: Record<string, unknown>,
         context?: { sessionId?: string; workspaceId?: string }
     ): Promise<unknown> {
+        // DEBUG: Log incoming tool execution
+        console.log('[NEXUS_TOOL_DEBUG] DirectToolExecutor.executeTool called:');
+        console.log('[NEXUS_TOOL_DEBUG]   toolName:', toolName);
+        console.log('[NEXUS_TOOL_DEBUG]   params:', JSON.stringify(params, null, 2));
+        console.log('[NEXUS_TOOL_DEBUG]   context:', context);
+
         try {
             // Handle legacy get_tools meta-tool (backward compatibility)
             if (toolName === 'get_tools') {
@@ -244,23 +304,35 @@ export class DirectToolExecutor {
                 return await agent.executeTool(toolSlug, toolParams);
             }
 
-            // Legacy format: "agentName" with mode in params
-            // Or: "agentName_modeName"
+            // Standard format: "agentName_toolName"
+            // Or: agent name with tool specified in params
             let agentName: string;
-            let modeName: string;
+            let modeName: string; // Called "mode" for AgentExecutionManager compatibility
             const paramsTyped = params as Record<string, unknown> & { mode?: string; context?: Record<string, unknown> };
 
             if (paramsTyped.mode) {
-                // New format: mode is in params
+                // Alternative format: agent name with tool in params.mode
                 agentName = toolName;
                 modeName = paramsTyped.mode;
             } else if (toolName.includes('_')) {
-                // Legacy format: agentName_modeName
+                // Standard format: agentName_toolName
                 const parts = toolName.split('_');
                 agentName = parts[0];
                 modeName = parts.slice(1).join('_');
             } else {
-                throw new Error(`Invalid tool call: no mode specified for ${toolName}`);
+                // Bare tool name - not supported, provide helpful suggestion
+                const suggestion = TOOL_SUGGESTIONS[toolName];
+                if (suggestion) {
+                    throw new Error(
+                        `Unknown tool "${toolName}". Did you mean "${suggestion}"? ` +
+                        `Tools must use format: agentName_toolName (e.g., ${suggestion})`
+                    );
+                } else {
+                    throw new Error(
+                        `Unknown tool "${toolName}". Tools must use format: agentName_toolName ` +
+                        `(e.g., contentManager_readContent, vaultManager_listDirectory)`
+                    );
+                }
             }
 
             // Determine sessionId and workspaceId with priority:

@@ -120,6 +120,13 @@ export class NexusToolCallConverter {
   /**
    * Parse an old-style tool name into agent and tool components
    * Returns null if not a valid tool name
+   *
+   * Handles two formats:
+   * 1. agentName_toolName (underscore)
+   * 2. agentName.toolName (dot)
+   *
+   * Bare tool names (e.g., "createContent") are NOT auto-converted.
+   * They will fail with a helpful "did you mean?" error from DirectToolExecutor.
    */
   private parseToolName(name: string): { agent: string; tool: string } | null {
     // Try underscore format first: agentName_toolName
@@ -142,6 +149,7 @@ export class NexusToolCallConverter {
       }
     }
 
+    // Bare tool names not supported - let DirectToolExecutor handle with helpful error
     return null;
   }
 
