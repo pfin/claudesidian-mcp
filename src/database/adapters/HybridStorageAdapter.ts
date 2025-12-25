@@ -492,6 +492,21 @@ export class HybridStorageAdapter implements IStorageAdapter {
 
   deleteConversation = async (id: string): Promise<void> => {
     await this.ensureInitialized();
+
+    // Cascade delete: find and delete any child branch conversations
+    const branches = await this.conversationRepo.getConversations({
+      pageSize: 100,
+      includeBranches: true
+    });
+
+    for (const branch of branches.items) {
+      if (branch.metadata?.parentConversationId === id) {
+        // Recursively delete child branches (they may have their own branches)
+        await this.deleteConversation(branch.id);
+      }
+    }
+
+    // Now delete the conversation itself
     return this.conversationRepo.delete(id);
   };
 
@@ -531,6 +546,20 @@ export class HybridStorageAdapter implements IStorageAdapter {
 
   deleteMessage = async (conversationId: string, messageId: string): Promise<void> => {
     await this.ensureInitialized();
+
+    // Cascade delete: find and delete any branch conversations tied to this message
+    const branches = await this.conversationRepo.getConversations({
+      pageSize: 100,
+      includeBranches: true
+    });
+
+    for (const branch of branches.items) {
+      if (branch.metadata?.parentMessageId === messageId) {
+        await this.deleteConversation(branch.id);
+      }
+    }
+
+    // Now delete the message itself
     return this.messageRepo.deleteMessage(conversationId, messageId);
   };
 

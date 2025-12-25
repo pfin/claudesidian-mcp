@@ -321,6 +321,24 @@ export class MessageDisplay {
   }
 
   /**
+   * Get current scroll position
+   */
+  getScrollPosition(): number {
+    const messagesContainer = this.container.querySelector('.messages-container');
+    return messagesContainer?.scrollTop ?? 0;
+  }
+
+  /**
+   * Set scroll position
+   */
+  setScrollPosition(position: number): void {
+    const messagesContainer = this.container.querySelector('.messages-container');
+    if (messagesContainer) {
+      messagesContainer.scrollTop = position;
+    }
+  }
+
+  /**
    * Cleanup resources
    */
   cleanup(): void {

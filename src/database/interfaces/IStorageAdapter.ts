@@ -51,6 +51,9 @@ export interface QueryOptions extends PaginationParams {
 
   /** Full-text search query */
   search?: string;
+
+  /** Include branch conversations (default: false - branches are hidden from list) */
+  includeBranches?: boolean;
 }
 
 /**

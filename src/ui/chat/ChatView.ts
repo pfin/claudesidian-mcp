@@ -90,6 +90,8 @@ export class ChatView extends ItemView {
   // Parent conversation reference when viewing a branch
   // Used for back navigation - the branch becomes currentConversation when viewing
   private parentConversationId: string | null = null;
+  // Scroll position to restore when returning from branch
+  private parentScrollPosition: number = 0;
 
   // Layout elements
   private layoutElements!: ChatLayoutElements;
@@ -775,10 +777,11 @@ export class ChatView extends ItemView {
         return;
       }
 
-      // Store parent conversation ID for back navigation
+      // Store parent conversation ID and scroll position for back navigation
       // Only set if not already viewing a branch (avoid nested overwrite)
       if (!this.parentConversationId) {
         this.parentConversationId = currentConversation.id;
+        this.parentScrollPosition = this.messageDisplay.getScrollPosition();
       }
 
       // Check if this branch is actively streaming - use in-memory messages
@@ -855,9 +858,11 @@ export class ChatView extends ItemView {
     this.currentBranchContext = null;
     this.subagentController?.setCurrentBranchContext(null);
 
-    // Get parent ID (either from stored reference or from branch metadata)
+    // Get parent ID and scroll position before clearing
     const parentId = this.parentConversationId;
-    this.parentConversationId = null; // Clear for next navigation
+    const scrollPosition = this.parentScrollPosition;
+    this.parentConversationId = null;
+    this.parentScrollPosition = 0;
 
     if (parentId) {
       // Load parent conversation fresh (may have new messages from subagent results)
@@ -866,6 +871,10 @@ export class ChatView extends ItemView {
         // Set parent as current conversation
         this.conversationManager.setCurrentConversation(parentConversation);
         this.messageDisplay.setConversation(parentConversation);
+        // Restore scroll position after render
+        requestAnimationFrame(() => {
+          this.messageDisplay.setScrollPosition(scrollPosition);
+        });
         return;
       }
     }

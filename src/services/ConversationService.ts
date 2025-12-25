@@ -905,12 +905,13 @@ export class ConversationService {
    */
   async getBranchConversations(parentConversationId: string): Promise<IndividualConversation[]> {
     if (this.storageAdapter) {
-      // Query for conversations with this parent
+      // Query for conversations with this parent (must include branches!)
       const result = await this.storageAdapter.getConversations({
         pageSize: 100,
         page: 0,
         sortBy: 'created',
-        sortOrder: 'asc'
+        sortOrder: 'asc',
+        includeBranches: true  // Required - we're specifically looking for branches
       });
 
       // Filter by parent metadata

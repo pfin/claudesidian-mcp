@@ -85,22 +85,26 @@ export class ConversationRepository
     const pageSize = Math.min(options?.pageSize ?? 25, 200);
     const sortBy = options?.sortBy ?? 'updated';
     const sortOrder = options?.sortOrder ?? 'desc';
+    const includeBranches = options?.includeBranches ?? false;
 
     // Build WHERE clause
-    let whereClause = '';
+    const filters: string[] = [];
     const params: any[] = [];
 
+    // Exclude branches by default (branches have parentConversationId in metadata)
+    if (!includeBranches) {
+      filters.push(`(metadataJson IS NULL OR metadataJson NOT LIKE '%"parentConversationId"%')`);
+    }
+
     if (options?.filter) {
-      const filters: string[] = [];
       if (options.filter.vaultName) {
         filters.push('vaultName = ?');
         params.push(options.filter.vaultName);
       }
       // Note: workspaceId filter not supported - column not in schema
-      if (filters.length > 0) {
-        whereClause = `WHERE ${filters.join(' AND ')}`;
-      }
     }
+
+    const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
 
     // Count total
     const countResult = await this.sqliteCache.queryOne<{ count: number }>(

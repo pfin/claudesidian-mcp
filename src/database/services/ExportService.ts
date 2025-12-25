@@ -67,10 +67,12 @@ export class ExportService {
     const output: string[] = [];
 
     // Get all conversations (paginated to handle large datasets)
+    // Include branches for complete export
     const conversations = await this.deps.conversationRepo.getConversations({
       pageSize: 1000,
       sortBy: 'created',
-      sortOrder: 'asc'
+      sortOrder: 'asc',
+      includeBranches: true
     });
 
     for (const conv of conversations.items) {
@@ -191,8 +193,10 @@ export class ExportService {
    * Export all conversations with messages
    */
   private async exportAllConversations(): Promise<ConversationExportData[]> {
+    // Include branches for complete backup
     const conversationsResult = await this.deps.conversationRepo.getConversations({
-      pageSize: 10000
+      pageSize: 10000,
+      includeBranches: true
     });
 
     return Promise.all(
