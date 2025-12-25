@@ -27,16 +27,10 @@ export interface ChatMessage {
    */
   branches?: ConversationBranch[];
 
-  /**
-   * @deprecated Use branches[] instead. Legacy field for backward compatibility.
-   * Will be migrated to branches[] on load by BranchMigrationService.
-   */
+  /** Inline message alternatives for human regeneration (retry/regenerate) */
   alternatives?: ChatMessage[];
 
-  /**
-   * @deprecated Use branches[] instead. Legacy field for backward compatibility.
-   * Tracks which alternative is active: 0 = original, 1+ = alternative index + 1
-   */
+  /** Which alternative is active: 0 = original, 1+ = alternative index + 1 */
   activeAlternativeIndex?: number;
 }
 
@@ -75,6 +69,11 @@ export interface Conversation {
     };
     totalCost?: number;
     currency?: string;
+    // Branch support: when set, this conversation is a branch of another
+    parentConversationId?: string;  // The parent conversation this branched from
+    parentMessageId?: string;       // The specific message this branched from
+    branchType?: 'subagent' | 'alternative';  // Type of branch
+    subagentTask?: string;          // For subagent branches: the task description
     [key: string]: any;
   };
 }
@@ -93,6 +92,21 @@ export interface ChatContext {
 // Legacy type aliases for compatibility
 export type ConversationData = Conversation;
 export type ConversationMessage = ChatMessage;
+
+// Branch helper functions
+export function isBranchConversation(conversation: Conversation): boolean {
+  return !!conversation.metadata?.parentConversationId;
+}
+
+export function getBranchParent(conversation: Conversation): { parentConversationId: string; parentMessageId: string } | null {
+  if (!conversation.metadata?.parentConversationId) {
+    return null;
+  }
+  return {
+    parentConversationId: conversation.metadata.parentConversationId,
+    parentMessageId: conversation.metadata.parentMessageId || '',
+  };
+}
 
 export interface ConversationDocument {
   id: string;

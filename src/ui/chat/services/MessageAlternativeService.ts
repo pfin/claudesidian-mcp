@@ -67,6 +67,7 @@ export class MessageAlternativeService {
     const originalState = aiMessage.state;
 
     try {
+      console.log('[SUBAGENT-DEBUG] Retry: Starting alternative response', { aiMessageId });
       this.events.onLoadingStateChanged(true);
 
       // Clear the AI message and show loading state
@@ -86,6 +87,7 @@ export class MessageAlternativeService {
       this.currentAbortController = new AbortController();
       this.currentStreamingMessageId = aiMessageId;
 
+      console.log('[Retry] Calling streamHandler.streamResponse');
       // Stream new AI response
       const { streamedContent, toolCalls } = await this.streamHandler.streamResponse(
         conversation,
@@ -97,6 +99,7 @@ export class MessageAlternativeService {
           abortSignal: this.currentAbortController.signal
         }
       );
+      console.log('[Retry] streamResponse completed', { contentLength: streamedContent?.length, hasToolCalls: !!toolCalls });
 
       // Restore the original content before creating alternative
       const restoreIndex = conversation.messages.findIndex(msg => msg.id === aiMessageId);

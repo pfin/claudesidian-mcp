@@ -79,6 +79,7 @@ export interface ConversationBranch {
 
 /**
  * Parameters for spawning a subagent
+ * Includes ALL inherited settings from parent conversation
  */
 export interface SubagentParams {
   task: string;
@@ -93,6 +94,19 @@ export interface SubagentParams {
   sessionId?: string;
   maxIterations?: number;
   continueBranchId?: string;
+  // Inherited from parent conversation - Model settings
+  provider?: string;  // LLM provider (inherits parent's model)
+  model?: string;     // LLM model (inherits parent's model)
+  // Inherited from parent conversation - Agent settings
+  agentPrompt?: string;  // Custom agent's full system prompt (merged into subagent prompt)
+  agentName?: string;    // Custom agent name for reference
+  // Inherited from parent conversation - Workspace data
+  workspaceData?: any;   // Full comprehensive workspace data (sessions, states, files, etc.)
+  // Inherited from parent conversation - Context notes (file paths)
+  inheritedContextNotes?: string[];  // Note paths from parent's context notes
+  // Inherited from parent conversation - Thinking settings
+  thinkingEnabled?: boolean;
+  thinkingEffort?: 'low' | 'medium' | 'high';
 }
 
 /**
@@ -139,6 +153,7 @@ export interface AgentStatusItem {
   maxIterations: number;
   startedAt: number;
   completedAt?: number;
+  lastToolUsed?: string;
 }
 
 /**
@@ -160,7 +175,21 @@ export interface SubagentExecutorEvents {
   onSubagentProgress: (subagentId: string, message: string, iteration: number) => void;
   onSubagentComplete: (subagentId: string, result: SubagentResult) => void;
   onSubagentError: (subagentId: string, error: string) => void;
-  onStreamingUpdate: (branchId: string, content: string, isComplete: boolean) => void;
+  /**
+   * Streaming update with incremental chunks (like parent chat)
+   * Uses same StreamingController infrastructure for smooth updates
+   * @param branchId - The branch being streamed
+   * @param messageId - The assistant message ID being streamed
+   * @param chunk - The NEW content chunk (incremental, not full content)
+   * @param isComplete - Whether streaming is complete
+   * @param fullContent - Full content so far (for finalization)
+   */
+  onStreamingUpdate: (branchId: string, messageId: string, chunk: string, isComplete: boolean, fullContent: string) => void;
+  /**
+   * Tool calls detected - SAME event as parent chat uses
+   * Routes to ToolEventCoordinator.handleToolCallsDetected() for dynamic tool bubble creation
+   */
+  onToolCallsDetected: (branchId: string, messageId: string, toolCalls: any[]) => void;
 }
 
 /**

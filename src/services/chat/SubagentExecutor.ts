@@ -1,15 +1,20 @@
 /**
- * SubagentExecutor - Core execution loop for autonomous subagents
+ * SubagentExecutor - Orchestrates autonomous subagent execution
+ *
+ * Uses SAME infrastructure as main chat:
+ * - LLMService.generateResponseStream handles tool pingpong internally
+ * - ToolContinuationService executes tools automatically during streaming
+ * - SubagentExecutor just provides initial context and saves final result
  *
  * Responsibilities:
- * - Create and manage subagent branches
- * - Run autonomous execution loop (LLM → tools → repeat until done)
- * - Handle completion detection (no tool calls = done)
+ * - Create subagent branches with initial context (system prompt + task)
+ * - Stream response using existing LLM infrastructure
+ * - Save final assistant message to branch
  * - Support cancellation via AbortController
  * - Queue results back to parent conversation
  * - Track agent status for UI display
  *
- * Follows Single Responsibility Principle - only handles subagent execution.
+ * Follows Single Responsibility Principle - orchestration only, no tool execution.
  */
 
 import type { ChatMessage, ToolCall } from '../../types/chat/ChatTypes';
@@ -22,7 +27,6 @@ import type {
   QueuedMessage,
   SubagentToolCall,
   ToolSchemaInfo,
-  ToolExecutionResult,
 } from '../../types/branch/BranchTypes';
 import type { BranchService } from './BranchService';
 import type { MessageQueueService } from './MessageQueueService';
@@ -59,15 +63,18 @@ export class SubagentExecutor {
   private subagentBranches: Map<string, string> = new Map(); // subagentId -> branchId
   private events: Partial<SubagentExecutorEvents> = {};
 
+  // In-memory streaming state for active branches
+  // This allows UI to render directly from memory without storage
+  private streamingBranchMessages: Map<string, ChatMessage[]> = new Map(); // branchId -> messages
+
   constructor(private dependencies: SubagentExecutorDependencies) {
-    console.log('[SubagentExecutor] Constructor called');
-    console.log('[SubagentExecutor] Dependencies:', {
-      hasBranchService: !!dependencies.branchService,
-      hasMessageQueueService: !!dependencies.messageQueueService,
-      hasDirectToolExecutor: !!dependencies.directToolExecutor,
-      hasStreamingGenerator: !!dependencies.streamingGenerator,
-      hasGetToolSchemas: !!dependencies.getToolSchemas,
-    });
+    // Validate critical dependencies
+    if (!dependencies.branchService) {
+      console.error('[SubagentExecutor] Missing branchService dependency');
+    }
+    if (!dependencies.streamingGenerator) {
+      console.error('[SubagentExecutor] Missing streamingGenerator dependency');
+    }
   }
 
   /**
@@ -82,26 +89,13 @@ export class SubagentExecutor {
    * Result delivered via events + message queue
    */
   async executeSubagent(params: SubagentParams): Promise<{ subagentId: string; branchId: string }> {
-    console.log('[SubagentExecutor] executeSubagent called with params:', {
-      task: params.task,
-      parentConversationId: params.parentConversationId,
-      parentMessageId: params.parentMessageId,
-      agent: params.agent,
-      maxIterations: params.maxIterations,
-      hasTools: params.tools ? Object.keys(params.tools).length : 0,
-      contextFilesCount: params.contextFiles?.length || 0,
-      continueBranchId: params.continueBranchId,
-    });
-
-    const subagentId = `subagent_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    console.log('[SubagentExecutor] Generated subagentId:', subagentId);
+    const subagentId = `subagent_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    console.log('[SUBAGENT-DEBUG] executeSubagent START', { subagentId, task: params.task });
 
     const abortController = new AbortController();
     this.activeSubagents.set(subagentId, abortController);
-    console.log('[SubagentExecutor] AbortController created, active subagents:', this.activeSubagents.size);
 
-    // Create the branch first to get branchId
-    console.log('[SubagentExecutor] Creating subagent branch...');
+    // Create the branch
     let branchId: string;
     try {
       branchId = await this.dependencies.branchService.createSubagentBranch(
@@ -111,9 +105,9 @@ export class SubagentExecutor {
         subagentId,
         params.maxIterations ?? 10
       );
-      console.log('[SubagentExecutor] ✓ Branch created:', branchId);
+      console.log('[SUBAGENT-DEBUG] Branch created', { subagentId, branchId });
     } catch (error) {
-      console.error('[SubagentExecutor] ✗ Failed to create branch:', error);
+      console.error('[SUBAGENT-DEBUG] Failed to create branch:', error);
       throw error;
     }
 
@@ -132,31 +126,30 @@ export class SubagentExecutor {
       startedAt: Date.now(),
     };
     this.agentStatus.set(subagentId, statusItem);
-    console.log('[SubagentExecutor] Status initialized:', statusItem);
+    console.log('[SUBAGENT-DEBUG] Status set to RUNNING', { subagentId, agentStatusSize: this.agentStatus.size });
 
     // Fire started event
-    console.log('[SubagentExecutor] Firing onSubagentStarted event...');
     this.events.onSubagentStarted?.(subagentId, params.task, branchId);
+    console.log('[SUBAGENT-DEBUG] onSubagentStarted fired');
 
     // Fire and forget - don't await
-    console.log('[SubagentExecutor] Starting runSubagentLoop (fire-and-forget)...');
     this.runSubagentLoop(subagentId, branchId, params, abortController.signal)
       .then(result => {
-        console.log('[SubagentExecutor] runSubagentLoop completed:', { subagentId, success: result.success, iterations: result.iterations });
+        console.log('[SUBAGENT-DEBUG] runSubagentLoop COMPLETED', { subagentId, success: result.success });
         this.activeSubagents.delete(subagentId);
         this.updateStatus(subagentId, { state: result.success ? 'complete' : 'max_iterations' });
         this.events.onSubagentComplete?.(subagentId, result);
         this.queueResultToParent(params, result);
       })
       .catch(error => {
-        console.error('[SubagentExecutor] runSubagentLoop failed:', { subagentId, error });
+        console.error('[SUBAGENT-DEBUG] runSubagentLoop FAILED', { subagentId, error });
         this.activeSubagents.delete(subagentId);
         const errorMessage = error instanceof Error ? error.message : String(error);
         this.updateStatus(subagentId, { state: 'cancelled' });
         this.events.onSubagentError?.(subagentId, errorMessage);
       });
 
-    console.log('[SubagentExecutor] Returning immediately with IDs:', { subagentId, branchId });
+    console.log('[SUBAGENT-DEBUG] executeSubagent RETURNING (loop running in background)', { subagentId, branchId });
     return { subagentId, branchId };
   }
 
@@ -224,6 +217,32 @@ export class SubagentExecutor {
   }
 
   /**
+   * Clear agent status list (call when switching conversations)
+   * Also triggers a status change event for UI updates
+   */
+  clearAgentStatus(): void {
+    this.agentStatus.clear();
+    this.subagentBranches.clear();
+    this.streamingBranchMessages.clear();
+  }
+
+  /**
+   * Get in-memory messages for a streaming branch
+   * Returns null if branch is not actively streaming
+   * UI can use this to render directly from memory without storage read
+   */
+  getStreamingBranchMessages(branchId: string): ChatMessage[] | null {
+    return this.streamingBranchMessages.get(branchId) || null;
+  }
+
+  /**
+   * Check if a branch is actively streaming
+   */
+  isBranchStreaming(branchId: string): boolean {
+    return this.streamingBranchMessages.has(branchId);
+  }
+
+  /**
    * Core execution loop
    */
   private async runSubagentLoop(
@@ -232,21 +251,7 @@ export class SubagentExecutor {
     params: SubagentParams,
     abortSignal: AbortSignal
   ): Promise<SubagentResult> {
-    const maxIterations = params.maxIterations ?? 10;
-    let iterations = 0;
-    let lastContent = '';
-
-    // 1. Build system prompt
-    const systemPrompt = await this.buildSystemPrompt(params);
-
-    // 2. Read context files if provided
-    let contextContent = params.context || '';
-    if (params.contextFiles?.length) {
-      const fileContents = await this.readContextFiles(params.contextFiles);
-      contextContent += '\n\n' + fileContents;
-    }
-
-    // 3. Pre-fetch tool schemas if specified
+    // 1. Pre-fetch tool schemas FIRST (if parent specified tools to hand off)
     let toolSchemasText = '';
     if (params.tools && Object.keys(params.tools).length > 0 && this.dependencies.getToolSchemas) {
       const schemas = await this.prefetchToolSchemas(params.tools);
@@ -255,8 +260,18 @@ export class SubagentExecutor {
       }
     }
 
-    // 4. Build initial user message
-    const initialMessage = this.buildInitialMessage(params.task, contextContent, toolSchemasText);
+    // 2. Read context files if provided (inherited from parent + tool params)
+    // These go into the SYSTEM PROMPT so the subagent has full context
+    let contextFilesContent = '';
+    if (params.contextFiles?.length) {
+      contextFilesContent = await this.readContextFiles(params.contextFiles);
+    }
+
+    // 3. Build system prompt WITH tool schemas + context files included
+    const systemPrompt = await this.buildSystemPrompt(params, toolSchemasText, contextFilesContent);
+
+    // 4. Build initial user message (just task + any additional context string)
+    const initialMessage = this.buildInitialMessage(params.task, params.context || '');
 
     // 5. Add initial messages to branch
     const systemMessage: ChatMessage = {
@@ -277,216 +292,292 @@ export class SubagentExecutor {
       state: 'complete',
     };
 
-    await this.dependencies.branchService.addMessageToBranch(
+    await this.dependencies.branchService.addMessageToBranch(branchId, systemMessage);
+    await this.dependencies.branchService.addMessageToBranch(branchId, userMessage);
+
+    // 6. Stream response - LLMService handles ALL tool pingpong internally
+    // The streaming generator (via LLMService → StreamingOrchestrator → ToolContinuationService)
+    // already executes all tool calls and continues until the LLM responds with no more tool calls.
+    // We just need to collect the response and save it.
+
+    // Check abort signal FIRST
+    if (abortSignal.aborted) {
+      await this.dependencies.branchService.updateBranchState(branchId, 'cancelled', 0);
+      // Clear from in-memory map if cancelled before streaming started
+      this.streamingBranchMessages.delete(branchId);
+      return {
+        success: false,
+        content: '',
+        branchId,
+        conversationId: params.parentConversationId,
+        iterations: 0,
+        error: 'Cancelled by user',
+      };
+    }
+
+    // Get branch messages for context
+    const branchInfo = await this.dependencies.branchService.getBranch(
       params.parentConversationId,
-      params.parentMessageId,
-      branchId,
-      systemMessage
+      branchId
     );
 
-    await this.dependencies.branchService.addMessageToBranch(
-      params.parentConversationId,
-      params.parentMessageId,
-      branchId,
-      userMessage
-    );
+    if (!branchInfo) {
+      throw new Error('Branch not found');
+    }
 
-    // 6. Run conversation loop
-    while (iterations < maxIterations) {
-      // Check abort signal FIRST
+    // Generate response - streaming handles tool pingpong automatically
+    let responseContent = '';
+    let toolCalls: SubagentToolCall[] | undefined;
+    let reasoning = '';
+    let toolIterations = 0;
+    let lastToolUsed: string | undefined;
+
+    const streamMessages = branchInfo.branch.messages;
+
+    // Create streaming placeholder assistant message
+    const assistantMessageId = `msg_${Date.now()}_assistant`;
+    const streamingAssistantMessage: ChatMessage = {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+      conversationId: params.parentConversationId,
+      state: 'streaming',
+    };
+
+    // ADD the assistant message to branch storage (like parent chat does)
+    // This allows updateMessageInBranch to work later
+    await this.dependencies.branchService.addMessageToBranch(branchId, streamingAssistantMessage);
+
+    // Build in-memory messages array (system + user from storage, plus streaming assistant)
+    const inMemoryMessages: ChatMessage[] = [
+      ...streamMessages,
+      streamingAssistantMessage,
+    ];
+
+    // Store in map so UI can access when navigating to this branch
+    this.streamingBranchMessages.set(branchId, inMemoryMessages);
+
+    for await (const chunk of this.dependencies.streamingGenerator(streamMessages, {
+      abortSignal,
+      workspaceId: params.workspaceId,
+      sessionId: params.sessionId,
+      provider: params.provider,
+      model: params.model,
+    })) {
+      // Check abort during streaming
       if (abortSignal.aborted) {
-        await this.dependencies.branchService.updateBranchState(
-          params.parentConversationId,
-          branchId,
-          'cancelled',
-          iterations
-        );
+        await this.dependencies.branchService.updateBranchState(branchId, 'cancelled', toolIterations);
+        // Clear from in-memory map on cancellation
+        this.streamingBranchMessages.delete(branchId);
         return {
           success: false,
-          content: lastContent,
+          content: responseContent,
           branchId,
           conversationId: params.parentConversationId,
-          iterations,
+          iterations: toolIterations,
           error: 'Cancelled by user',
         };
       }
 
-      // Get branch messages for context
-      const branchInfo = await this.dependencies.branchService.getBranch(
-        params.parentConversationId,
-        branchId
-      );
+      responseContent += chunk.chunk;
+      if (chunk.toolCalls) {
+        // These are ALREADY-EXECUTED tool calls (with results)
+        // They accumulate across all pingpong iterations
+        toolCalls = chunk.toolCalls;
+        toolIterations = chunk.toolCalls.length; // Approximate iteration count
 
-      if (!branchInfo) {
-        throw new Error('Branch not found');
+        // Track the last tool used for UI display
+        const latestTool = chunk.toolCalls[chunk.toolCalls.length - 1];
+        if (latestTool?.function?.name) {
+          lastToolUsed = latestTool.function.name;
+          this.updateStatus(subagentId, { iterations: toolIterations, lastToolUsed });
+        }
+      }
+      if (chunk.reasoning) {
+        reasoning += chunk.reasoning;
       }
 
-      // Generate response
-      let responseContent = '';
-      let toolCalls: SubagentToolCall[] | undefined;
-      let reasoning = '';
-
-      const streamMessages = branchInfo.branch.messages;
-
-      for await (const chunk of this.dependencies.streamingGenerator(streamMessages, {
-        abortSignal,
-        workspaceId: params.workspaceId,
-        sessionId: params.sessionId,
-      })) {
-        responseContent += chunk.chunk;
-        if (chunk.toolCalls) {
-          toolCalls = chunk.toolCalls;
-        }
-        if (chunk.reasoning) {
-          reasoning += chunk.reasoning;
-        }
-
-        // Emit progress
-        this.events.onSubagentProgress?.(subagentId, responseContent, iterations);
-        this.events.onStreamingUpdate?.(branchId, responseContent, chunk.complete);
-      }
-
-      lastContent = responseContent;
-      iterations++;
-
-      // Update iteration count
-      this.updateStatus(subagentId, { iterations });
-      await this.dependencies.branchService.updateBranchState(
-        params.parentConversationId,
-        branchId,
-        'running',
-        iterations
-      );
-
-      // Add assistant message to branch
-      // Convert SubagentToolCall[] to ToolCall[] (add required 'type' field)
+      // Update IN-MEMORY message (like parent chat does) - NO storage writes during streaming
       const convertedToolCalls: ToolCall[] | undefined = toolCalls?.map(tc => ({
         ...tc,
         type: tc.type || 'function',
       }));
+      streamingAssistantMessage.content = responseContent;
+      streamingAssistantMessage.toolCalls = convertedToolCalls;
+      streamingAssistantMessage.reasoning = reasoning || undefined;
 
-      const assistantMessage: ChatMessage = {
-        id: `msg_${Date.now()}_assistant`,
-        role: 'assistant',
-        content: responseContent,
-        timestamp: Date.now(),
-        conversationId: params.parentConversationId,
-        state: 'complete',
-        toolCalls: convertedToolCalls,
-        reasoning: reasoning || undefined,
-      };
+      // Emit tool calls event - SAME as parent chat does
+      // This allows ToolEventCoordinator to dynamically create/update tool bubbles
+      if (convertedToolCalls && convertedToolCalls.length > 0) {
+        this.events.onToolCallsDetected?.(branchId, assistantMessageId, convertedToolCalls);
+      }
 
-      await this.dependencies.branchService.addMessageToBranch(
-        params.parentConversationId,
-        params.parentMessageId,
+      // Emit progress
+      this.events.onSubagentProgress?.(subagentId, responseContent, toolIterations);
+
+      // Emit INCREMENTAL chunk (like parent chat) - chunk.chunk is already the new piece
+      // This allows StreamingController to append efficiently without re-rendering
+      this.events.onStreamingUpdate?.(
         branchId,
-        assistantMessage
+        assistantMessageId,
+        chunk.chunk,  // Just the NEW chunk, not full content
+        chunk.complete,
+        responseContent  // Full content for finalization
       );
-
-      // 7. Check completion: no tool calls = done
-      if (!toolCalls || toolCalls.length === 0) {
-        await this.dependencies.branchService.updateBranchState(
-          params.parentConversationId,
-          branchId,
-          'complete',
-          iterations
-        );
-        return {
-          success: true,
-          content: responseContent,
-          branchId,
-          conversationId: params.parentConversationId,
-          iterations,
-        };
-      }
-
-      // 8. Execute tool calls
-      for (const toolCall of toolCalls) {
-        if (abortSignal.aborted) break;
-
-        const toolResult = await this.executeToolCall(toolCall);
-
-        // Add tool result message to branch
-        const toolMessage: ChatMessage = {
-          id: `msg_${Date.now()}_tool`,
-          role: 'tool',
-          content: JSON.stringify(toolResult.result ?? toolResult.error),
-          timestamp: Date.now(),
-          conversationId: params.parentConversationId,
-          state: 'complete',
-          metadata: {
-            toolCallId: toolCall.id,
-            toolName: toolCall.function?.name,
-            success: toolResult.success,
-          },
-        };
-
-        await this.dependencies.branchService.addMessageToBranch(
-          params.parentConversationId,
-          params.parentMessageId,
-          branchId,
-          toolMessage
-        );
-      }
     }
 
-    // Max iterations reached
-    await this.dependencies.branchService.updateBranchState(
-      params.parentConversationId,
-      branchId,
-      'max_iterations',
-      iterations
-    );
+    // Update status with final count
+    this.updateStatus(subagentId, { iterations: toolIterations || 1, lastToolUsed });
+
+    // Convert tool calls for storage
+    const finalToolCalls: ToolCall[] | undefined = toolCalls?.map(tc => ({
+      ...tc,
+      type: tc.type || 'function',
+    }));
+
+    // Update the placeholder message in storage with final content
+    await this.dependencies.branchService.updateMessageInBranch(branchId, assistantMessageId, {
+      content: responseContent,
+      state: 'complete',
+      toolCalls: finalToolCalls,
+      reasoning: reasoning || undefined,
+    });
+
+    // Streaming completed = LLM is done (all tool calls already handled internally)
+    await this.dependencies.branchService.updateBranchState(branchId, 'complete', toolIterations || 1);
+
+    // Clear from in-memory map now that streaming is complete and saved
+    this.streamingBranchMessages.delete(branchId);
 
     return {
-      success: false,
-      content: lastContent,
+      success: true,
+      content: responseContent,
       branchId,
       conversationId: params.parentConversationId,
-      iterations,
-      error: 'Max iterations reached',
+      iterations: toolIterations || 1,
     };
   }
 
   /**
    * Build system prompt for subagent
+   * @param params Subagent parameters
+   * @param toolSchemas Pre-fetched tool schemas to include (optional)
+   * @param contextFilesContent Content from context files to include (optional)
    */
-  private async buildSystemPrompt(params: SubagentParams): Promise<string> {
-    let basePrompt = `You are an autonomous subagent working on a specific task.
+  private async buildSystemPrompt(
+    params: SubagentParams,
+    toolSchemas?: string,
+    contextFilesContent?: string
+  ): Promise<string> {
+    // Determine if tools were pre-loaded by parent
+    const hasPreloadedTools = toolSchemas && toolSchemas.length > 0;
 
-Your task: ${params.task}
+    // Start with inherited agent prompt if available
+    let promptParts: string[] = [];
 
-Instructions:
-- Work independently to complete this task
-- Use available tools as needed via tool calls
-- You can use getTools to discover available tools
-- When you have completed the task, respond with your findings WITHOUT calling any tools
-- Be thorough but efficient
-- Your final response (without tool calls) will be returned to the parent agent
-
-`;
-
-    // If custom agent specified, we could load its prompt here
-    // For now, use base prompt
-    if (params.agent) {
-      basePrompt = `[Using agent persona: ${params.agent}]\n\n` + basePrompt;
+    // 1. Add inherited agent persona/prompt if parent had a custom agent selected
+    if (params.agentPrompt) {
+      promptParts.push(`## Inherited Agent Context\n${params.agentPrompt}`);
+    } else if (params.agentName) {
+      promptParts.push(`[Agent persona: ${params.agentName}]`);
+    } else if (params.agent) {
+      promptParts.push(`[Agent persona: ${params.agent}]`);
     }
 
-    return basePrompt;
+    // 2. Add core subagent instructions
+    promptParts.push(`## Subagent Instructions
+
+You are an AUTONOMOUS subagent. You MUST complete tasks independently using tools.
+
+### Your Task
+${params.task}
+
+### CRITICAL RULES
+
+1. **NEVER ask questions or seek clarification** - You are autonomous. Make reasonable assumptions and proceed.
+
+2. **ALWAYS use tools** - Your first response MUST include tool calls.
+
+3. **Text-only response = Task complete** - Only respond with plain text (no tool calls) when you have FINISHED the task and are reporting results.
+
+4. **Make decisions independently** - If details are ambiguous, choose sensible defaults. Do not ask the user.
+
+5. **Use thinking/reasoning internally** - Deliberate in your thinking, not in your text output.`);
+
+    // 3. Add workspace context if available
+    if (params.workspaceData) {
+      const workspaceContext = this.formatWorkspaceData(params.workspaceData);
+      if (workspaceContext) {
+        promptParts.push(`## Workspace Context\n${workspaceContext}`);
+      }
+    }
+
+    // 4. Add context files content if available (from parent's notes + tool params)
+    if (contextFilesContent) {
+      promptParts.push(`## Reference Files\nThe following files have been provided as context:\n\n${contextFilesContent}`);
+    }
+
+    // 5. Add tool section based on whether tools were pre-loaded
+    if (hasPreloadedTools) {
+      promptParts.push(`## Pre-loaded Tools (Ready to Use)
+
+The parent agent has equipped you with these specific tools. Use them via toolManager_useTool:
+
+${toolSchemas}
+
+**To call a tool**, use toolManager_useTool with:
+\`\`\`json
+{
+  "context": {
+    "workspaceId": "${params.workspaceId || 'default'}",
+    "sessionId": "${params.sessionId || 'subagent'}",
+    "memory": "Subagent working on: ${params.task.substring(0, 50)}...",
+    "goal": "Complete the assigned task"
+  },
+  "calls": [
+    { "agent": "agentName", "tool": "toolName", "params": { ... } }
+  ]
+}
+\`\`\`
+
+BEGIN - Use the pre-loaded tools above to complete the task.`);
+    } else {
+      promptParts.push(`## Available Tools
+
+Call toolManager_getTools first to discover available tools, then toolManager_useTool to execute them.
+
+Example flow:
+1. Call getTools to see what's available
+2. Call useTool with the appropriate agent/tool/params
+3. Continue until task is complete
+4. Respond with final results (no tool calls)
+
+BEGIN - Start by calling getTools to discover available tools.`);
+    }
+
+    return promptParts.join('\n\n');
+  }
+
+  /**
+   * Format workspace data for inclusion in system prompt
+   * Uses shared utility for consistency with SystemPromptBuilder
+   */
+  private formatWorkspaceData(workspaceData: any): string {
+    // Import dynamically to avoid circular dependencies
+    const { formatWorkspaceDataForPrompt } = require('../../utils/WorkspaceDataFormatter');
+    return formatWorkspaceDataForPrompt(workspaceData, { maxStates: 3 });
   }
 
   /**
    * Build initial user message with task and context
+   * Tool schemas are now in the system prompt, not here
    */
-  private buildInitialMessage(task: string, context: string, toolSchemas: string): string {
-    let message = task;
+  private buildInitialMessage(task: string, context: string): string {
+    let message = `Execute this task:\n\n${task}`;
 
     if (context) {
-      message += `\n\n## Context\n${context}`;
-    }
-
-    if (toolSchemas) {
-      message += `\n\n## Pre-loaded Tool Schemas\n\nThese tools are available for immediate use:\n\n${toolSchemas}\n\nYou can also use getTools to discover additional tools if needed.`;
+      message += `\n\n## Additional Context\n${context}`;
     }
 
     return message;
@@ -556,29 +647,6 @@ Instructions:
     }
 
     return contents.join('\n\n');
-  }
-
-  /**
-   * Execute a single tool call
-   */
-  private async executeToolCall(toolCall: SubagentToolCall): Promise<ToolExecutionResult> {
-    try {
-      const results = await this.dependencies.directToolExecutor.executeToolCalls([{
-        id: toolCall.id,
-        function: toolCall.function,
-      }]);
-      const result = results[0];
-      return {
-        success: result?.success ?? false,
-        result: result?.result,
-        error: result?.error,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
   }
 
   /**

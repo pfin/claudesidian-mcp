@@ -4,6 +4,11 @@
  * Purpose: Consolidated streaming loop logic for AI responses
  * Extracted from MessageManager.ts to eliminate DRY violations (4+ repeated streaming patterns)
  *
+ * ARCHITECTURE NOTE (Dec 2025):
+ * A branch IS a conversation with parent metadata. When viewing a branch,
+ * the branch is set as currentConversation. This means all streaming saves
+ * go through ChatService.updateConversation() - no special routing needed.
+ *
  * Used by: MessageManager, MessageAlternativeService for streaming AI responses
  * Dependencies: ChatService
  */
@@ -81,6 +86,7 @@ export class MessageStreamHandler {
     aiMessageId: string,
     options: StreamOptions
   ): Promise<StreamResult> {
+    console.log('[StreamHandler] streamResponse START', { conversationId: conversation.id, aiMessageId });
     let streamedContent = '';
     let toolCalls: any[] | undefined = undefined;
     let hasStartedStreaming = false;
@@ -203,6 +209,11 @@ export class MessageStreamHandler {
   /**
    * Stream response and save to storage
    * Convenience method that combines streaming and saving
+   *
+   * ARCHITECTURE NOTE (Dec 2025):
+   * The conversation passed here is the currentConversation, which is
+   * either a parent conversation or a branch (branch IS a conversation).
+   * ChatService.updateConversation handles both the same way.
    */
   async streamAndSave(
     conversation: ConversationData,
@@ -212,7 +223,7 @@ export class MessageStreamHandler {
   ): Promise<StreamResult> {
     const result = await this.streamResponse(conversation, userMessageContent, aiMessageId, options);
 
-    // Save conversation to storage
+    // Save conversation to storage (works for both parent and branch)
     await this.chatService.updateConversation(conversation);
 
     return result;

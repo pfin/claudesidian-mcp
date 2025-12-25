@@ -20,7 +20,8 @@ export class MessageDisplay {
     private onRetryMessage?: (messageId: string) => void,
     private onEditMessage?: (messageId: string, newContent: string) => void,
     private onToolEvent?: (messageId: string, event: 'detected' | 'updated' | 'started' | 'completed', data: any) => void,
-    private onMessageAlternativeChanged?: (messageId: string, alternativeIndex: number) => void
+    private onMessageAlternativeChanged?: (messageId: string, alternativeIndex: number) => void,
+    private onViewBranch?: (branchId: string) => void
   ) {
     this.render();
   }
@@ -204,7 +205,8 @@ export class MessageDisplay {
       (messageId: string) => this.handleRetryMessage(messageId),
       (messageId: string, newContent: string) => this.handleEditMessage(messageId, newContent),
       this.onToolEvent,
-      this.onMessageAlternativeChanged ? (messageId: string, alternativeIndex: number) => this.handleMessageAlternativeChanged(messageId, alternativeIndex) : undefined
+      this.onMessageAlternativeChanged ? (messageId: string, alternativeIndex: number) => this.handleMessageAlternativeChanged(messageId, alternativeIndex) : undefined,
+      this.onViewBranch
     );
 
     this.messageBubbles.push(bubble);
@@ -315,6 +317,24 @@ export class MessageDisplay {
     const messagesContainer = this.container.querySelector('.messages-container');
     if (messagesContainer) {
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+  }
+
+  /**
+   * Get current scroll position
+   */
+  getScrollPosition(): number {
+    const messagesContainer = this.container.querySelector('.messages-container');
+    return messagesContainer?.scrollTop ?? 0;
+  }
+
+  /**
+   * Set scroll position
+   */
+  setScrollPosition(position: number): void {
+    const messagesContainer = this.container.querySelector('.messages-container');
+    if (messagesContainer) {
+      messagesContainer.scrollTop = position;
     }
   }
 

@@ -36,7 +36,6 @@ import {
   ExportData,
   SyncResult
 } from '../../types/storage/HybridStorageTypes';
-
 /**
  * Extended query options for flexible data retrieval
  */
@@ -52,6 +51,9 @@ export interface QueryOptions extends PaginationParams {
 
   /** Full-text search query */
   search?: string;
+
+  /** Include branch conversations (default: false - branches are hidden from list) */
+  includeBranches?: boolean;
 }
 
 /**
@@ -452,6 +454,11 @@ export interface IStorageAdapter {
    * @param options - Import options (merge vs replace)
    */
   importData(data: ExportData, options?: ImportOptions): Promise<void>;
+
+  // ============================================================================
+  // Repository Access (for advanced operations)
+  // ============================================================================
+
 }
 
 /**

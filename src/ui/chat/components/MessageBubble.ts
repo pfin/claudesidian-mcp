@@ -38,7 +38,8 @@ export class MessageBubble extends Component {
     private onRetry: (messageId: string) => void,
     private onEdit?: (messageId: string, newContent: string) => void,
     private onToolEvent?: (messageId: string, event: 'detected' | 'started' | 'completed', data: any) => void,
-    private onMessageAlternativeChanged?: (messageId: string, alternativeIndex: number) => void
+    private onMessageAlternativeChanged?: (messageId: string, alternativeIndex: number) => void,
+    private onViewBranch?: (branchId: string) => void
   ) {
     super();
   }
@@ -73,6 +74,13 @@ export class MessageBubble extends Component {
       });
       wrapper.appendChild(this.toolBubbleElement);
 
+      // Wire up onViewBranch callback to all accordions
+      if (this.onViewBranch) {
+        this.progressiveToolAccordions.forEach(accordion => {
+          accordion.setCallbacks({ onViewBranch: this.onViewBranch });
+        });
+      }
+
       // Check for image results in completed tool calls (for loaded messages)
       if (activeToolCalls) {
         for (const toolCall of activeToolCalls) {
@@ -85,8 +93,9 @@ export class MessageBubble extends Component {
         }
       }
 
-      // Create text bubble if there's content
-      if (activeContent && activeContent.trim()) {
+      // Create text bubble if there's content OR if streaming (need element for StreamingController)
+      const isStreaming = this.message.state === 'streaming';
+      if ((activeContent && activeContent.trim()) || isStreaming) {
         this.textBubbleElement = ToolBubbleFactory.createTextBubble(
           renderMessage,
           (container, content) => this.renderContent(container, content),
@@ -391,6 +400,11 @@ export class MessageBubble extends Component {
     if (!accordion && (event === 'detected' || event === 'started')) {
       accordion = new ProgressiveToolAccordion(this);
       const accordionElement = accordion.createElement();
+
+      // Wire up onViewBranch callback for subagent navigation
+      if (this.onViewBranch) {
+        accordion.setCallbacks({ onViewBranch: this.onViewBranch });
+      }
 
       if (!this.toolBubbleElement) {
         this.createToolBubbleOnDemand();

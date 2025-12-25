@@ -44,6 +44,7 @@ export class BranchHeader {
    * Show the branch header with the given context
    */
   show(context: BranchViewContext): void {
+    console.log('[SUBAGENT-DEBUG] BranchHeader.show', { branchId: context.branchId, branchType: context.branchType });
     this.context = context;
     this.render();
   }
@@ -104,14 +105,14 @@ export class BranchHeader {
     setIcon(backIcon, 'arrow-left');
     backBtn.createSpan({ text: ' Back' });
 
+    const handleBack = () => {
+      this.callbacks.onNavigateToParent();
+    };
+
     if (this.component) {
-      this.component.registerDomEvent(backBtn, 'click', () => {
-        this.callbacks.onNavigateToParent();
-      });
+      this.component.registerDomEvent(backBtn, 'click', handleBack);
     } else {
-      backBtn.addEventListener('click', () => {
-        this.callbacks.onNavigateToParent();
-      });
+      backBtn.addEventListener('click', handleBack);
     }
 
     // Branch info container

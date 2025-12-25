@@ -1,6 +1,12 @@
 /**
  * MessageManager - Handles all message operations including sending, editing, retry, and streaming
  * Refactored to use extracted services following SOLID principles
+ *
+ * ARCHITECTURE NOTE (Dec 2025):
+ * A branch IS a conversation with parent metadata. When viewing a branch,
+ * the branch is set as currentConversation in ConversationManager.
+ * All message operations use the passed conversation (which may be a branch).
+ * No special routing is needed - ChatService handles both transparently.
  */
 
 import { ChatService } from '../../../services/chat/ChatService';
