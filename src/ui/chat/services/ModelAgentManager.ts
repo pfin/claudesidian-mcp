@@ -715,7 +715,7 @@ export class ModelAgentManager {
 
   /**
    * Get tool agents info from agent registry for system prompt
-   * Returns agent names, descriptions, and their available modes
+   * Returns agent names, descriptions, and their available tools
    */
   private getToolAgentInfo(): ToolAgentInfo[] {
     try {
@@ -733,11 +733,11 @@ export class ModelAgentManager {
         const agentMap = agents instanceof Map ? agents : new Map(agents.map((a: any) => [a.name, a]));
 
         return Array.from(agentMap.entries()).map(([name, agent]: [string, any]) => {
-          const tools = agent.getTools?.() || [];
+          const agentTools = agent.getTools?.() || [];
           return {
             name,
             description: agent.description || '',
-            modes: tools.map((t: any) => t.slug || t.name || 'unknown')
+            tools: agentTools.map((t: any) => t.slug || t.name || 'unknown')
           };
         });
       }
@@ -749,11 +749,11 @@ export class ModelAgentManager {
         const result: ToolAgentInfo[] = [];
 
         for (const [name, agent] of agents) {
-          const tools = agent.getTools?.() || [];
+          const agentTools = agent.getTools?.() || [];
           result.push({
             name,
             description: agent.description || '',
-            modes: tools.map((t: any) => t.slug || t.name || 'unknown')
+            tools: agentTools.map((t: any) => t.slug || t.name || 'unknown')
           });
         }
 

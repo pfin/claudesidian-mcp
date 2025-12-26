@@ -251,12 +251,6 @@ export class DirectToolExecutor {
         params: Record<string, unknown>,
         context?: { sessionId?: string; workspaceId?: string }
     ): Promise<unknown> {
-        // DEBUG: Log incoming tool execution
-        console.log('[NEXUS_TOOL_DEBUG] DirectToolExecutor.executeTool called:');
-        console.log('[NEXUS_TOOL_DEBUG]   toolName:', toolName);
-        console.log('[NEXUS_TOOL_DEBUG]   params:', JSON.stringify(params, null, 2));
-        console.log('[NEXUS_TOOL_DEBUG]   context:', context);
-
         try {
             // Handle legacy get_tools meta-tool (backward compatibility)
             if (toolName === 'get_tools') {

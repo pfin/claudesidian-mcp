@@ -44,12 +44,12 @@ export interface AgentSummary {
 }
 
 /**
- * Tool agent with modes for system prompt
+ * Tool agent info for system prompt
  */
 export interface ToolAgentInfo {
   name: string;
   description: string;
-  modes: string[];
+  tools: string[];
 }
 
 /**
@@ -198,8 +198,8 @@ export class SystemPromptBuilder {
     let prompt = '<tools_and_context>\n';
 
     // Tools overview - dynamically built from registered agents
-    prompt += `AVAILABLE TOOLS:
-You have access to the following agents via the get_tools function:
+    prompt += `AVAILABLE AGENTS AND TOOLS:
+You have two meta-tools: toolManager_getTools (discover) and toolManager_useTool (execute).
 
 `;
 
@@ -207,52 +207,54 @@ You have access to the following agents via the get_tools function:
       // Dynamic list from agent registry
       for (const agent of toolAgents) {
         prompt += `- ${agent.name}: ${agent.description}\n`;
-        prompt += `  Modes: ${agent.modes.join(', ')}\n\n`;
+        prompt += `  Tools: ${agent.tools.join(', ')}\n\n`;
       }
     } else {
       // Fallback to static list if agents not available
       prompt += `- agentManager: Custom AI agents and prompts
-  Modes: batchExecutePrompt, createAgent, deleteAgent, executePrompt, generateImage, getAgent, listAgents, listModels, toggleAgent, updateAgent
+  Tools: executePrompts, createAgent, deleteAgent, listAgents, getAgent, listModels, generateImage
 
 - commandManager: Execute Obsidian commands
-  Modes: executeCommand, listCommands
+  Tools: executeCommand, listCommands
 
 - contentManager: Read, create, edit, and manage note content
-  Modes: appendContent, batchContent, createContent, deleteContent, findReplaceContent, prependContent, readContent, replaceByLine, replaceContent
+  Tools: readContent, createContent, appendContent, prependContent, replaceContent, replaceByLine, deleteContent, findReplaceContent
 
 - memoryManager: Workspace and session management
-  Modes: createSession, createState, createWorkspace, listSessions, listStates, listWorkspaces, loadSession, loadState, loadWorkspace, updateSession, updateState, updateWorkspace
+  Tools: createSession, loadSession, listSessions, createWorkspace, loadWorkspace, listWorkspaces, createState, loadState, listStates, updateState
 
 - vaultLibrarian: Advanced search capabilities
-  Modes: batch, searchContent, searchDirectory, searchMemory
+  Tools: searchContent, searchDirectory, searchMemory
 
 - vaultManager: File and folder operations
-  Modes: createFolder, deleteFolder, deleteNote, duplicateNote, editFolder, listDirectory, moveFolder, moveNote, openNote
+  Tools: listDirectory, createFolder, moveNote, duplicateNote, deleteNote, openNote
 
 `;
     }
 
-    prompt += `TO USE A TOOL: Call get_tools({ tools: ["agentName"] }) to get the full schema, then call the agent with mode and parameters.
+    prompt += `HOW TO USE TOOLS:
 
-`;
+1. DISCOVER: Call toolManager_getTools to get parameter schemas:
+   { "context": {...}, "request": [{ "agent": "contentManager", "tools": ["readContent"] }] }
 
-    // Context parameters - uses new memory/goal/constraints format
-    prompt += `REQUIRED CONTEXT FOR ALL TOOL CALLS:
-When calling any tool, include this context object:
-{
-  "mode": "the_mode_name",
-  "context": {
-    "workspaceId": "${effectiveWorkspaceId}",
-    "sessionId": "${effectiveSessionId}",
-    "memory": "Essence of conversation so far (1-3 sentences)",
-    "goal": "Current objective (1-3 sentences)",
-    "constraints": "Optional rules/limits to follow (1-3 sentences)"
-  },
-  ... other parameters ...
-}
+2. EXECUTE: Call toolManager_useTool with context and calls:
+   {
+     "context": {
+       "workspaceId": "${effectiveWorkspaceId}",
+       "sessionId": "${effectiveSessionId}",
+       "memory": "Summary of conversation so far (1-3 sentences)",
+       "goal": "Current objective (1-3 sentences)",
+       "constraints": "Optional rules/limits (1-3 sentences)"
+     },
+     "calls": [
+       { "agent": "contentManager", "tool": "readContent", "params": { "path": "note.md" } }
+     ]
+   }
 
-Keep workspaceId and sessionId EXACTLY as shown above for the entire conversation.
-Update memory and goal as the conversation evolves.
+IMPORTANT:
+- Keep workspaceId and sessionId EXACTLY as shown for the entire conversation
+- Update memory and goal as the conversation evolves
+- Use "params" (not "parameters") for tool-specific arguments
 `;
 
     prompt += '</tools_and_context>';

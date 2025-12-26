@@ -57,9 +57,6 @@ export class UseToolTool implements ITool<UseToolParams, UseToolResult> {
    * @returns Promise that resolves with execution results
    */
   async execute(params: UseToolParams): Promise<UseToolResult> {
-    // DEBUG: Log incoming params
-    console.log('[NEXUS_TOOL_DEBUG] useTool.execute called with params:', JSON.stringify(params, null, 2));
-
     try {
       // Validate context
       const contextErrors = this.validateContext(params.context);
