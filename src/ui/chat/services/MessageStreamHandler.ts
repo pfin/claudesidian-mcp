@@ -107,17 +107,21 @@ export class MessageStreamHandler {
     )) {
       // Handle token chunks
       if (chunk.chunk) {
-        // Update state to streaming on first chunk
-        if (!hasStartedStreaming) {
-          hasStartedStreaming = true;
-          const placeholderMessageIndex = conversation.messages.findIndex(msg => msg.id === aiMessageId);
-          if (placeholderMessageIndex >= 0) {
-            conversation.messages[placeholderMessageIndex].state = 'streaming';
-            conversation.messages[placeholderMessageIndex].isLoading = false;
-          }
-        }
-
         streamedContent += chunk.chunk;
+
+        // Update message in conversation object progressively
+        // This ensures partial content is preserved if user stops generation
+        const messageIndex = conversation.messages.findIndex(msg => msg.id === aiMessageId);
+        if (messageIndex >= 0) {
+          // Update state to streaming on first chunk
+          if (!hasStartedStreaming) {
+            hasStartedStreaming = true;
+            conversation.messages[messageIndex].state = 'streaming';
+            conversation.messages[messageIndex].isLoading = false;
+          }
+          // Always update content so it's available on abort
+          conversation.messages[messageIndex].content = streamedContent;
+        }
 
         // Send only the new chunk to UI for incremental updates
         this.events.onStreamingUpdate(aiMessageId, chunk.chunk, false, true);

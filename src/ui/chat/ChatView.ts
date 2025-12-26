@@ -731,7 +731,7 @@ export class ChatView extends ItemView {
     this.messageManager.cancelCurrentGeneration();
   }
 
-  private handleGenerationAborted(messageId: string, partialContent: string): void {
+  private handleGenerationAborted(messageId: string, _partialContent: string): void {
     const messageBubble = this.messageDisplay.findMessageBubble(messageId);
     if (messageBubble) {
       messageBubble.stopLoadingAnimation();
@@ -745,7 +745,16 @@ export class ChatView extends ItemView {
       }
     }
 
-    this.streamingController.finalizeStreaming(messageId, partialContent);
+    // Get actual content from conversation (progressively saved during streaming)
+    // The passed partialContent is always empty; real content is in conversation object
+    const currentConversation = this.conversationManager?.getCurrentConversation();
+    const message = currentConversation?.messages.find(m => m.id === messageId);
+    const actualContent = message?.content || '';
+
+    // Only finalize if we have content - otherwise just stop the animation
+    if (actualContent) {
+      this.streamingController.finalizeStreaming(messageId, actualContent);
+    }
   }
 
   private handleLoadingStateChanged(loading: boolean): void {
