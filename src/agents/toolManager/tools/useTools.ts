@@ -80,7 +80,7 @@ export class UseToolTool implements ITool<UseToolParams, UseToolResult> {
       if (!params.calls || params.calls.length === 0) {
         return {
           success: false,
-          error: 'At least one tool call is required. The "calls" array cannot be empty.'
+          error: 'calls array is required. Structure: calls: [{ agent: "agentName", tool: "toolName", params: {...} }]'
         };
       }
 
@@ -117,15 +117,27 @@ export class UseToolTool implements ITool<UseToolParams, UseToolResult> {
         }
       }
 
-      // Failure: include agent/tool/error so LLM knows what failed
+      // Failure: include helpful error message at top level
       const failedResults = results.filter(r => !r.success);
-      const failedTools = failedResults.map(r => `${r.agent}_${r.tool}`);
 
+      // For single failure, surface the full error message directly
+      if (failedResults.length === 1) {
+        const failed = failedResults[0];
+        return {
+          success: false,
+          error: failed.error || `${failed.agent}_${failed.tool} failed`,
+          data: {
+            agent: failed.agent,
+            tool: failed.tool
+          }
+        };
+      }
+
+      // Multiple failures: list all with their errors
       return {
         success: false,
-        error: `Failed: ${failedTools.join(', ')}`,
+        error: `${failedResults.length} tools failed`,
         data: {
-          // Only include failed results with details
           failures: failedResults.map(r => ({
             agent: r.agent,
             tool: r.tool,
@@ -143,29 +155,30 @@ export class UseToolTool implements ITool<UseToolParams, UseToolResult> {
 
   /**
    * Validate the context block
+   * Returns recovery-oriented error messages
    */
   private validateContext(context: ToolContext): string[] {
     const errors: string[] = [];
 
     if (!context) {
-      errors.push('context is required');
+      errors.push('context is required. Structure: { workspaceId, sessionId, memory, goal }');
       return errors;
     }
 
     if (!context.workspaceId || typeof context.workspaceId !== 'string') {
-      errors.push('context.workspaceId is required');
+      errors.push('context.workspaceId is required (use "default" for global workspace)');
     }
 
     if (!context.sessionId || typeof context.sessionId !== 'string') {
-      errors.push('context.sessionId is required');
+      errors.push('context.sessionId is required (any descriptive name, e.g. "blog_writing_session")');
     }
 
     if (!context.memory || typeof context.memory !== 'string') {
-      errors.push('context.memory is required (1-3 sentences describing conversation essence)');
+      errors.push('context.memory is required (1-3 sentences: what has happened in this conversation so far)');
     }
 
     if (!context.goal || typeof context.goal !== 'string') {
-      errors.push('context.goal is required (1-3 sentences describing current objective)');
+      errors.push('context.goal is required (1-3 sentences: what you are trying to accomplish right now)');
     }
 
     // constraints is optional, but if provided should be a string
@@ -263,11 +276,12 @@ export class UseToolTool implements ITool<UseToolParams, UseToolResult> {
 
     // Validate agent and tool are provided
     if (!agentName) {
+      const availableAgents = Array.from(this.agentRegistry.keys()).join(', ');
       return {
         agent: agentName || 'unknown',
         tool: toolSlug || 'unknown',
         success: false,
-        error: 'agent is required in each call'
+        error: `"agent" is required in each call. Available agents: ${availableAgents}`
       };
     }
 
@@ -276,18 +290,19 @@ export class UseToolTool implements ITool<UseToolParams, UseToolResult> {
         agent: agentName,
         tool: 'unknown',
         success: false,
-        error: 'tool is required in each call'
+        error: `"tool" is required in each call. Use getTools({ request: { "${agentName}": [] } }) to see available tools for ${agentName}.`
       };
     }
 
     // Get agent
     const agent = this.agentRegistry.get(agentName);
     if (!agent) {
+      const availableAgents = Array.from(this.agentRegistry.keys()).join(', ');
       return {
         agent: agentName,
         tool: toolSlug,
         success: false,
-        error: `Agent "${agentName}" not found. Use getTools to discover available agents.`
+        error: `Agent "${agentName}" not found. Available agents: ${availableAgents}. Use getTools({ request: { "agentName": [] } }) to see an agent's tools.`
       };
     }
 

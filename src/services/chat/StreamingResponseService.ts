@@ -35,6 +35,7 @@ export interface StreamingOptions {
   excludeFromMessageId?: string; // Exclude this message and everything after from context (for retry)
   enableThinking?: boolean;
   thinkingEffort?: 'low' | 'medium' | 'high';
+  temperature?: number; // 0.0-1.0, controls randomness
 }
 
 export interface StreamingChunk {
@@ -158,7 +159,8 @@ export class StreamingResponseService {
         workspaceId: options?.workspaceId,
         conversationId, // CRITICAL: Required for OpenAI Responses API response ID tracking
         enableThinking: options?.enableThinking,
-        thinkingEffort: options?.thinkingEffort
+        thinkingEffort: options?.thinkingEffort,
+        temperature: options?.temperature
       };
 
       // Add tool event callback for live UI updates (delegates to ToolCallService)

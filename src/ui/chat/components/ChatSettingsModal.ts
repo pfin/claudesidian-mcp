@@ -119,6 +119,7 @@ export class ChatSettingsModal extends Modal {
     const agent = this.modelAgentManager.getSelectedAgent();
     const thinking = this.modelAgentManager.getThinkingSettings();
     const contextNotes = this.modelAgentManager.getContextNotes();
+    const temperature = this.modelAgentManager.getTemperature();
 
     // Get plugin defaults for image settings
     const plugin = getNexusPlugin<NexusPluginWithSettings>(this.app);
@@ -131,6 +132,7 @@ export class ChatSettingsModal extends Modal {
         enabled: thinking?.enabled ?? false,
         effort: thinking?.effort ?? 'medium'
       },
+      temperature: temperature,
       imageProvider: llmSettings?.defaultImageModel?.provider || 'google',
       imageModel: llmSettings?.defaultImageModel?.model || 'gemini-2.5-flash-image',
       workspaceId: this.modelAgentManager.getSelectedWorkspaceId(),
@@ -182,6 +184,9 @@ export class ChatSettingsModal extends Modal {
 
       // Update thinking
       this.modelAgentManager.setThinkingSettings(settings.thinking);
+
+      // Update temperature
+      this.modelAgentManager.setTemperature(settings.temperature);
 
       // Update context notes
       await this.modelAgentManager.setContextNotes(settings.contextNotes);

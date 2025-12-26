@@ -196,7 +196,7 @@ async function handleGenerate(message) {
 
     const response = await engine.chat.completions.create({
       messages: messages,
-      temperature: temperature ?? 0.7,
+      temperature: temperature ?? 0.5,
       max_tokens: maxTokens ?? 2048,
       top_p: topP ?? 0.95,
       stop: stopSequences,
@@ -241,7 +241,7 @@ async function handleStream(message) {
 
     const stream = await engine.chat.completions.create({
       messages: messages,
-      temperature: temperature ?? 0.7,
+      temperature: temperature ?? 0.5,
       max_tokens: maxTokens ?? 2048,
       top_p: topP ?? 0.95,
       stop: stopSequences,

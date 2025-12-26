@@ -75,6 +75,7 @@ export interface LLMProviderSettings {
   agentModel?: DefaultModelSettings; // Model for executePrompt (API-only, used when chat model is local)
   defaultImageModel?: DefaultImageModelSettings; // Default image generation model
   defaultThinking?: DefaultThinkingSettings; // Default thinking settings for supported models
+  defaultTemperature?: number; // Default temperature (0.0-1.0, default 0.5)
   monthlyBudget?: number; // Monthly budget in USD for LLM usage
 }
 
@@ -144,5 +145,6 @@ export const DEFAULT_LLM_PROVIDER_SETTINGS: LLMProviderSettings = {
   defaultThinking: {
     enabled: false,
     effort: 'medium'
-  }
+  },
+  defaultTemperature: 0.5
 };

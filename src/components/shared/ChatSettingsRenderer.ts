@@ -31,6 +31,7 @@ export interface ChatSettings {
     enabled: boolean;
     effort: ThinkingEffort;
   };
+  temperature: number; // 0.0-1.0, controls randomness
   imageProvider: 'google' | 'openrouter';
   imageModel: string;
   workspaceId: string | null;
@@ -142,6 +143,7 @@ export class ChatSettingsRenderer {
     // Vertical layout
     this.renderModelSection(this.container);
     this.renderAgentModelSection(this.container);
+    this.renderTemperatureSection(this.container);
     this.renderReasoningSection(this.container);
     this.renderImageSection(this.container);
     this.renderContextSection(this.container);
@@ -357,6 +359,37 @@ export class ChatSettingsRenderer {
       });
   }
 
+  // ========== TEMPERATURE SECTION ==========
+
+  private renderTemperatureSection(parent: HTMLElement): void {
+    const section = parent.createDiv('csr-section');
+    section.createDiv('csr-section-header').setText('Temperature');
+    const content = section.createDiv('csr-section-content');
+
+    // Create container for slider row with value display
+    const tempSetting = new Setting(content)
+      .setName('Creativity')
+      .setDesc('Lower = more focused, Higher = more creative');
+
+    // Add value display span
+    const valueDisplay = tempSetting.controlEl.createSpan({ cls: 'csr-temp-value' });
+    valueDisplay.setText(this.settings.temperature.toFixed(1));
+
+    // Add Obsidian slider component
+    tempSetting.addSlider(slider => {
+      slider
+        .setLimits(0, 1, 0.1)
+        .setValue(this.settings.temperature)
+        .setDynamicTooltip()
+        .onChange((value: number) => {
+          this.settings.temperature = value;
+          valueDisplay.setText(value.toFixed(1));
+          this.notifyChange();
+        });
+      return slider;
+    });
+  }
+
   // ========== REASONING SECTION ==========
 
   private renderReasoningSection(parent: HTMLElement): void {
@@ -388,17 +421,20 @@ export class ChatSettingsRenderer {
     const effortSetting = new Setting(this.effortSection)
       .setName('Effort');
 
-    const valueDisplay = effortSetting.controlEl.createSpan('csr-effort-value');
-    valueDisplay.textContent = EFFORT_LABELS[this.settings.thinking.effort];
+    const valueDisplay = effortSetting.controlEl.createSpan({ cls: 'csr-effort-value' });
+    valueDisplay.setText(EFFORT_LABELS[this.settings.thinking.effort]);
 
-    effortSetting.addSlider(slider => slider
-      .setLimits(0, 2, 1)
-      .setValue(EFFORT_LEVELS.indexOf(this.settings.thinking.effort))
-      .onChange(value => {
-        this.settings.thinking.effort = EFFORT_LEVELS[value];
-        valueDisplay.textContent = EFFORT_LABELS[this.settings.thinking.effort];
-        this.notifyChange();
-      }));
+    effortSetting.addSlider(slider => {
+      slider
+        .setLimits(0, 2, 1)
+        .setValue(EFFORT_LEVELS.indexOf(this.settings.thinking.effort))
+        .onChange((value: number) => {
+          this.settings.thinking.effort = EFFORT_LEVELS[value];
+          valueDisplay.setText(EFFORT_LABELS[this.settings.thinking.effort]);
+          this.notifyChange();
+        });
+      return slider;
+    });
   }
 
   private updateEffortVisibility(): void {

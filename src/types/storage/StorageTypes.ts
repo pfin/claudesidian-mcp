@@ -32,6 +32,7 @@ export interface IndividualConversation {
       workspaceId?: string;
       contextNotes?: string[];
       sessionId?: string;
+      temperature?: number; // 0.0-1.0, per-conversation override
     };
     // Conversation-level cost aggregation (legacy)
     cost?: {

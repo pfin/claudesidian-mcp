@@ -77,6 +77,7 @@ export class ModelAgentManager {
   private systemPromptBuilder: SystemPromptBuilder;
   private workspaceIntegration: WorkspaceIntegrationService;
   private thinkingSettings: ThinkingSettings = { enabled: false, effort: 'medium' };
+  private temperature: number = 0.5;
   private contextTokenTracker: ContextTokenTracker | null = null; // For token-limited models
   private previousContext: CompactedContext | null = null; // Context from compacted conversation
 
@@ -183,6 +184,11 @@ export class ModelAgentManager {
         enabled: settings.thinking.enabled ?? false,
         effort: settings.thinking.effort ?? 'medium'
       };
+    }
+
+    // Restore temperature
+    if (typeof settings.temperature === 'number') {
+      this.temperature = Math.max(0, Math.min(1, settings.temperature));
     }
   }
 
@@ -303,7 +309,8 @@ export class ModelAgentManager {
           workspaceId: this.selectedWorkspaceId,
           contextNotes: this.contextNotesManager.getNotes(),
           sessionId: existingSessionId, // Preserve the session ID
-          thinking: this.thinkingSettings
+          thinking: this.thinkingSettings,
+          temperature: this.temperature
         }
       };
 
@@ -512,6 +519,20 @@ export class ModelAgentManager {
     this.thinkingSettings = { ...settings };
   }
 
+  /**
+   * Get temperature
+   */
+  getTemperature(): number {
+    return this.temperature;
+  }
+
+  /**
+   * Set temperature (clamped to 0.0-1.0)
+   */
+  setTemperature(temperature: number): void {
+    this.temperature = Math.max(0, Math.min(1, temperature));
+  }
+
   // ========== Context Token Tracking (for local providers) ==========
 
   /**
@@ -636,6 +657,7 @@ export class ModelAgentManager {
     sessionId?: string;
     enableThinking?: boolean;
     thinkingEffort?: 'low' | 'medium' | 'high';
+    temperature?: number;
   }> {
     const sessionId = await this.getCurrentSessionId();
 
@@ -646,7 +668,8 @@ export class ModelAgentManager {
       workspaceId: this.selectedWorkspaceId || undefined,
       sessionId: sessionId,
       enableThinking: this.thinkingSettings.enabled,
-      thinkingEffort: this.thinkingSettings.effort
+      thinkingEffort: this.thinkingSettings.effort,
+      temperature: this.temperature
     };
   }
 

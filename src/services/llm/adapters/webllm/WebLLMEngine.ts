@@ -521,7 +521,7 @@ export class WebLLMEngine {
 
       const response = await this.engine.chat.completions.create({
         messages: messages as WebLLMTypes.ChatCompletionMessageParam[],
-        temperature: options?.temperature ?? 0.7,
+        temperature: options?.temperature ?? 0.5,
         max_tokens: options?.maxTokens ?? 2048,
         top_p: options?.topP ?? 0.95,
         stop: options?.stopSequences,
@@ -627,7 +627,7 @@ export class WebLLMEngine {
       try {
         stream = await this.engine.chat.completions.create({
           messages: messages as WebLLMTypes.ChatCompletionMessageParam[],
-          temperature: options?.temperature ?? 0.7,
+          temperature: options?.temperature ?? 0.5,
           max_tokens: options?.maxTokens ?? 2048,
           top_p: options?.topP ?? 0.95,
           stop: options?.stopSequences,

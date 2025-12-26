@@ -53,6 +53,14 @@ export class CreateContentTool extends BaseTool<CreateContentParams, CreateConte
         return this.prepareResult(false, undefined, 'Content is required');
       }
 
+      // Check if file already exists
+      const existingFile = this.app.vault.getAbstractFileByPath(filePath);
+      if (existingFile) {
+        return this.prepareResult(false, undefined,
+          `File already exists: "${filePath}". Use readContent to view it, appendContent/prependContent to add to it, or replaceContent to overwrite specific sections.`
+        );
+      }
+
       // Create file
       await ContentOperations.createContent(this.app, filePath, content);
 

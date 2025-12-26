@@ -87,6 +87,7 @@ export class DefaultsTab {
         enabled: llmSettings?.defaultThinking?.enabled ?? false,
         effort: llmSettings?.defaultThinking?.effort ?? 'medium'
       },
+      temperature: llmSettings?.defaultTemperature ?? 0.5,
       imageProvider: llmSettings?.defaultImageModel?.provider || 'google',
       imageModel: llmSettings?.defaultImageModel?.model || 'gemini-2.5-flash-image',
       workspaceId: pluginSettings.defaultWorkspaceId || null,
@@ -120,6 +121,7 @@ export class DefaultsTab {
         enabled: settings.thinking.enabled,
         effort: settings.thinking.effort
       };
+      llmSettings.defaultTemperature = settings.temperature;
       llmSettings.defaultImageModel = {
         provider: settings.imageProvider,
         model: settings.imageModel
