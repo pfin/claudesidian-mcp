@@ -3,9 +3,9 @@
  * Provides local LLM models via LM Studio's OpenAI-compatible API
  * Supports model auto-discovery, streaming, and function calling
  *
- * Special support for fine-tuned models that use [TOOL_CALLS] content format
- * (e.g., Nexus tools SFT models) which embed tool calls in message content
- * rather than using the standard tool_calls array.
+ * Uses the standard /v1/chat/completions API for reliable conversation handling.
+ * Supports multiple tool calling formats (native tool_calls, [TOOL_CALLS], XML, etc.)
+ * via ToolCallContentParser.
  */
 
 import { requestUrl } from 'obsidian';
@@ -21,6 +21,7 @@ import {
   LLMProviderError
 } from '../types';
 import { ToolCallContentParser } from './ToolCallContentParser';
+import { usesCustomToolFormat } from '../../../chat/builders/ContextBuilderFactory';
 
 export class LMStudioAdapter extends BaseAdapter {
   readonly name = 'lmstudio';
@@ -39,314 +40,266 @@ export class LMStudioAdapter extends BaseAdapter {
   }
 
   /**
-   * Generate response without caching using OpenAI-compatible chat completions API
+   * Generate response without caching using /v1/chat/completions
    * Uses Obsidian's requestUrl to bypass CORS
    */
   async generateUncached(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {
-    try {
-      const model = options?.model || this.currentModel;
+    const model = options?.model || this.currentModel;
 
-      // Check for pre-built conversation history (tool continuations)
-      let messages: any[];
-      if (options?.conversationHistory && options.conversationHistory.length > 0) {
-        messages = options.conversationHistory;
-      } else {
-        messages = this.buildMessages(prompt, options?.systemPrompt);
+    let messages: any[];
+    if (options?.conversationHistory && options.conversationHistory.length > 0) {
+      messages = options.conversationHistory;
+    } else {
+      messages = this.buildMessages(prompt, options?.systemPrompt);
+    }
+
+    const requestBody: any = {
+      model: model,
+      messages: messages,
+      stream: false,
+      temperature: options?.temperature,
+      max_tokens: options?.maxTokens,
+      top_p: options?.topP,
+      frequency_penalty: options?.frequencyPenalty,
+      presence_penalty: options?.presencePenalty,
+      stop: options?.stopSequences
+    };
+
+    const skipToolSchemas = LMStudioAdapter.usesToolCallsContentFormat(model);
+    if (options?.tools && options.tools.length > 0 && !skipToolSchemas) {
+      requestBody.tools = this.convertTools(options.tools);
+    }
+
+    if (options?.jsonMode) {
+      requestBody.response_format = { type: 'json_object' };
+    }
+
+    Object.keys(requestBody).forEach(key => {
+      if (requestBody[key] === undefined) {
+        delete requestBody[key];
       }
+    });
 
-      const requestBody: any = {
-        model: model,
-        messages: messages,
-        stream: false,
-        temperature: options?.temperature,
-        max_tokens: options?.maxTokens,
-        top_p: options?.topP,
-        frequency_penalty: options?.frequencyPenalty,
-        presence_penalty: options?.presencePenalty,
-        stop: options?.stopSequences
-      };
+    const response = await requestUrl({
+      url: `${this.serverUrl}/v1/chat/completions`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
 
-      // Add tools if provided (function calling support)
-      // Skip for fine-tuned models that have internalized tool schemas (saves context window)
-      const skipToolSchemas = LMStudioAdapter.usesToolCallsContentFormat(model);
-      if (options?.tools && options.tools.length > 0 && !skipToolSchemas) {
-        requestBody.tools = this.convertTools(options.tools);
-      }
-
-      // Add JSON mode if requested
-      if (options?.jsonMode) {
-        requestBody.response_format = { type: 'json_object' };
-      }
-
-      // Remove undefined values
-      Object.keys(requestBody).forEach(key => {
-        if (requestBody[key] === undefined) {
-          delete requestBody[key];
-        }
-      });
-
-      // Use Obsidian's requestUrl to bypass CORS
-      const response = await requestUrl({
-        url: `${this.serverUrl}/v1/chat/completions`,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (response.status !== 200) {
-        const errorText = response.text || 'Unknown error';
-        throw new LLMProviderError(
-          `LM Studio API error: ${response.status} - ${errorText}`,
-          'generation',
-          'API_ERROR'
-        );
-      }
-
-      const data = response.json;
-
-      if (!data.choices || !data.choices[0]) {
-        throw new LLMProviderError(
-          'Invalid response format from LM Studio API: missing choices',
-          'generation',
-          'INVALID_RESPONSE'
-        );
-      }
-
-      const choice = data.choices[0];
-      let content = choice.message?.content || '';
-      let toolCalls = choice.message?.tool_calls || [];
-
-      // Check for [TOOL_CALLS] format in content (used by fine-tuned models like Nexus)
-      // This format embeds tool calls in the content rather than tool_calls array
-      if (ToolCallContentParser.hasToolCallsFormat(content)) {
-        const parsed = ToolCallContentParser.parse(content);
-
-        if (parsed.hasToolCalls) {
-          // Use parsed tool calls if standard tool_calls is empty
-          if (toolCalls.length === 0) {
-            toolCalls = parsed.toolCalls;
-          }
-          // Clean the content (remove [TOOL_CALLS] JSON)
-          content = parsed.cleanContent;
-        }
-      }
-
-      // Extract usage information
-      const usage: TokenUsage = {
-        promptTokens: data.usage?.prompt_tokens || 0,
-        completionTokens: data.usage?.completion_tokens || 0,
-        totalTokens: data.usage?.total_tokens || 0
-      };
-
-      const finishReason = this.mapFinishReason(choice.finish_reason);
-      const metadata = {
-        cached: false,
-        model: data.model,
-        id: data.id,
-        created: data.created
-      };
-
-      return await this.buildLLMResponse(
-        content,
-        model,
-        usage,
-        metadata,
-        // If we have tool calls, report tool_calls as finish reason
-        toolCalls.length > 0 ? 'tool_calls' : finishReason,
-        toolCalls
-      );
-    } catch (error) {
-      if (error instanceof LLMProviderError) {
-        throw error;
-      }
+    if (response.status !== 200) {
       throw new LLMProviderError(
-        `LM Studio generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `LM Studio API error: ${response.status} - ${response.text || 'Unknown error'}`,
         'generation',
-        'NETWORK_ERROR'
+        'API_ERROR'
       );
+    }
+
+    const data = response.json;
+
+    if (!data.choices || !data.choices[0]) {
+      throw new LLMProviderError(
+        'Invalid response format from LM Studio API: missing choices',
+        'generation',
+        'INVALID_RESPONSE'
+      );
+    }
+
+    const choice = data.choices[0];
+    let content = choice.message?.content || '';
+    let toolCalls = choice.message?.tool_calls || [];
+
+    if (ToolCallContentParser.hasToolCallsFormat(content)) {
+      const parsed = ToolCallContentParser.parse(content);
+      if (parsed.hasToolCalls) {
+        if (toolCalls.length === 0) {
+          toolCalls = parsed.toolCalls;
+        }
+        content = parsed.cleanContent;
+      }
+    }
+
+    const usage: TokenUsage = {
+      promptTokens: data.usage?.prompt_tokens || 0,
+      completionTokens: data.usage?.completion_tokens || 0,
+      totalTokens: data.usage?.total_tokens || 0
+    };
+
+    return await this.buildLLMResponse(
+      content,
+      model,
+      usage,
+      { cached: false, model: data.model, id: data.id },
+      toolCalls.length > 0 ? 'tool_calls' : this.mapFinishReason(choice.finish_reason),
+      toolCalls
+    );
+  }
+
+  /**
+   * Generate streaming response using /v1/chat/completions
+   * Supports multiple tool calling formats via ToolCallContentParser
+   */
+  async* generateStreamAsync(prompt: string, options?: GenerateOptions): AsyncGenerator<StreamChunk, void, unknown> {
+    const model = options?.model || this.currentModel;
+
+    // Check for pre-built conversation history (tool continuations)
+    let messages: any[];
+    if (options?.conversationHistory && options.conversationHistory.length > 0) {
+      messages = options.conversationHistory;
+    } else {
+      messages = this.buildMessages(prompt, options?.systemPrompt);
+    }
+
+    const requestBody: any = {
+      model: model,
+      messages: messages,
+      stream: true,
+      temperature: options?.temperature,
+      max_tokens: options?.maxTokens,
+      top_p: options?.topP,
+      frequency_penalty: options?.frequencyPenalty,
+      presence_penalty: options?.presencePenalty,
+      stop: options?.stopSequences
+    };
+
+    // Add tools if provided
+    const skipToolSchemas = LMStudioAdapter.usesToolCallsContentFormat(model);
+    if (options?.tools && options.tools.length > 0 && !skipToolSchemas) {
+      requestBody.tools = this.convertTools(options.tools);
+    }
+
+    // Remove undefined values
+    Object.keys(requestBody).forEach(key => {
+      if (requestBody[key] === undefined) {
+        delete requestBody[key];
+      }
+    });
+
+    const response = await fetch(`${this.serverUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new LLMProviderError(
+        `LM Studio API error: ${response.status} - ${errorText}`,
+        'streaming',
+        'API_ERROR'
+      );
+    }
+
+    let accumulatedContent = '';
+    let hasToolCallsFormat = false;
+
+    for await (const chunk of this.processSSEStream(response, {
+      debugLabel: 'LM Studio (legacy)',
+      extractContent: (parsed) => parsed.choices?.[0]?.delta?.content || null,
+      extractToolCalls: (parsed) => parsed.choices?.[0]?.delta?.tool_calls || null,
+      extractFinishReason: (parsed) => parsed.choices?.[0]?.finish_reason || null,
+      extractUsage: (parsed) => parsed.usage,
+      accumulateToolCalls: true
+    })) {
+      if (chunk.content) {
+        accumulatedContent += chunk.content;
+      }
+
+      if (!hasToolCallsFormat && ToolCallContentParser.hasToolCallsFormat(accumulatedContent)) {
+        hasToolCallsFormat = true;
+      }
+
+      if (hasToolCallsFormat) {
+        if (chunk.complete) {
+          const parsed = ToolCallContentParser.parse(accumulatedContent);
+          yield {
+            content: parsed.cleanContent,
+            complete: true,
+            toolCalls: parsed.hasToolCalls ? parsed.toolCalls : undefined,
+            toolCallsReady: parsed.hasToolCalls,
+            usage: chunk.usage
+          };
+        }
+      } else {
+        yield chunk;
+      }
     }
   }
 
   /**
-   * Generate streaming response using async generator
-   * Falls back to non-streaming if CORS is blocked
-   *
-   * Supports [TOOL_CALLS] content format from fine-tuned models
+   * Convert tools to Responses API format
    */
-  async* generateStreamAsync(prompt: string, options?: GenerateOptions): AsyncGenerator<StreamChunk, void, unknown> {
-    try {
-      const model = options?.model || this.currentModel;
-
-      // Check for pre-built conversation history (tool continuations)
-      let messages: any[];
-      if (options?.conversationHistory && options.conversationHistory.length > 0) {
-        messages = options.conversationHistory;
-      } else {
-        messages = this.buildMessages(prompt, options?.systemPrompt);
+  private convertToolsForResponsesApi(tools: any[]): any[] {
+    return tools.map((tool: any) => {
+      if (tool.function) {
+        return {
+          type: 'function',
+          name: tool.function.name,
+          description: tool.function.description,
+          parameters: tool.function.parameters
+        };
       }
+      return tool;
+    });
+  }
 
-      const requestBody: any = {
-        model: model,
-        messages: messages,
-        stream: true,
-        temperature: options?.temperature,
-        max_tokens: options?.maxTokens,
-        top_p: options?.topP,
-        frequency_penalty: options?.frequencyPenalty,
-        presence_penalty: options?.presencePenalty,
-        stop: options?.stopSequences
-      };
+  /**
+   * Convert Chat Completions format messages to Responses API input
+   *
+   * Chat Completions format:
+   * - { role: 'user', content: '...' }
+   * - { role: 'assistant', content: '...', tool_calls: [...] }
+   * - { role: 'tool', tool_call_id: '...', content: '...' }
+   *
+   * Responses API input:
+   * - { role: 'user', content: '...' }
+   * - { role: 'assistant', content: '...' } OR function_call items
+   * - { type: 'function_call_output', call_id: '...', output: '...' }
+   */
+  private convertChatCompletionsToResponsesInput(messages: any[], systemPrompt?: string): any[] {
+    const input: any[] = [];
 
-      // Add tools if provided (function calling support)
-      // Skip for fine-tuned models that have internalized tool schemas (saves context window)
-      const skipToolSchemas = LMStudioAdapter.usesToolCallsContentFormat(model);
-      if (options?.tools && options.tools.length > 0 && !skipToolSchemas) {
-        requestBody.tools = this.convertTools(options.tools);
-      }
+    // Add system prompt first if provided
+    if (systemPrompt) {
+      input.push({ role: 'system', content: systemPrompt });
+    }
 
-      // Add JSON mode if requested
-      if (options?.jsonMode) {
-        requestBody.response_format = { type: 'json_object' };
-      }
-
-      // Remove undefined values
-      Object.keys(requestBody).forEach(key => {
-        if (requestBody[key] === undefined) {
-          delete requestBody[key];
-        }
-      });
-
-      // Debug logging - full request (check console with filter: LLM_DEBUG)
-      console.log('[LLM_DEBUG] ====== LM Studio Request ======');
-      console.log('[LLM_DEBUG] Model:', requestBody.model);
-      console.log('[LLM_DEBUG] Messages:');
-      for (const msg of requestBody.messages) {
-        console.log(`[LLM_DEBUG] [${msg.role}]:`);
-        console.log(msg.content);
-        console.log('[LLM_DEBUG] ---');
-      }
-      console.log('[LLM_DEBUG] ================================');
-
-      const response = await fetch(`${this.serverUrl}/v1/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new LLMProviderError(
-          `LM Studio API error: ${response.status} ${response.statusText} - ${errorText}`,
-          'streaming',
-          'API_ERROR'
-        );
-      }
-
-      // Use existing SSE stream processor with post-processing for [TOOL_CALLS] format
-      // The [TOOL_CALLS] content format embeds tool calls in message content rather
-      // than using the standard tool_calls array - we detect and parse at completion
-      let accumulatedContent = '';
-      let pendingChunks: StreamChunk[] = [];
-      let hasToolCallsFormat = false;
-
-      // Process SSE stream using existing infrastructure
-      for await (const chunk of this.processSSEStream(response, {
-        debugLabel: 'LM Studio',
-        extractContent: (parsed) => parsed.choices?.[0]?.delta?.content || null,
-        extractToolCalls: (parsed) => parsed.choices?.[0]?.delta?.tool_calls || null,
-        extractFinishReason: (parsed) => parsed.choices?.[0]?.finish_reason || null,
-        extractUsage: (parsed) => parsed.usage,
-        accumulateToolCalls: true,
-        toolCallThrottling: {
-          initialYield: true,
-          progressInterval: 50
-        }
-      })) {
-        // Accumulate content for [TOOL_CALLS] detection
-        if (chunk.content) {
-          accumulatedContent += chunk.content;
-        }
-
-        // Check for [TOOL_CALLS] format early in stream
-        if (!hasToolCallsFormat && ToolCallContentParser.hasToolCallsFormat(accumulatedContent)) {
-          hasToolCallsFormat = true;
-        }
-
-        // If [TOOL_CALLS] detected, buffer chunks and transform at end
-        // This prevents showing raw JSON to the user
-        if (hasToolCallsFormat) {
-          if (!chunk.complete) {
-            // Buffer chunks silently - UI has its own thinking indicator
-            pendingChunks.push(chunk);
-          } else {
-            // Stream complete - parse [TOOL_CALLS] and yield transformed result
-            const parsed = ToolCallContentParser.parse(accumulatedContent);
-
-            // Debug logging - response
-            console.log('[LLM_DEBUG] ====== LM Studio Response ======');
-            console.log('[LLM_DEBUG] Raw accumulated content:');
-            console.log(accumulatedContent);
-            console.log('[LLM_DEBUG] Parsed tool calls:', parsed.hasToolCalls ? parsed.toolCalls.length : 0);
-            if (parsed.hasToolCalls) {
-              console.log('[LLM_DEBUG] Tool calls:', JSON.stringify(parsed.toolCalls, null, 2));
-            }
-            console.log('[LLM_DEBUG] ================================');
-
-            if (parsed.hasToolCalls) {
-              yield {
-                content: parsed.cleanContent,
-                complete: true,
-                toolCalls: parsed.toolCalls,
-                toolCallsReady: true,
-                usage: chunk.usage
-              };
-            } else {
-              // Parsing failed - yield original chunk
-              yield chunk;
-            }
+    for (const msg of messages) {
+      if (msg.role === 'user') {
+        input.push({ role: 'user', content: msg.content || '' });
+      } else if (msg.role === 'assistant') {
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+          // Add text content if present
+          if (msg.content && msg.content.trim()) {
+            input.push({ role: 'assistant', content: msg.content });
+          }
+          // Convert tool_calls to function_call items
+          for (const tc of msg.tool_calls) {
+            input.push({
+              type: 'function_call',
+              call_id: tc.id,
+              name: tc.function?.name || '',
+              arguments: tc.function?.arguments || '{}'
+            });
           }
         } else {
-          // Standard response - yield as-is (existing tool call handling applies)
-          if (chunk.complete) {
-            console.log('[LLM_DEBUG] ====== LM Studio Response (standard) ======');
-            console.log('[LLM_DEBUG] Content:', accumulatedContent);
-            console.log('[LLM_DEBUG] ================================');
-          }
-          yield chunk;
+          // Plain assistant message
+          input.push({ role: 'assistant', content: msg.content || '' });
         }
+      } else if (msg.role === 'tool') {
+        // Convert tool result to function_call_output
+        input.push({
+          type: 'function_call_output',
+          call_id: msg.tool_call_id,
+          output: msg.content || '{}'
+        });
+      } else if (msg.role === 'system') {
+        // System messages (shouldn't be here but handle gracefully)
+        input.push({ role: 'system', content: msg.content || '' });
       }
-
-    } catch (error) {
-      console.error('[LMStudioAdapter] Streaming error:', error);
-
-      // Check if it's a CORS error - fall back to non-streaming
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        // Fall back to non-streaming (which also handles [TOOL_CALLS])
-        const result = await this.generateUncached(prompt, options);
-        yield {
-          content: result.text || '',
-          complete: true,
-          toolCalls: result.toolCalls,
-          toolCallsReady: result.toolCalls && result.toolCalls.length > 0,
-          usage: result.usage,
-          metadata: result.metadata
-        };
-        return;
-      }
-
-      if (error instanceof LLMProviderError) {
-        throw error;
-      }
-      throw new LLMProviderError(
-        `LM Studio streaming failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        'streaming',
-        'NETWORK_ERROR'
-      );
     }
+
+    return input;
   }
 
   /**
@@ -492,14 +445,14 @@ export class LMStudioAdapter extends BaseAdapter {
   }
 
   /**
-   * Check if a model uses the [TOOL_CALLS] content format
-   * These are typically fine-tuned models that have internalized tool schemas
+   * Check if a model uses custom tool call format (<tool_call> or [TOOL_CALLS])
+   * These are fine-tuned models that have internalized tool schemas and don't need
+   * tool schemas passed via the API - they output tool calls as content.
+   *
+   * Delegates to centralized check in ContextBuilderFactory for consistency.
    */
   static usesToolCallsContentFormat(modelId: string): boolean {
-    // Include legacy identifiers for backward compatibility with older fine-tunes
-    const contentFormatKeywords = ['nexus', 'tools-sft', 'claudesidian'];
-    const lowerModelId = modelId.toLowerCase();
-    return contentFormatKeywords.some(keyword => lowerModelId.includes(keyword));
+    return usesCustomToolFormat(modelId);
   }
 
   /**

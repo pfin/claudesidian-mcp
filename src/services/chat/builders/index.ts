@@ -18,7 +18,8 @@ export {
   getContextBuilder,
   getProviderCategory,
   isOpenAICompatible,
-  isCustomFormat
+  isCustomFormat,
+  usesCustomToolFormat
 } from './ContextBuilderFactory';
 
 export type { ProviderCategory } from './ContextBuilderFactory';

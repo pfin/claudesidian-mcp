@@ -247,10 +247,8 @@ export class ToolContinuationService {
             continue;
           }
 
-          // Update response ID BEFORE recursive call (OpenAI only)
-          if (provider === 'openai' && chunk.metadata?.responseId) {
-            this.messageBuilder.updateResponseId(options?.conversationId, chunk.metadata.responseId);
-          }
+          // Note: Response ID is stored once in StreamingOrchestrator and kept for the session
+          // No need to update here - we reuse the first response ID throughout
 
           // Check iteration limit before recursing
           toolIterationCount++;
@@ -454,10 +452,7 @@ export class ToolContinuationService {
         }
 
         if (recursiveChunk.complete) {
-          // Update response ID for next continuation (OpenAI only)
-          if (provider === 'openai' && recursiveChunk.metadata?.responseId) {
-            this.messageBuilder.updateResponseId(options?.conversationId, recursiveChunk.metadata.responseId);
-          }
+          // Note: Response ID is kept from first response for entire session
           break;
         }
       }

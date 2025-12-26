@@ -92,21 +92,24 @@ export class CustomFormatContextBuilder implements IContextBuilder {
         }
       } else if (msg.role === 'assistant') {
         if (msg.toolCalls && msg.toolCalls.length > 0) {
+          // Detect format from the stored tool calls
+          const format = msg.toolCalls[0]?.sourceFormat;
+
           // Format using the model's original format
           messages.push({
             role: 'assistant',
-            content: this.formatToolCalls(msg.toolCalls)
+            content: this.formatToolCalls(msg.toolCalls, format)
           });
 
-          // Add tool results as user message
-          const toolResultObjects = msg.toolCalls.map((tc: any) => {
-            return tc.success
-              ? (tc.result || {})
-              : { error: tc.error || 'Tool execution failed' };
-          });
+          // Add tool results with appropriate format wrapper
+          const toolResults = msg.toolCalls.map((tc: any) => ({
+            success: tc.success !== false,
+            result: tc.result,
+            error: tc.error
+          }));
           messages.push({
             role: 'user',
-            content: JSON.stringify(toolResultObjects.length === 1 ? toolResultObjects[0] : toolResultObjects, null, 2)
+            content: this.formatToolResults(toolResults, format)
           });
 
           // If there's final content after tool execution, add it
@@ -122,6 +125,32 @@ export class CustomFormatContextBuilder implements IContextBuilder {
     });
 
     return messages;
+  }
+
+  /**
+   * Format tool results with appropriate wrapper based on tool call format
+   * XML format uses <tool_result> tags, bracket format uses raw JSON
+   */
+  private formatToolResults(toolResults: any[], format?: ToolCallFormat): string {
+    const toolResultObjects = toolResults.map(result => {
+      return result.success
+        ? (result.result || {})
+        : { error: result.error || 'Tool execution failed' };
+    });
+
+    const jsonContent = JSON.stringify(
+      toolResultObjects.length === 1 ? toolResultObjects[0] : toolResultObjects,
+      null,
+      2
+    );
+
+    // For XML format, wrap results to match model's expectations
+    if (format === 'xml') {
+      return `<tool_result>\n${jsonContent}\n</tool_result>`;
+    }
+
+    // Bracket format uses raw JSON
+    return jsonContent;
   }
 
   /**
@@ -188,7 +217,7 @@ export class CustomFormatContextBuilder implements IContextBuilder {
       };
     });
 
-    // Detect format from first tool call, or check if it's XML-style
+    // Detect format from first tool call
     const format = normalizedToolCalls[0]?.sourceFormat;
     const assistantToolCallContent = this.formatToolCalls(normalizedToolCalls, format);
 
@@ -204,17 +233,10 @@ export class CustomFormatContextBuilder implements IContextBuilder {
       });
     }
 
-    // Format tool results - raw JSON to match training format
-    const toolResultObjects = toolResults.map(result => {
-      return result.success
-        ? (result.result || {})
-        : { error: result.error || 'Tool execution failed' };
-    });
-
-    // Add user message with tool results
+    // Add user message with tool results (formatted based on tool call format)
     messages.push({
       role: 'user',
-      content: JSON.stringify(toolResultObjects.length === 1 ? toolResultObjects[0] : toolResultObjects, null, 2)
+      content: this.formatToolResults(toolResults, format)
     });
 
     return messages;
@@ -250,16 +272,10 @@ export class CustomFormatContextBuilder implements IContextBuilder {
       content: this.formatToolCalls(normalizedToolCalls, format)
     });
 
-    // Format tool results - raw JSON to match training format
-    const toolResultObjects = toolResults.map(result => {
-      return result.success
-        ? (result.result || {})
-        : { error: result.error || 'Tool execution failed' };
-    });
-
+    // Add tool results with appropriate format
     messages.push({
       role: 'user',
-      content: JSON.stringify(toolResultObjects.length === 1 ? toolResultObjects[0] : toolResultObjects, null, 2)
+      content: this.formatToolResults(toolResults, format)
     });
 
     return messages;

@@ -116,6 +116,9 @@ export class LLMProviderManager {
       } else if (provider.id === 'lmstudio') {
         // Special handling for LM Studio - dynamically discover models from server
         try {
+          // Wait for async adapter initialization to complete
+          await this.llmService.waitForInit();
+
           const adapter = this.llmService.getAdapter('lmstudio');
 
           if (!adapter) {

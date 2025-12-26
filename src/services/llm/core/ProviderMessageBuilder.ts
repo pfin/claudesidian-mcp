@@ -62,6 +62,10 @@ export interface StreamingOptions {
   presencePenalty?: number;
   enableThinking?: boolean;
   thinkingEffort?: 'low' | 'medium' | 'high';
+  // Responses API (OpenAI/LM Studio): ID from first response, reused for all continuations
+  responsesApiId?: string;
+  // Callback when responsesApiId is first captured - caller should persist to conversation metadata
+  onResponsesApiId?: (id: string) => void;
 }
 
 export class ProviderMessageBuilder {
@@ -185,22 +189,50 @@ export class ProviderMessageBuilder {
         systemPrompt: generateOptions.systemPrompt
       };
     } else if (provider === 'openai') {
-      // OpenAI uses Responses API with function_call_output items
+      // OpenAI uses Responses API with function_call_output items + previous_response_id
+      // State is reliably tracked on OpenAI's servers
       const toolInput = ConversationContextBuilder.buildResponsesAPIToolInput(
         toolCalls,
         toolResults
       );
 
-      // Get previous response ID for this conversation (uses conversationId, NOT sessionId)
-      const convId = options?.conversationId;
-      const previousResponseId = convId
-        ? this.conversationResponseIds.get(convId)
-        : undefined;
+      // Use responsesApiId from options (loaded from conversation metadata)
+      // Falls back to in-memory map for backward compatibility
+      let previousResponseId = options?.responsesApiId;
+      if (!previousResponseId) {
+        const convId = options?.conversationId;
+        previousResponseId = convId ? this.conversationResponseIds.get(convId) : undefined;
+      }
 
       return {
         ...generateOptions,
         conversationHistory: toolInput,
         previousResponseId,
+        systemPrompt: generateOptions.systemPrompt,
+        tools: generateOptions.tools
+      };
+    } else if (provider === 'lmstudio') {
+      // LM Studio: Send FULL conversation history to ensure AI sees complete context
+      // Format depends on model: Nexus uses custom <tool_call> format, others use OpenAI format
+      const conversationHistory = ConversationContextBuilder.buildToolContinuation(
+        'lmstudio',
+        userPrompt,
+        toolCalls,
+        toolResults,
+        previousMessages,
+        generateOptions.systemPrompt,
+        generateOptions.model // Pass model to determine correct format
+      ) as ConversationMessage[];
+
+      console.log('[LLM_DEBUG] LM Studio tool continuation - sending full history:');
+      console.log('[LLM_DEBUG]   Model:', generateOptions.model);
+      console.log('[LLM_DEBUG]   Previous messages:', previousMessages.length);
+      console.log('[LLM_DEBUG]   Tool calls:', toolCalls.length);
+      console.log('[LLM_DEBUG]   Built conversation:', conversationHistory.length, 'messages');
+
+      return {
+        ...generateOptions,
+        conversationHistory,
         systemPrompt: generateOptions.systemPrompt,
         tools: generateOptions.tools
       };

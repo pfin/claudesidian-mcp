@@ -144,9 +144,27 @@ export class StreamingOrchestrator {
         }
 
         if (chunk.complete) {
-          // Store OpenAI response ID for future continuations
-          if (provider === 'openai' && chunk.metadata?.responseId && options?.conversationId) {
-            this.conversationResponseIds.set(options.conversationId, chunk.metadata.responseId);
+          // Store response ID for future continuations (OpenAI uses Responses API)
+          if (provider === 'openai' && chunk.metadata?.responseId) {
+            const responseId = chunk.metadata.responseId;
+
+            // Only capture if we don't already have one (from options or memory)
+            const existingId = options?.responsesApiId ||
+              (options?.conversationId ? this.conversationResponseIds.get(options.conversationId) : undefined);
+
+            if (!existingId) {
+              // Store in memory for this session
+              if (options?.conversationId) {
+                this.conversationResponseIds.set(options.conversationId, responseId);
+              }
+              // Notify caller to persist to conversation metadata
+              if (options?.onResponsesApiId) {
+                options.onResponsesApiId(responseId);
+              }
+              console.log('[LLM_DEBUG] Captured responsesApiId:', responseId);
+            } else {
+              console.log('[LLM_DEBUG] Using existing responsesApiId:', existingId);
+            }
           }
           break;
         }

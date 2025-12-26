@@ -160,7 +160,9 @@ export class StreamingResponseService {
         conversationId, // CRITICAL: Required for OpenAI Responses API response ID tracking
         enableThinking: options?.enableThinking,
         thinkingEffort: options?.thinkingEffort,
-        temperature: options?.temperature
+        temperature: options?.temperature,
+        // Responses API (OpenAI/LM Studio): Load persisted ID for conversation continuity
+        responsesApiId: filteredConversation?.metadata?.responsesApiId
       };
 
       // Add tool event callback for live UI updates (delegates to ToolCallService)
@@ -170,6 +172,21 @@ export class StreamingResponseService {
 
       // Add usage callback for async cost calculation (e.g., OpenRouter streaming)
       llmOptions.onUsageAvailable = this.dependencies.costTrackingService.createUsageCallback(conversationId, messageId);
+
+      // Responses API: Persist ID when first captured (for conversation continuity across restarts)
+      llmOptions.onResponsesApiId = async (id: string) => {
+        try {
+          const conv = await this.dependencies.conversationService.getConversation(conversationId);
+          if (conv) {
+            await this.dependencies.conversationService.updateConversation(conversationId, {
+              metadata: { ...conv.metadata, responsesApiId: id }
+            });
+            console.log('[LLM_DEBUG] Persisted responsesApiId to conversation metadata:', id);
+          }
+        } catch (err) {
+          console.error('[StreamingResponseService] Failed to persist responsesApiId:', err);
+        }
+      };
 
       // Stream the response from LLM service with MCP tools
       let toolCalls: any[] | undefined = undefined;

@@ -25,14 +25,16 @@ export class ConversationContextBuilder {
    * @param conversation - The stored conversation data with tool calls
    * @param provider - LLM provider (determines format)
    * @param systemPrompt - Optional system prompt to prepend
+   * @param model - Optional model name (used for local providers to determine format)
    * @returns Properly formatted conversation messages for the LLM provider
    */
   static buildContextForProvider(
     conversation: ConversationData,
     provider: string,
-    systemPrompt?: string
+    systemPrompt?: string,
+    model?: string
   ): any[] {
-    const builder = getContextBuilder(provider);
+    const builder = getContextBuilder(provider, model);
     return builder.buildContext(conversation, systemPrompt);
   }
 
@@ -48,6 +50,7 @@ export class ConversationContextBuilder {
    * @param toolResults - Results from tool execution
    * @param previousMessages - Previous conversation messages (optional)
    * @param systemPrompt - System prompt for OpenAI-style providers (optional)
+   * @param model - Optional model name (used for local providers to determine format)
    * @returns Continuation context (message array)
    */
   static buildToolContinuation(
@@ -56,14 +59,15 @@ export class ConversationContextBuilder {
     toolCalls: any[],
     toolResults: any[],
     previousMessages?: any[],
-    systemPrompt?: string
+    systemPrompt?: string,
+    model?: string
   ): any[] {
     // Special case: OpenAI uses Responses API
     if (provider.toLowerCase() === 'openai') {
       throw new Error('OpenAI tool continuation should use buildResponsesAPIToolInput directly via StreamingOrchestrator');
     }
 
-    const builder = getContextBuilder(provider);
+    const builder = getContextBuilder(provider, model);
     return builder.buildToolContinuation(userPrompt, toolCalls, toolResults, previousMessages, systemPrompt);
   }
 
@@ -79,7 +83,7 @@ export class ConversationContextBuilder {
     toolCalls: any[],
     toolResults: any[]
   ): any[] {
-    return toolResults.map((result, index) => {
+    const items = toolResults.map((result, index) => {
       const toolCall = toolCalls[index];
 
       return {
@@ -90,6 +94,16 @@ export class ConversationContextBuilder {
           : JSON.stringify({ error: result.error || 'Tool execution failed' })
       };
     });
+
+    // Debug: Show what tool continuation we're building
+    console.log('[LLM_DEBUG] buildResponsesAPIToolInput:');
+    console.log('[LLM_DEBUG]   Tool calls received:', toolCalls.length);
+    toolCalls.forEach((tc, i) => {
+      console.log(`[LLM_DEBUG]   [${i}] call_id=${tc.id}, name=${tc.function?.name || tc.name}`);
+    });
+    console.log('[LLM_DEBUG]   Output items:', JSON.stringify(items, null, 2));
+
+    return items;
   }
 
   /**
@@ -104,15 +118,17 @@ export class ConversationContextBuilder {
    * @param toolCalls - Tool calls that were executed
    * @param toolResults - Results from tool execution
    * @param previousMessages - Existing conversation history (already contains user message)
+   * @param model - Optional model name (used for local providers to determine format)
    * @returns Updated message array with tool execution appended
    */
   static appendToolExecution(
     provider: string,
     toolCalls: any[],
     toolResults: any[],
-    previousMessages: any[]
+    previousMessages: any[],
+    model?: string
   ): any[] {
-    const builder = getContextBuilder(provider);
+    const builder = getContextBuilder(provider, model);
     return builder.appendToolExecution(toolCalls, toolResults, previousMessages);
   }
 
@@ -120,9 +136,10 @@ export class ConversationContextBuilder {
    * Get provider category for debugging/logging
    *
    * @param provider - Provider name
+   * @param model - Optional model name (used for local providers)
    * @returns Category string
    */
-  static getProviderCategory(provider: string): ProviderCategory {
-    return getProviderCategoryFromFactory(provider);
+  static getProviderCategory(provider: string, model?: string): ProviderCategory {
+    return getProviderCategoryFromFactory(provider, model);
   }
 }

@@ -57,6 +57,8 @@ export interface IndividualConversation {
       startedAt?: number;
       completedAt?: number;
     };
+    // Responses API state (OpenAI/LM Studio): persisted for conversation continuity across restarts
+    responsesApiId?: string;
   };
   // Optional pagination metadata when messages are loaded with pagination
   messagePagination?: PaginatedResult<ConversationMessage>;

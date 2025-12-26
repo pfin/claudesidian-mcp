@@ -311,6 +311,11 @@ export class LLMService {
     return this.adapterRegistry.getAdapter(providerId);
   }
 
+  /** Wait for adapter initialization to complete (async providers like LM Studio) */
+  async waitForInit(): Promise<void> {
+    return this.adapterRegistry.waitForInit();
+  }
+
   /** Clean up resources and unsubscribe from settings changes */
   dispose(): void {
     if (this.settingsEventRef) {
