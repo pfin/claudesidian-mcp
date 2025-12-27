@@ -1,5 +1,119 @@
 import { CommonParameters, CommonResult } from '../../types';
 
+// ============================================================================
+// NEW SIMPLIFIED TOOLS (3 tools replacing 8)
+// ============================================================================
+
+/**
+ * Params for reading content from a file
+ */
+export interface ReadParams extends CommonParameters {
+  /**
+   * Path to the file to read
+   */
+  path: string;
+
+  /**
+   * Start line (1-based), REQUIRED - forces intentional positioning
+   */
+  startLine: number;
+
+  /**
+   * End line (1-based, inclusive). If omitted, reads to end of file.
+   */
+  endLine?: number;
+}
+
+/**
+ * Result of reading content from a file
+ */
+export interface ReadResult extends CommonResult {
+  data?: {
+    /**
+     * Content of the file
+     */
+    content: string;
+
+    /**
+     * Path to the file
+     */
+    path: string;
+
+    /**
+     * Starting line that was read
+     */
+    startLine: number;
+
+    /**
+     * Ending line that was read (if applicable)
+     */
+    endLine?: number;
+  };
+}
+
+/**
+ * Params for writing content to a file (create or overwrite)
+ */
+export interface WriteParams extends CommonParameters {
+  /**
+   * Path to the file to create or overwrite
+   */
+  path: string;
+
+  /**
+   * Content to write to the file
+   */
+  content: string;
+
+  /**
+   * Overwrite if file exists (default: false)
+   */
+  overwrite?: boolean;
+}
+
+/**
+ * Result of writing content to a file
+ */
+export interface WriteResult extends CommonResult {
+  // No data returned - LLM already knows the path and content it passed
+}
+
+/**
+ * Params for updating content in a file (insert, replace, delete, append)
+ */
+export interface UpdateParams extends CommonParameters {
+  /**
+   * Path to the file to modify
+   */
+  path: string;
+
+  /**
+   * Content to insert/replace (empty string to delete lines)
+   */
+  content: string;
+
+  /**
+   * Start line (1-based). Use -1 to append to end of file.
+   */
+  startLine: number;
+
+  /**
+   * End line (1-based, inclusive). Omit to INSERT at startLine. Provide to REPLACE range.
+   */
+  endLine?: number;
+}
+
+/**
+ * Result of updating content in a file
+ */
+export interface UpdateResult extends CommonResult {
+  // No data returned - LLM already knows the path, content, and lines it passed
+}
+
+// ============================================================================
+// LEGACY TOOLS (deprecated, kept for backward compatibility)
+// ============================================================================
+
 /**
  * Params for reading content from a file
  */
@@ -8,17 +122,17 @@ export interface ReadContentParams extends CommonParameters {
    * Path to the file to read
    */
   filePath: string;
-  
+
   /**
    * Optional number of lines to read
    */
   limit?: number;
-  
+
   /**
    * Optional line number to start reading from (1-based)
    */
   offset?: number;
-  
+
   /**
    * Whether to include line numbers in the output
    */
@@ -34,22 +148,22 @@ export interface ReadContentResult extends CommonResult {
      * Content of the file
      */
     content: string;
-    
+
     /**
      * Path to the file
      */
     filePath: string;
-    
+
     /**
      * Whether line numbers are included in the content
      */
     lineNumbersIncluded?: boolean;
-    
+
     /**
      * Starting line if offset was specified
      */
     startLine?: number;
-    
+
     /**
      * Ending line if limit was specified
      */

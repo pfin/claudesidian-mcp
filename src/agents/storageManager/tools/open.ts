@@ -1,25 +1,30 @@
 import { App, TFile, WorkspaceLeaf } from 'obsidian';
 import { BaseTool } from '../../baseTool';
-import { OpenNoteParams, OpenNoteResult } from '../types';
+import { OpenParams, OpenResult } from '../types';
 import { createErrorMessage } from '../../../utils/errorUtils';
 import { smartNormalizePath } from '../../../utils/pathUtils';
-import { parseWorkspaceContext } from '../../../utils/contextUtils';
 
 /**
- * Tool to open a note in the vault
+ * Location: src/agents/vaultManager/tools/open.ts
+ * Purpose: Open a file in the Obsidian editor
+ * Relationships: Uses Obsidian workspace API for file opening
  */
-export class OpenNoteTool extends BaseTool<OpenNoteParams, OpenNoteResult> {
+
+/**
+ * Tool to open a file in the vault
+ */
+export class OpenTool extends BaseTool<OpenParams, OpenResult> {
   private app: App;
 
   /**
-   * Create a new OpenNoteTool
+   * Create a new OpenTool
    * @param app Obsidian app instance
    */
   constructor(app: App) {
     super(
-      'openNote',
-      'Open Note',
-      'Open a note in the vault',
+      'open',
+      'Open',
+      'Open a file in the editor',
       '1.0.0'
     );
     this.app = app;
@@ -30,7 +35,7 @@ export class OpenNoteTool extends BaseTool<OpenNoteParams, OpenNoteResult> {
    * @param params Tool parameters
    * @returns Promise resolving to the result
    */
-  async execute(params: OpenNoteParams): Promise<OpenNoteResult> {
+  async execute(params: OpenParams): Promise<OpenResult> {
     try {
       // Validate parameters
       if (!params.path) {
@@ -43,7 +48,11 @@ export class OpenNoteTool extends BaseTool<OpenNoteParams, OpenNoteResult> {
       // Get the file
       const file = this.app.vault.getAbstractFileByPath(normalizedPath);
       if (!file || !(file instanceof TFile)) {
-        return this.prepareResult(false, undefined, `Note not found at path: ${normalizedPath}`);
+        return this.prepareResult(
+          false,
+          undefined,
+          `File not found: "${normalizedPath}". Use list to see available files, or searchContent to find files by name.`
+        );
       }
 
       // Determine how to open the file
@@ -81,7 +90,7 @@ export class OpenNoteTool extends BaseTool<OpenNoteParams, OpenNoteResult> {
         });
 
     } catch (error) {
-      return this.prepareResult(false, undefined, createErrorMessage('Failed to open note: ', error));
+      return this.prepareResult(false, undefined, createErrorMessage('Failed to open file: ', error));
     }
   }
 
@@ -94,17 +103,17 @@ export class OpenNoteTool extends BaseTool<OpenNoteParams, OpenNoteResult> {
       properties: {
         path: {
           type: 'string',
-          description: 'Path to the note to open'
+          description: 'Path to the file to open'
         },
         mode: {
           type: 'string',
           enum: ['tab', 'split', 'window', 'current'],
-          description: 'Where to open the note (tab, split, window, or current)',
+          description: 'Where to open the file (tab, split, window, or current)',
           default: 'current'
         },
         focus: {
           type: 'boolean',
-          description: 'Whether to focus the opened note',
+          description: 'Whether to focus the opened file',
           default: true
         }
       },

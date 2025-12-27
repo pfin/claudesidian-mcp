@@ -46,7 +46,7 @@ export class SettingsTabManager {
     async initializeSettingsTab(): Promise<void> {
         try {
             // Get agent references - may not be available yet
-            const vaultLibrarian = this.config.connector?.getVaultLibrarian();
+            const searchManager = this.config.connector?.getSearchManager();
             const memoryManager = this.config.connector?.getMemoryManager();
             
             // Get services from container
@@ -61,7 +61,7 @@ export class SettingsTabManager {
                 this.config.plugin,
                 this.config.settings,
                 services, // Pass current services (may be empty initially)
-                vaultLibrarian || undefined,
+                searchManager || undefined,
                 memoryManager || undefined,
                 this.config.serviceManager, // Pass service manager for compatibility
                 this.config.lifecycleManager // Pass lifecycle manager for ChatView activation

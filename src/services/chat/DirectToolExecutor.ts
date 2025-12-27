@@ -48,17 +48,17 @@ const TOOL_SUGGESTIONS: Record<string, string> = {
     // commandManager
     listCommands: 'commandManager_listCommands',
     executeCommand: 'commandManager_executeCommand',
-    // vaultManager
-    listDirectory: 'vaultManager_listDirectory',
-    createFolder: 'vaultManager_createFolder',
-    moveNote: 'vaultManager_moveNote',
-    duplicateNote: 'vaultManager_duplicateNote',
-    deleteNote: 'vaultManager_deleteNote',
-    renameNote: 'vaultManager_renameNote',
-    // vaultLibrarian
-    searchContent: 'vaultLibrarian_searchContent',
-    searchDirectory: 'vaultLibrarian_searchDirectory',
-    searchMemory: 'vaultLibrarian_searchMemory',
+    // storageManager
+    list: 'storageManager_list',
+    createFolder: 'storageManager_createFolder',
+    move: 'storageManager_move',
+    copy: 'storageManager_copy',
+    archive: 'storageManager_archive',
+    open: 'storageManager_open',
+    // searchManager
+    searchContent: 'searchManager_searchContent',
+    searchDirectory: 'searchManager_searchDirectory',
+    searchMemory: 'searchManager_searchMemory',
     // memoryManager
     createSession: 'memoryManager_createSession',
     loadSession: 'memoryManager_loadSession',
@@ -334,8 +334,8 @@ export class DirectToolExecutor {
         if (!requestedTools || requestedTools.length === 0) {
             return {
                 success: false,
-                error: 'Please specify which agent tools you need. Example: get_tools({ tools: ["contentManager", "vaultLibrarian"] })',
-                availableAgents: ['contentManager', 'vaultManager', 'vaultLibrarian', 'memoryManager', 'commandManager', 'agentManager']
+                error: 'Please specify which agent tools you need. Example: get_tools({ tools: ["contentManager", "searchManager"] })',
+                availableAgents: ['contentManager', 'storageManager', 'searchManager', 'memoryManager', 'commandManager', 'agentManager']
             };
         }
 

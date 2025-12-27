@@ -21,8 +21,8 @@ This document outlines a comprehensive simplification of the Nexus tool architec
 | Agent | Tools | Destructive |
 |-------|-------|-------------|
 | ContentManager | 8 | 4 |
-| VaultManager | 9 | 2 |
-| VaultLibrarian | 3 | 0 |
+| StorageManager (VaultManager) | 9 | 2 |
+| SearchManager (VaultLibrarian) | 3 | 0 |
 | MemoryManager | 12 | 0 |
 | AgentManager | 9 | 1 |
 | CommandManager | 2 (hidden) | 0 |
@@ -42,12 +42,26 @@ This document outlines a comprehensive simplification of the Nexus tool architec
 | **U**pdate | Modify existing content | Reversible |
 | **A**rchive | Move to `.archive/` instead of delete | Recoverable |
 
-### CLI Alignment
+### Human-Readable Names
 
-Tool names follow familiar CLI conventions:
-- `ls`, `mkdir`, `mv`, `cp` for file operations
+Tool names are clear and self-documenting:
+- `list`, `createFolder`, `move`, `copy` for file operations
 - `read`, `write`, `update` for content operations
-- `archive` instead of `rm` (safe delete)
+- `archive` instead of delete (safe, recoverable)
+
+### Environment-Agnostic Agent Names
+
+Agent names are generalized to work across any system (Obsidian, filesystem, cloud storage, etc.):
+
+| Current | New | Rationale |
+|---------|-----|-----------|
+| VaultManager | `StorageManager` | Universal storage operations |
+| VaultLibrarian | `SearchManager` | Search across content/files/memory |
+| ContentManager | `ContentManager` | Already generic |
+| MemoryManager | `MemoryManager` | Already generic |
+| AgentManager | `AgentManager` | Already generic |
+| CommandManager | `ActionManager` | Abstract system actions (future) |
+| ToolManager | `ToolManager` | Already generic |
 
 ### Archive Pattern
 
@@ -68,7 +82,7 @@ Consistent parameter naming across all tools:
 | Parameter | Type | Description | Used By |
 |-----------|------|-------------|---------|
 | `path` | string | Source file or folder path | All tools |
-| `newPath` | string | Destination path | `mv`, `cp` |
+| `newPath` | string | Destination path | `move`, `copy` |
 
 ### Content Parameters
 
@@ -80,14 +94,14 @@ Consistent parameter naming across all tools:
 
 | Parameter | Type | Description | Used By |
 |-----------|------|-------------|---------|
-| `startLine` | number | Start line, 1-based. Use -1 for end of file | `read`, `update` |
-| `endLine` | number | End line, 1-based, inclusive | `read`, `update` |
+| `startLine` | number | Start line, 1-based. REQUIRED for `read`. Use -1 for end of file in `update` | `read`, `update` |
+| `endLine` | number | End line, 1-based, inclusive (optional) | `read`, `update` |
 
 ### Flag Parameters
 
 | Parameter | Type | Description | Used By |
 |-----------|------|-------------|---------|
-| `overwrite` | boolean | Overwrite if exists | `write`, `mv`, `cp` |
+| `overwrite` | boolean | Overwrite if exists | `write`, `move`, `copy` |
 
 ---
 
@@ -118,20 +132,22 @@ Consistent parameter naming across all tools:
 
 #### `read`
 
-Read content from a file with optional line range.
+Read content from a file with line range.
 
 ```typescript
 read({
   path: string,        // Path to file
-  startLine?: number,  // Start line (1-based), default: 1
+  startLine: number,   // Start line (1-based), REQUIRED - forces intentional positioning
   endLine?: number     // End line (1-based, inclusive), default: end of file
 })
 ```
 
+**Design Note:** `startLine` is required (not optional) to encourage the model to think about where content is located. If it knows the relevant section is in the middle or end of a file, requiring this parameter nudges it to start there rather than always reading from line 1.
+
 **Examples:**
 ```typescript
-// Read entire file
-read({ path: "notes/todo.md" })
+// Read entire file (explicit start)
+read({ path: "notes/todo.md", startLine: 1 })
 
 // Read lines 10-20
 read({ path: "notes/todo.md", startLine: 10, endLine: 20 })
@@ -200,7 +216,7 @@ update({ path: "note.md", content: "", startLine: 5, endLine: 10 })
 
 ---
 
-## VaultManager Simplification
+## StorageManager Simplification (formerly VaultManager)
 
 ### Before (9 tools)
 
@@ -220,21 +236,21 @@ update({ path: "note.md", content: "", startLine: 5, endLine: 10 })
 
 | Tool | Purpose | CRUA |
 |------|---------|------|
-| `ls` | List directory contents | R |
-| `mkdir` | Create folder | C |
-| `mv` | Move or rename file/folder | U |
-| `cp` | Duplicate file | C |
+| `list` | List directory contents | R |
+| `createFolder` | Create folder | C |
+| `move` | Move or rename file/folder | U |
+| `copy` | Duplicate file | C |
 | `archive` | Move to `.archive/` with timestamp | A |
 | `open` | Open file in editor | R |
 
 ### Tool Specifications
 
-#### `ls`
+#### `list`
 
 List contents of a directory.
 
 ```typescript
-ls({
+list({
   path?: string,      // Path to directory, default: vault root
   filter?: string     // Optional filter pattern
 })
@@ -243,36 +259,36 @@ ls({
 **Examples:**
 ```typescript
 // List vault root
-ls({})
+list({})
 
 // List specific folder
-ls({ path: "projects" })
+list({ path: "projects" })
 
 // List with filter
-ls({ path: "notes", filter: "*.md" })
+list({ path: "notes", filter: "*.md" })
 ```
 
-#### `mkdir`
+#### `createFolder`
 
 Create a new folder.
 
 ```typescript
-mkdir({
+createFolder({
   path: string        // Path for new folder
 })
 ```
 
 **Examples:**
 ```typescript
-mkdir({ path: "projects/new-project" })
+createFolder({ path: "projects/new-project" })
 ```
 
-#### `mv`
+#### `move`
 
 Move or rename a file or folder.
 
 ```typescript
-mv({
+move({
   path: string,        // Source path (file or folder)
   newPath: string,     // Destination path
   overwrite?: boolean  // Overwrite if exists, default: false
@@ -282,24 +298,24 @@ mv({
 **Examples:**
 ```typescript
 // Move a note
-mv({ path: "inbox/note.md", newPath: "projects/note.md" })
+move({ path: "inbox/note.md", newPath: "projects/note.md" })
 
 // Rename a note
-mv({ path: "note.md", newPath: "renamed-note.md" })
+move({ path: "note.md", newPath: "renamed-note.md" })
 
 // Move a folder
-mv({ path: "old-folder", newPath: "archive/old-folder" })
+move({ path: "old-folder", newPath: "archive/old-folder" })
 
 // Move with overwrite
-mv({ path: "draft.md", newPath: "final.md", overwrite: true })
+move({ path: "draft.md", newPath: "final.md", overwrite: true })
 ```
 
-#### `cp`
+#### `copy`
 
 Duplicate a file.
 
 ```typescript
-cp({
+copy({
   path: string,        // Source file path
   newPath: string,     // Destination path
   overwrite?: boolean  // Overwrite if exists, default: false
@@ -309,7 +325,7 @@ cp({
 **Examples:**
 ```typescript
 // Duplicate a note
-cp({ path: "templates/meeting.md", newPath: "meetings/2024-01-15.md" })
+copy({ path: "templates/meeting.md", newPath: "meetings/2024-01-15.md" })
 ```
 
 #### `archive`
@@ -365,9 +381,12 @@ open({ path: "notes/todo.md" })
 ### Recommendation
 
 Replace with `archiveAgent` that:
-- Marks agent as inactive (`isEnabled: false`)
-- Moves agent config to `.archive/agents/[timestamp]/[agent-name].json`
-- Agent can be restored by moving back or re-creating
+- Sets `isEnabled: false` on the agent (simple flag flip)
+- Agent disappears from `listAgents` active results
+- Agent config is preserved in storage
+- Agent can be restored via `updateAgent({ name, isEnabled: true })`
+
+**No file movement needed** - just a status change. This is simpler than the file-based archive pattern used for vault content.
 
 ---
 
@@ -378,7 +397,7 @@ Replace with `archiveAgent` that:
 | Agent | Before | After | Reduction |
 |-------|--------|-------|-----------|
 | ContentManager | 8 | 3 | -62% |
-| VaultManager | 9 | 6 | -33% |
+| StorageManager | 9 | 6 | -33% |
 | **Subtotal** | **17** | **9** | **-47%** |
 
 ### Tools Removed
@@ -391,12 +410,12 @@ Replace with `archiveAgent` that:
 - `findReplaceContent` → use `update` (LLM reads file first, determines lines)
 - `deleteContent` → use `update` with `content: ""`
 
-**VaultManager (3 removed):**
+**StorageManager (3 removed):**
 - `deleteNote` → replaced by `archive`
 - `deleteFolder` → replaced by `archive`
-- `moveNote` → consolidated into `mv`
-- `moveFolder` → consolidated into `mv`
-- `editFolder` → use `mv` for rename
+- `moveNote` → consolidated into `move`
+- `moveFolder` → consolidated into `move`
+- `editFolder` → use `move` for rename
 
 ### Safety Improvements
 
@@ -412,9 +431,14 @@ Replace with `archiveAgent` that:
 
 ### Phase 1: Implement New Tools
 1. Create `archive` tool with timestamp logic
-2. Create unified `mv` tool (auto-detect file/folder)
+2. Create unified `move` tool (auto-detect file/folder)
 3. Refactor `replaceByLine` into `update` with insert capability
-4. Rename tools to CLI-style names
+4. Rename tools to human-readable names
+
+### Phase 1b: Rename Agents
+1. Rename `VaultManager` → `StorageManager`
+2. Rename `VaultLibrarian` → `SearchManager`
+3. Update all imports and references
 
 ### Phase 2: Update Exports
 1. Update agent tool registrations
@@ -449,7 +473,7 @@ Replace with `archiveAgent` that:
 
 ```typescript
 // Read
-read({ path, startLine?, endLine? })
+read({ path, startLine, endLine? })  // startLine REQUIRED
 
 // Create
 write({ path, content, overwrite? })
@@ -458,19 +482,19 @@ write({ path, content, overwrite? })
 update({ path, content, startLine, endLine? })
 ```
 
-### VaultManager (6 tools)
+### StorageManager (6 tools)
 
 ```typescript
 // Read
-ls({ path?, filter? })
+list({ path?, filter? })
 open({ path })
 
 // Create
-mkdir({ path })
-cp({ path, newPath, overwrite? })
+createFolder({ path })
+copy({ path, newPath, overwrite? })
 
 // Update
-mv({ path, newPath, overwrite? })
+move({ path, newPath, overwrite? })
 
 // Archive
 archive({ path })
@@ -478,7 +502,7 @@ archive({ path })
 
 ### Unchanged Agents
 
-- **VaultLibrarian**: `searchContent`, `searchDirectory`, `searchMemory` (no changes needed)
+- **SearchManager**: `searchContent`, `searchDirectory`, `searchMemory` (renamed from VaultLibrarian, no tool changes)
 - **MemoryManager**: Session/State/Workspace tools (no changes needed)
 - **AgentManager**: Consider `archiveAgent` in future phase
 - **ToolManager**: `getTools`, `useTools` (no changes needed)

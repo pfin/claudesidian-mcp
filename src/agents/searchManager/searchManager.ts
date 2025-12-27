@@ -16,7 +16,7 @@ import { ServiceManager } from '../../core/ServiceManager';
 
 /**
  * Interface for accessing NexusPlugin services
- * Represents the plugin structure needed by VaultLibrarian for service access
+ * Represents the plugin structure needed by SearchManager for service access
  */
 interface NexusPluginWithServices extends Plugin {
   settings?: {
@@ -28,10 +28,10 @@ interface NexusPluginWithServices extends Plugin {
 }
 
 /**
- * Agent for searching and navigating the vault
- * Provides comprehensive search capabilities across vault content
+ * Agent for searching and navigating content
+ * Environment-agnostic: provides comprehensive search capabilities across any storage system
  */
-export class VaultLibrarianAgent extends BaseAgent {
+export class SearchManagerAgent extends BaseAgent {
   public app: App;
   private memoryService: MemoryService | null = null;
   private workspaceService: WorkspaceService | null = null;
@@ -39,9 +39,9 @@ export class VaultLibrarianAgent extends BaseAgent {
   private embeddingService: EmbeddingService | null = null;
   private searchContentTool: SearchContentTool | null = null;
   private settings: MemorySettings;
-  
+
   /**
-   * Create a new VaultLibrarianAgent
+   * Create a new SearchManagerAgent
    * @param app Obsidian app instance
    * @param enableVectorModes Whether to enable vector-based tools (legacy parameter)
    * @param memoryService Optional injected memory service
@@ -54,8 +54,8 @@ export class VaultLibrarianAgent extends BaseAgent {
     workspaceService?: WorkspaceService | null
   ) {
     super(
-      'vaultLibrarian',
-      'Search operations for Obsidian vault',
+      'searchManager',
+      'Search operations for content and memory',
       '1.0.0'
     );
 
@@ -102,7 +102,7 @@ export class VaultLibrarianAgent extends BaseAgent {
       } catch (error) {
       }
     }
-    
+
     // Get plugin reference for tools that need it
     let pluginRef: Plugin | null = null;
     try {
@@ -138,8 +138,8 @@ export class VaultLibrarianAgent extends BaseAgent {
       this.storageAdapter || undefined  // SQLite storage adapter for memory trace search
     ));
   }
-  
-  
+
+
   /**
    * Create a minimal Plugin interface for tools when actual plugin is unavailable
    * This satisfies the Plugin interface requirements with stub implementations
@@ -154,8 +154,8 @@ export class VaultLibrarianAgent extends BaseAgent {
     return {
       app,
       manifest: {
-        id: 'vault-librarian-fallback',
-        name: 'VaultLibrarian Fallback',
+        id: 'search-manager-fallback',
+        name: 'SearchManager Fallback',
         version: '1.0.0',
         minAppVersion: '0.0.0',
         description: 'Fallback plugin interface',
@@ -201,19 +201,19 @@ export class VaultLibrarianAgent extends BaseAgent {
   async updateSettings(settings: MemorySettings): Promise<void> {
     this.settings = settings;
   }
-  
+
   /**
-   * Initialize the VaultLibrarianAgent
+   * Initialize the SearchManagerAgent
    * This is called after the agent is registered with the agent manager
    */
   async initialize(): Promise<void> {
     await super.initialize();
-    
+
     // Initialize search service in background - non-blocking
     this.initializeSearchService().catch(error => {
     });
   }
-  
+
   /**
    * Initialize the search service
    */
@@ -221,7 +221,7 @@ export class VaultLibrarianAgent extends BaseAgent {
     // Search service initialization for JSON-based storage
   }
 
-  
+
   /**
    * Clean up resources when the agent is unloaded
    */

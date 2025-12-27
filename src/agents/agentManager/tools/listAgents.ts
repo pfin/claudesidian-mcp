@@ -34,13 +34,18 @@ export class ListAgentsTool extends BaseTool<ListAgentsParams, ListAgentsResult>
    */
   async execute(params: ListAgentsParams): Promise<ListAgentsResult> {
     try {
-      const { enabledOnly = false } = params;
-      
+      const { enabledOnly = false, includeArchived = false } = params;
+
       // Get prompts based on filter
       const allPrompts = this.storageService.getAllPrompts();
       const enabledPrompts = this.storageService.getEnabledPrompts();
-      
-      const prompts = enabledOnly ? enabledPrompts : allPrompts;
+
+      let prompts = enabledOnly ? enabledPrompts : allPrompts;
+
+      // Filter out archived (disabled) agents unless explicitly requested
+      if (!includeArchived) {
+        prompts = prompts.filter(prompt => prompt.isEnabled !== false);
+      }
       
       // Map to return only name and description for listing
       const promptList = prompts.map(prompt => ({
@@ -83,6 +88,11 @@ export class ListAgentsTool extends BaseTool<ListAgentsParams, ListAgentsResult>
         enabledOnly: {
           type: 'boolean',
           description: 'If true, only return enabled prompts',
+          default: false
+        },
+        includeArchived: {
+          type: 'boolean',
+          description: 'If true, include archived (disabled) agents in results. Default false filters out archived agents.',
           default: false
         }
       },

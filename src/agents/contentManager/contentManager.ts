@@ -1,35 +1,34 @@
 import { App } from 'obsidian';
 import { BaseAgent } from '../baseAgent';
 import {
-  ReadContentTool,
-  CreateContentTool,
-  AppendContentTool,
-  PrependContentTool,
-  ReplaceContentTool,
-  ReplaceByLineTool,
-  DeleteContentTool,
-  FindReplaceContentTool
+  ReadTool,
+  WriteTool,
+  UpdateTool
 } from './tools';
-// import { AgentManager } from '../../services/AgentManager';
 import NexusPlugin from '../../main';
 import { WorkspaceService } from '../../services/WorkspaceService';
 import { MemoryService } from '../memoryManager/services/MemoryService';
 
 /**
  * Agent for content operations in the vault
- * Consolidates functionality from noteEditor and noteReader
+ * Simplified from 8 tools to 3 tools following CRUA pattern
+ *
+ * Tools:
+ * - read: Read content from files with explicit line ranges
+ * - write: Create new files or overwrite existing files
+ * - update: Insert, replace, delete, append, or prepend content
  */
 export class ContentManagerAgent extends BaseAgent {
   protected app: App;
   protected plugin: NexusPlugin | null = null;
-  
+
   private workspaceService: WorkspaceService | null = null;
   private memoryService: MemoryService | null = null;
 
   /**
    * Create a new ContentManagerAgent
    * @param app Obsidian app instance
- * @param plugin Nexus plugin instance
+   * @param plugin Nexus plugin instance
    * @param memoryService Optional injected memory service
    * @param workspaceService Optional injected workspace service
    */
@@ -52,7 +51,7 @@ export class ContentManagerAgent extends BaseAgent {
     if (memoryService) {
       this.memoryService = memoryService;
     } else if (plugin?.services?.memoryService) {
-        this.memoryService = plugin.services.memoryService;
+      this.memoryService = plugin.services.memoryService;
     }
 
     if (workspaceService) {
@@ -60,16 +59,11 @@ export class ContentManagerAgent extends BaseAgent {
     } else if (plugin?.services?.workspaceService) {
       this.workspaceService = plugin.services.workspaceService;
     }
-    
-    // Register tools
-    this.registerTool(new ReadContentTool(app));
-    this.registerTool(new CreateContentTool(app));
-    this.registerTool(new AppendContentTool(app));
-    this.registerTool(new PrependContentTool(app));
-    this.registerTool(new ReplaceContentTool(app));
-    this.registerTool(new ReplaceByLineTool(app));
-    this.registerTool(new DeleteContentTool(app));
-    this.registerTool(new FindReplaceContentTool(app));
+
+    // Register simplified tools (3 tools replacing 8)
+    this.registerTool(new ReadTool(app));
+    this.registerTool(new WriteTool(app));
+    this.registerTool(new UpdateTool(app));
   }
   
   

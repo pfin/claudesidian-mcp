@@ -17,7 +17,7 @@ import { CustomPromptStorageService } from '../agents/agentManager/services/Cust
 import type { ServiceManager } from '../core/ServiceManager';
 
 // Agents
-import { VaultLibrarianAgent } from '../agents/vaultLibrarian/vaultLibrarian';
+import { SearchManagerAgent } from '../agents/searchManager/searchManager';
 import { MemoryManagerAgent } from '../agents/memoryManager/memoryManager';
 
 // Tab implementations
@@ -43,7 +43,7 @@ export class SettingsView extends PluginSettingTab {
     private customPromptStorage: CustomPromptStorageService | undefined;
 
     // Agents
-    private vaultLibrarian: VaultLibrarianAgent | undefined;
+    private searchManager: SearchManagerAgent | undefined;
     private memoryManager: MemoryManagerAgent | undefined;
 
     // Managers
@@ -75,7 +75,7 @@ export class SettingsView extends PluginSettingTab {
             workspaceService?: WorkspaceService;
             memoryService?: MemoryService;
         },
-        vaultLibrarian?: VaultLibrarianAgent,
+        searchManager?: SearchManagerAgent,
         memoryManager?: MemoryManagerAgent,
         serviceManager?: ServiceManager,
         pluginLifecycleManager?: any
@@ -91,7 +91,7 @@ export class SettingsView extends PluginSettingTab {
         }
 
         // Store agent references
-        this.vaultLibrarian = vaultLibrarian;
+        this.searchManager = searchManager;
         this.memoryManager = memoryManager;
 
         // Store managers

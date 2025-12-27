@@ -1,6 +1,58 @@
 import { CommonParameters } from '../../types';
 
 /**
+ * Arguments for listing directory contents
+ */
+export interface ListParams extends CommonParameters {
+  /**
+   * Directory path (optional, defaults to vault root)
+   */
+  path?: string;
+
+  /**
+   * Optional filter pattern
+   */
+  filter?: string;
+}
+
+/**
+ * Result of listing directory contents
+ */
+export interface ListResult {
+  /**
+   * Whether the operation was successful
+   */
+  success: boolean;
+
+  /**
+   * Error message if listing failed
+   */
+  error?: string;
+
+  /**
+   * Result data
+   */
+  data?: {
+    files: Array<{
+      name: string;
+      path: string;
+      size: number;
+      created: number;
+      modified: number;
+    }>;
+    folders: Array<{
+      name: string;
+      path: string;
+    }>;
+    summary: {
+      fileCount: number;
+      folderCount: number;
+      totalItems: number;
+    };
+  };
+}
+
+/**
  * Arguments for creating a note
  */
 export interface CreateNoteParams extends CommonParameters {
@@ -8,12 +60,12 @@ export interface CreateNoteParams extends CommonParameters {
    * Path to the note
    */
   path: string;
-  
+
   /**
    * Content of the note
    */
   content: string;
-  
+
   /**
    * Whether to overwrite if the note already exists
    */
@@ -28,17 +80,17 @@ export interface CreateNoteResult {
    * Path to the note
    */
   path: string;
-  
+
   /**
    * Whether the note was created successfully
    */
   success: boolean;
-  
+
   /**
    * Error message if creation failed
    */
   error?: string;
-  
+
   /**
    * Whether the note already existed
    */
@@ -296,14 +348,163 @@ export interface DuplicateNoteResult {
   wasOverwritten?: boolean;
 }
 /**
- * Arguments for opening a note
+ * Arguments for moving a file or folder
+ */
+export interface MoveParams extends CommonParameters {
+  /**
+   * Source path (file or folder)
+   */
+  path: string;
+
+  /**
+   * Destination path
+   */
+  newPath: string;
+
+  /**
+   * Whether to overwrite if destination exists
+   */
+  overwrite?: boolean;
+}
+
+/**
+ * Result of moving a file or folder
+ */
+export interface MoveResult {
+  /**
+   * Whether the operation was successful
+   */
+  success: boolean;
+
+  /**
+   * Error message if move failed
+   */
+  error?: string;
+}
+
+/**
+ * Arguments for copying a file
+ */
+export interface CopyParams extends CommonParameters {
+  /**
+   * Source file path
+   */
+  path: string;
+
+  /**
+   * Destination path
+   */
+  newPath: string;
+
+  /**
+   * Whether to overwrite if destination exists
+   */
+  overwrite?: boolean;
+}
+
+/**
+ * Result of copying a file
+ */
+export interface CopyResult {
+  /**
+   * Whether the operation was successful
+   */
+  success: boolean;
+
+  /**
+   * Error message if copy failed
+   */
+  error?: string;
+}
+
+/**
+ * Arguments for archiving a file or folder
+ */
+export interface ArchiveParams extends CommonParameters {
+  /**
+   * Path to file or folder to archive
+   */
+  path: string;
+}
+
+/**
+ * Result of archiving a file or folder
+ */
+export interface ArchiveResult {
+  /**
+   * Whether the operation was successful
+   */
+  success: boolean;
+
+  /**
+   * Error message if archive failed
+   */
+  error?: string;
+}
+
+/**
+ * Arguments for opening a file
+ */
+export interface OpenParams extends CommonParameters {
+  /**
+   * Path to the file to open
+   */
+  path: string;
+
+  /**
+   * Where to open the file
+   * - 'tab': Open in new tab
+   * - 'split': Open in horizontal split
+   * - 'window': Open in new window
+   * - 'current': Open in current tab (default)
+   */
+  mode?: 'tab' | 'split' | 'window' | 'current';
+
+  /**
+   * Whether to focus the opened file
+   */
+  focus?: boolean;
+}
+
+/**
+ * Result of opening a file
+ */
+export interface OpenResult {
+  /**
+   * Path to the opened file
+   */
+  path: string;
+
+  /**
+   * Whether the file was opened successfully
+   */
+  success: boolean;
+
+  /**
+   * Error message if opening failed
+   */
+  error?: string;
+
+  /**
+   * Whether the file was opened in the specified mode
+   */
+  opened: boolean;
+
+  /**
+   * The actual mode used to open the file
+   */
+  mode: 'tab' | 'split' | 'window' | 'current';
+}
+
+/**
+ * DEPRECATED - Use OpenParams instead
  */
 export interface OpenNoteParams extends CommonParameters {
   /**
    * Path to the note to open
    */
   path: string;
-  
+
   /**
    * Where to open the note
    * - 'tab': Open in new tab
@@ -312,7 +513,7 @@ export interface OpenNoteParams extends CommonParameters {
    * - 'current': Open in current tab (default)
    */
   mode?: 'tab' | 'split' | 'window' | 'current';
-  
+
   /**
    * Whether to focus the opened note
    */
@@ -320,29 +521,29 @@ export interface OpenNoteParams extends CommonParameters {
 }
 
 /**
- * Result of opening a note
+ * DEPRECATED - Use OpenResult instead
  */
 export interface OpenNoteResult {
   /**
    * Path to the opened note
    */
   path: string;
-  
+
   /**
    * Whether the note was opened successfully
    */
   success: boolean;
-  
+
   /**
    * Error message if opening failed
    */
   error?: string;
-  
+
   /**
    * Whether the note was opened in the specified mode
    */
   opened: boolean;
-  
+
   /**
    * The actual mode used to open the note
    */

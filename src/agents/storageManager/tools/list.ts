@@ -1,24 +1,29 @@
 import { App, TFile, TFolder } from 'obsidian';
 import { BaseDirectoryTool } from './baseDirectory';
-import { ListDirectoryParams, ListDirectoryResult } from '../types';
+import { ListParams, ListResult } from '../types';
 import { createErrorMessage } from '../../../utils/errorUtils';
 import { filterByName, FILTER_DESCRIPTION } from '../../../utils/filterUtils';
-import { parseWorkspaceContext } from '../../../utils/contextUtils';
 
 /**
- * Tool to list files and/or folders in a directory
+ * Location: src/agents/vaultManager/tools/list.ts
+ * Purpose: List files and folders in a directory with optional filtering
+ * Relationships: Uses BaseDirectoryTool for common directory operations
  */
-export class ListDirectoryTool extends BaseDirectoryTool<ListDirectoryParams, ListDirectoryResult> {
+
+/**
+ * Tool to list directory contents
+ */
+export class ListTool extends BaseDirectoryTool<ListParams, ListResult> {
 
   /**
-   * Create a new ListDirectoryTool
+   * Create a new ListTool
    * @param app Obsidian app instance
    */
   constructor(app: App) {
     super(
-      'listDirectory',
-      'List Directory',
-      'List files and/or folders in a directory with optional recursive depth',
+      'list',
+      'List',
+      'List contents of a directory',
       '1.0.0',
       app
     );
@@ -29,19 +34,18 @@ export class ListDirectoryTool extends BaseDirectoryTool<ListDirectoryParams, Li
    * @param params Tool parameters
    * @returns Promise resolving to the result
    */
-  async execute(params: ListDirectoryParams): Promise<ListDirectoryResult> {
+  async execute(params: ListParams): Promise<ListResult> {
     try {
+      // Default to vault root if no path provided
+      const path = params.path ?? '';
+
       // Get the folder using base class method
-      const parentFolder = await this.getFolder(params.path);
-      const normalizedPath = this.normalizeDirectoryPath(params.path);
+      const parentFolder = await this.getFolder(path);
+      const normalizedPath = this.normalizeDirectoryPath(path);
 
-      // Resolve what to include based on parameters
-      const { includeFiles, includeFolders } = this.resolveIncludeOptions(params);
-
-      // Get contents recursively based on depth
-      const depth = params.depth ?? 0;
-      const allFiles = includeFiles ? this.getFilesRecursively(parentFolder, depth) : [];
-      const allFolders = includeFolders ? this.getFoldersRecursively(parentFolder, depth) : [];
+      // Get contents (depth 0 = current folder only)
+      const allFiles = this.getFilesRecursively(parentFolder, 0);
+      const allFolders = this.getFoldersRecursively(parentFolder, 0);
 
       // Apply filter if provided
       let filteredFiles = allFiles;
@@ -55,32 +59,28 @@ export class ListDirectoryTool extends BaseDirectoryTool<ListDirectoryParams, Li
       // Prepare result data
       const result: any = {};
 
-      if (includeFiles) {
-        // Map files to required format
-        const fileData = filteredFiles.map(file => ({
-          name: file.name,
-          path: file.path,
-          size: file.stat.size,
-          created: file.stat.ctime,
-          modified: file.stat.mtime
-        }));
+      // Map files to required format
+      const fileData = filteredFiles.map(file => ({
+        name: file.name,
+        path: file.path,
+        size: file.stat.size,
+        created: file.stat.ctime,
+        modified: file.stat.mtime
+      }));
 
-        // Sort files by modified date (newest first)
-        fileData.sort((a, b) => b.modified - a.modified);
-        result.files = fileData;
-      }
+      // Sort files by modified date (newest first)
+      fileData.sort((a, b) => b.modified - a.modified);
+      result.files = fileData;
 
-      if (includeFolders) {
-        // Map folders to required format
-        const folderData = filteredFolders.map(folder => ({
-          name: folder.name,
-          path: folder.path
-        }));
+      // Map folders to required format
+      const folderData = filteredFolders.map(folder => ({
+        name: folder.name,
+        path: folder.path
+      }));
 
-        // Sort folders alphabetically
-        folderData.sort((a, b) => a.name.localeCompare(b.name));
-        result.folders = folderData;
-      }
+      // Sort folders alphabetically
+      folderData.sort((a, b) => a.name.localeCompare(b.name));
+      result.folders = folderData;
 
       // Add summary
       result.summary = {
@@ -90,9 +90,7 @@ export class ListDirectoryTool extends BaseDirectoryTool<ListDirectoryParams, Li
       };
 
       // Generate helpful message
-      const depthMessage = depth > 0 ? ` (depth: ${depth})` : '';
-      const typeMessage = this.getTypeMessage(includeFiles, includeFolders);
-      const message = this.getRootDirectoryMessage(normalizedPath, `Listing ${typeMessage}${depthMessage}`);
+      const message = this.getRootDirectoryMessage(normalizedPath, 'Listing directory contents');
 
       return this.prepareResult(
         true,
@@ -102,31 +100,6 @@ export class ListDirectoryTool extends BaseDirectoryTool<ListDirectoryParams, Li
 
     } catch (error) {
       return this.prepareResult(false, undefined, createErrorMessage('Failed to list directory contents: ', error));
-    }
-  }
-
-  /**
-   * Resolve include options based on parameters
-   */
-  private resolveIncludeOptions(params: ListDirectoryParams): { includeFiles: boolean; includeFolders: boolean } {
-    return {
-      includeFiles: params.includeFiles ?? true,
-      includeFolders: true // Always include folders - it's listDirectory
-    };
-  }
-
-  /**
-   * Get type message for the result
-   */
-  private getTypeMessage(includeFiles: boolean, includeFolders: boolean): string {
-    if (includeFiles && includeFolders) {
-      return 'directory contents';
-    } else if (includeFiles) {
-      return 'files';
-    } else if (includeFolders) {
-      return 'folders';
-    } else {
-      return 'nothing (no files or folders selected)';
     }
   }
 
@@ -186,24 +159,17 @@ export class ListDirectoryTool extends BaseDirectoryTool<ListDirectoryParams, Li
     const toolSchema = {
       type: 'object',
       properties: {
-        path: this.getDirectoryPathSchema(),
+        path: {
+          type: 'string',
+          description: 'Directory path (optional). Use empty string (""), "/" or "." for vault root. Defaults to vault root.',
+          default: ''
+        },
         filter: {
           type: 'string',
           description: FILTER_DESCRIPTION
-        },
-        depth: {
-          type: 'number',
-          description: 'Recursive depth for directory traversal (0 = current directory only, 1 = include immediate subdirectories, 2 = include subdirectories of subdirectories, etc.)',
-          minimum: 0,
-          default: 0
-        },
-        includeFiles: {
-          type: 'boolean',
-          description: 'Include files in results (default: true). Set false for folders only.',
-          default: true
         }
       },
-      required: ['path']
+      required: []
     };
 
     return this.getMergedSchema(toolSchema);

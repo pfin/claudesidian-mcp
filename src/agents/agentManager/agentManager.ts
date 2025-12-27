@@ -4,7 +4,7 @@ import {
   GetAgentTool,
   CreateAgentTool,
   UpdateAgentTool,
-  DeleteAgentTool,
+  ArchiveAgentTool,
   ListModelsTool,
   ExecutePromptsTool,
   GenerateImageTool,
@@ -106,7 +106,7 @@ export class AgentManagerAgent extends BaseAgent {
     this.registerTool(new GetAgentTool(this.storageService));
     this.registerTool(new CreateAgentTool(this.storageService));
     this.registerTool(new UpdateAgentTool(this.storageService));
-    this.registerTool(new DeleteAgentTool(this.storageService));
+    this.registerTool(new ArchiveAgentTool(this.storageService));
 
     // Register LLM tools with dependencies already available
     this.registerTool(new ListModelsTool(this.providerManager));

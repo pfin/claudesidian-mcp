@@ -109,7 +109,7 @@ export class AgentRegistrationService implements AgentRegistrationServiceInterfa
     try {
       logger.systemLog('Initializing agents with ServiceManager dependency injection...');
 
-      const agentNames = ['contentManager', 'commandManager', 'vaultManager', 'vaultLibrarian', 'memoryManager', 'agentManager'];
+      const agentNames = ['contentManager', 'commandManager', 'storageManager', 'searchManager', 'memoryManager', 'agentManager'];
       const initializedAgents = new Map<string, any>();
 
       for (const agentName of agentNames) {
@@ -206,9 +206,9 @@ export class AgentRegistrationService implements AgentRegistrationServiceInterfa
       // Initialize agents in order using AgentInitializationService
       await this.safeInitialize('contentManager', () => this.initializationService.initializeContentManager());
       await this.safeInitialize('commandManager', () => this.initializationService.initializeCommandManager());
-      await this.safeInitialize('vaultManager', () => this.initializationService.initializeVaultManager());
+      await this.safeInitialize('storageManager', () => this.initializationService.initializeStorageManager());
       await this.safeInitialize('agentManager', () => this.initializationService.initializeAgentManager(enableLLMModes));
-      await this.safeInitialize('vaultLibrarian', () => this.initializationService.initializeVaultLibrarian(enableSearchModes, memorySettings ?? { enabled: false }));
+      await this.safeInitialize('searchManager', () => this.initializationService.initializeSearchManager(enableSearchModes, memorySettings ?? { enabled: false }));
       await this.safeInitialize('memoryManager', () => this.initializationService.initializeMemoryManager());
 
       // ToolManager MUST be initialized LAST - it needs all other agents to be registered

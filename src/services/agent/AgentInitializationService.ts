@@ -15,8 +15,8 @@ import { ServiceManager } from '../../core/ServiceManager';
 import {
   ContentManagerAgent,
   CommandManagerAgent,
-  VaultManagerAgent,
-  VaultLibrarianAgent,
+  StorageManagerAgent,
+  SearchManagerAgent,
   MemoryManagerAgent,
   AgentManagerAgent,
   ToolManagerAgent
@@ -80,13 +80,13 @@ export class AgentInitializationService {
   }
 
   /**
-   * Initialize VaultManager agent
+   * Initialize StorageManager agent
    */
-  async initializeVaultManager(): Promise<void> {
-    const vaultManagerAgent = new VaultManagerAgent(this.app);
+  async initializeStorageManager(): Promise<void> {
+    const storageManagerAgent = new StorageManagerAgent(this.app);
 
-    this.agentManager.registerAgent(vaultManagerAgent);
-    logger.systemLog('VaultManager agent initialized successfully');
+    this.agentManager.registerAgent(storageManagerAgent);
+    logger.systemLog('StorageManager agent initialized successfully');
   }
 
   /**
@@ -189,9 +189,9 @@ export class AgentInitializationService {
   }
 
   /**
-   * Initialize VaultLibrarian agent
+   * Initialize SearchManager agent
    */
-  async initializeVaultLibrarian(enableSearchModes: boolean, memorySettings: MemorySettings): Promise<void> {
+  async initializeSearchManager(enableSearchModes: boolean, memorySettings: MemorySettings): Promise<void> {
     // Get required services
     let memoryService: MemoryService | null = null;
     let workspaceService: WorkspaceService | null = null;
@@ -205,20 +205,20 @@ export class AgentInitializationService {
       workspaceService = this.plugin.services.workspaceService as WorkspaceService | undefined || null;
     }
 
-    const vaultLibrarianAgent = new VaultLibrarianAgent(
+    const searchManagerAgent = new SearchManagerAgent(
       this.app,
       enableSearchModes,  // Pass search modes enabled status
       memoryService,
       workspaceService
     );
 
-    // Update VaultLibrarian with memory settings
+    // Update SearchManager with memory settings
     if (memorySettings) {
-      vaultLibrarianAgent.updateSettings(memorySettings);
+      searchManagerAgent.updateSettings(memorySettings);
     }
 
-    this.agentManager.registerAgent(vaultLibrarianAgent);
-    logger.systemLog('VaultLibrarian agent initialized successfully');
+    this.agentManager.registerAgent(searchManagerAgent);
+    logger.systemLog('SearchManager agent initialized successfully');
   }
 
   /**

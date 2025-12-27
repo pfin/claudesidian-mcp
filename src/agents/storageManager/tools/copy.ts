@@ -1,24 +1,30 @@
 import { App } from 'obsidian';
 import { BaseTool } from '../../baseTool';
-import { MoveNoteParams, MoveNoteResult } from '../types';
+import { CopyParams, CopyResult } from '../types';
 import { FileOperations } from '../utils/FileOperations';
 import { createErrorMessage } from '../../../utils/errorUtils';
 
 /**
- * Tool for moving a note
+ * Location: src/agents/vaultManager/tools/copy.ts
+ * Purpose: Duplicate a file to a new location
+ * Relationships: Uses FileOperations for copy logic
  */
-export class MoveNoteTool extends BaseTool<MoveNoteParams, MoveNoteResult> {
+
+/**
+ * Tool for copying/duplicating files
+ */
+export class CopyTool extends BaseTool<CopyParams, CopyResult> {
   private app: App;
 
   /**
-   * Create a new MoveNoteTool
+   * Create a new CopyTool
    * @param app Obsidian app instance
    */
   constructor(app: App) {
     super(
-      'moveNote',
-      'Move Note',
-      'Move a note to a new location',
+      'copy',
+      'Copy',
+      'Duplicate a file',
       '1.0.0'
     );
 
@@ -28,18 +34,30 @@ export class MoveNoteTool extends BaseTool<MoveNoteParams, MoveNoteResult> {
   /**
    * Execute the tool
    * @param params Tool parameters
-   * @returns Promise that resolves with the result of moving the note
+   * @returns Promise that resolves with the result of copying the file
    */
-  async execute(params: MoveNoteParams): Promise<MoveNoteResult> {
-    const { path, newPath, overwrite } = params;
-
+  async execute(params: CopyParams): Promise<CopyResult> {
     try {
-      await FileOperations.moveNote(this.app, path, newPath, overwrite);
+      if (!params.path) {
+        return this.prepareResult(false, undefined, 'Source path is required');
+      }
+
+      if (!params.newPath) {
+        return this.prepareResult(false, undefined, 'Destination path is required');
+      }
+
+      await FileOperations.duplicateNote(
+        this.app,
+        params.path,
+        params.newPath,
+        params.overwrite || false,
+        false // autoIncrement not supported in simplified API
+      );
 
       // Success - LLM already knows the paths it passed
       return this.prepareResult(true);
     } catch (error) {
-      return this.prepareResult(false, undefined, createErrorMessage('Failed to move note: ', error));
+      return this.prepareResult(false, undefined, createErrorMessage('Failed to copy file: ', error));
     }
   }
 
@@ -53,22 +71,22 @@ export class MoveNoteTool extends BaseTool<MoveNoteParams, MoveNoteResult> {
       properties: {
         path: {
           type: 'string',
-          description: 'Path to the note'
+          description: 'Source file path'
         },
         newPath: {
           type: 'string',
-          description: 'New path for the note'
+          description: 'Destination path for the copy'
         },
         overwrite: {
           type: 'boolean',
-          description: 'Whether to overwrite if a note already exists at the new path'
+          description: 'Overwrite if destination exists (default: false)',
+          default: false
         }
       },
-      required: ['path', 'newPath'],
-      description: 'Move a note to a new location'
+      required: ['path', 'newPath']
     };
 
-    // Merge with common schema (sessionId and context)
+    // Merge with common schema (workspace context)
     return this.getMergedSchema(toolSchema);
   }
 

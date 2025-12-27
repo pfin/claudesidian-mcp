@@ -9,7 +9,7 @@
  */
 
 export interface AgentDescriptor {
-  name: string;        // Agent identifier (e.g., "agentManager", "vaultLibrarian")
+  name: string;        // Agent identifier (e.g., "agentManager", "searchManager")
   description: string; // What this agent does (shown in enum description)
 }
 
@@ -27,12 +27,12 @@ export const AGENTS: AgentDescriptor[] = [
     description: "Note reading, editing, appending, replacing content in vault files"
   },
   {
-    name: "vaultLibrarian",
+    name: "searchManager",
     description: "Advanced search (universal, file search, directory search, memory search)"
   },
   {
-    name: "vaultManager",
-    description: "File/folder operations (create, move, duplicate, rename, delete)"
+    name: "storageManager",
+    description: "File/folder operations (list, createFolder, move, copy, archive, open)"
   },
   {
     name: "memoryManager",

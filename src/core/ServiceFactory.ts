@@ -21,8 +21,8 @@ import type { ServiceManager } from './ServiceManager';
 import {
     ContentManagerAgent,
     CommandManagerAgent,
-    VaultManagerAgent,
-    VaultLibrarianAgent,
+    StorageManagerAgent,
+    SearchManagerAgent,
     MemoryManagerAgent,
     AgentManagerAgent
 } from '../agents';
@@ -110,34 +110,34 @@ export class CommandManagerAgentFactory extends BaseAgentFactory<CommandManagerA
 }
 
 /**
- * VaultManager agent factory - no external dependencies
+ * StorageManager agent factory - no external dependencies
  */
-export class VaultManagerAgentFactory extends BaseAgentFactory<VaultManagerAgent> {
+export class StorageManagerAgentFactory extends BaseAgentFactory<StorageManagerAgent> {
     constructor() {
-        super('vaultManager', []); // No external dependencies
+        super('storageManager', []); // No external dependencies
     }
 
-    async create(dependencies: Map<string, any>, app: App, plugin: Plugin): Promise<VaultManagerAgent> {
-        return new VaultManagerAgent(app);
+    async create(dependencies: Map<string, any>, app: App, plugin: Plugin): Promise<StorageManagerAgent> {
+        return new StorageManagerAgent(app);
     }
 }
 
 /**
- * VaultLibrarian agent factory with memory service dependencies
+ * SearchManager agent factory with memory service dependencies
  */
-export class VaultLibrarianAgentFactory extends BaseAgentFactory<VaultLibrarianAgent> {
+export class SearchManagerAgentFactory extends BaseAgentFactory<SearchManagerAgent> {
     constructor() {
-        super('vaultLibrarian', ['memoryService', 'workspaceService']); // Optional dependencies
+        super('searchManager', ['memoryService', 'workspaceService']); // Optional dependencies
     }
 
-    async create(dependencies: Map<string, any>, app: App, plugin: Plugin): Promise<VaultLibrarianAgent> {
+    async create(dependencies: Map<string, any>, app: App, plugin: Plugin): Promise<SearchManagerAgent> {
         // Get settings from plugin using type guard
         const pluginSettings = hasSettings(plugin) ? plugin.settings.settings : undefined;
         const enableSearchModes = false; // Currently disabled
         const memoryService = this.getOptionalDependency<MemoryService>(dependencies, 'memoryService');
         const workspaceService = this.getOptionalDependency<any>(dependencies, 'workspaceService');
 
-        const agent = new VaultLibrarianAgent(app, enableSearchModes, memoryService, workspaceService);
+        const agent = new SearchManagerAgent(app, enableSearchModes, memoryService, workspaceService);
 
         // Apply memory settings if available
         const memorySettings = pluginSettings?.memory;
@@ -208,8 +208,8 @@ export class AgentFactoryRegistry {
         // Register all agent factories
         this.registerFactory(new ContentManagerAgentFactory());
         this.registerFactory(new CommandManagerAgentFactory());
-        this.registerFactory(new VaultManagerAgentFactory());
-        this.registerFactory(new VaultLibrarianAgentFactory());
+        this.registerFactory(new StorageManagerAgentFactory());
+        this.registerFactory(new SearchManagerAgentFactory());
         this.registerFactory(new MemoryManagerAgentFactory());
         this.registerFactory(new AgentManagerAgentFactory());
     }

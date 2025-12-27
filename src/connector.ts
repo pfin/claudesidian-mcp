@@ -17,7 +17,7 @@ import { ToolCallTraceService } from './services/trace/ToolCallTraceService';
 
 // Type definitions
 import { AgentToolParams } from './types/agent/AgentTypes';
-import { VaultLibrarianAgent } from './agents';
+import { SearchManagerAgent } from './agents';
 import { MemoryManagerAgent } from './agents';
 import { AGENTS } from './config/agentConfigs';
 import { IAgent } from './agents/interfaces/IAgent';
@@ -140,7 +140,7 @@ export class MCPConnector {
             'memoryManager.switchWorkspace',
             'memoryManager.createWorkspace',
             'memoryManager.getWorkspace',
-            'vaultLibrarian.search'
+            'searchManager.search'
         ];
         
         return workspaceTools.some(tool => toolName.includes(tool)) || 
@@ -312,7 +312,7 @@ export class MCPConnector {
      * Get schemas for specific tool names (called via get_tools meta-tool)
      * Returns clean schemas WITHOUT common parameters to reduce context bloat
      *
-     * @param toolNames Array of specific tool names like ["contentManager_createNote", "vaultLibrarian_searchDirectory"]
+     * @param toolNames Array of specific tool names like ["contentManager_createNote", "searchManager_searchDirectory"]
      */
     private getToolsForSpecificNames(toolNames: string[]): Array<{ name: string; description: string; inputSchema: Record<string, unknown> }> {
         const toolSchemas: Array<{ name: string; description: string; inputSchema: Record<string, unknown> }> = [];
@@ -425,7 +425,7 @@ export class MCPConnector {
                         overview: overview,
                         sessionId: sessionId,
                         workspaceId: workspaceId,
-                        instruction: 'Above is the overview of all available agents and their tools. To use specific tools, call get_tools again with the exact tool names (e.g., get_tools({ tools: ["contentManager_createNote", "vaultLibrarian_searchDirectory"] }))'
+                        instruction: 'Above is the overview of all available agents and their tools. To use specific tools, call get_tools again with the exact tool names (e.g., get_tools({ tools: ["contentManager_createNote", "searchManager_searchDirectory"] }))'
                     };
                 }
 
@@ -646,10 +646,10 @@ Keep workspaceId and sessionId values EXACTLY as shown above throughout the conv
     }
     
     /**
-     * Get the vault librarian instance - delegates to AgentRegistrationService
+     * Get the search manager instance - delegates to AgentRegistrationService
      */
-    getVaultLibrarian(): VaultLibrarianAgent | null {
-        return this.agentRegistry.getAgent('vaultLibrarian') as VaultLibrarianAgent | null;
+    getSearchManager(): SearchManagerAgent | null {
+        return this.agentRegistry.getAgent('searchManager') as SearchManagerAgent | null;
     }
     
     /**
