@@ -372,11 +372,11 @@ export class UseToolTool implements ITool<UseToolParams, UseToolResult> {
             properties: {
               agent: {
                 type: 'string',
-                description: 'Agent name (e.g., "vaultManager", "agentManager")'
+                description: 'Agent name (e.g., "storageManager", "promptManager")'
               },
               tool: {
                 type: 'string',
-                description: 'Tool name (e.g., "listDirectory", "subagent")'
+                description: 'Tool name (e.g., "list", "subagent")'
               },
               params: {
                 type: 'object',

@@ -9,7 +9,7 @@
  */
 
 export interface AgentDescriptor {
-  name: string;        // Agent identifier (e.g., "agentManager", "searchManager")
+  name: string;        // Agent identifier (e.g., "promptManager", "searchManager")
   description: string; // What this agent does (shown in enum description)
 }
 
@@ -19,8 +19,8 @@ export interface AgentDescriptor {
  */
 export const AGENTS: AgentDescriptor[] = [
   {
-    name: "agentManager",
-    description: "Custom AI prompts, LLM integration, image generation, batch operations"
+    name: "promptManager",
+    description: "Custom prompts, LLM integration, image generation, subagent spawning"
   },
   {
     name: "contentManager",

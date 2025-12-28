@@ -177,7 +177,7 @@ export abstract class BaseAgent implements IAgent {
       'editNote': { agent: 'contentManager', tool: 'replaceContent' },
 
       // LLMs might call generic "search" on wrong agent
-      'search': { agent: 'vaultLibrarian', tool: 'searchContent' },
+      'search': { agent: 'searchManager', tool: 'searchContent' },
     };
 
     // Check aliases first
@@ -187,7 +187,7 @@ export abstract class BaseAgent implements IAgent {
     }
 
     // Search known agent names for exact tool match
-    const agentNames = ['vaultManager', 'contentManager', 'vaultLibrarian', 'memoryManager', 'commandManager', 'promptManager'];
+    const agentNames = ['storageManager', 'contentManager', 'searchManager', 'memoryManager', 'commandManager', 'promptManager'];
 
     for (const agentName of agentNames) {
       if (agentName === this.name) continue;

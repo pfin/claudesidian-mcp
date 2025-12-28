@@ -58,8 +58,8 @@ const KNOWN_AGENTS = [
   'promptManager',
   'contentManager',
   'commandManager',
-  'vaultManager',
-  'vaultLibrarian',
+  'storageManager',
+  'searchManager',
   'memoryManager',
 ];
 

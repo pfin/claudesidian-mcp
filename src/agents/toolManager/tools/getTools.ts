@@ -64,7 +64,7 @@ export class GetToolsTool implements ITool<GetToolsParams, GetToolsResult> {
       'Get parameter schemas for specific tools.',
       '',
       'REQUIRED: Specify at least one agent and tool in the request array.',
-      'Example: { "request": [{ "agent": "vaultManager", "tools": ["listDirectory"] }] }',
+      'Example: { "request": [{ "agent": "storageManager", "tools": ["list"] }] }',
       ''
     ];
 
@@ -120,7 +120,7 @@ export class GetToolsTool implements ITool<GetToolsParams, GetToolsResult> {
       if (!request || !Array.isArray(request) || request.length === 0) {
         return {
           success: false,
-          error: 'Request array is required. Example: { "request": [{ "agent": "vaultManager", "tools": ["listDirectory"] }] }. See tool description for available agents and tools.'
+          error: 'Request array is required. Example: { "request": [{ "agent": "storageManager", "tools": ["list"] }] }. See tool description for available agents and tools.'
         };
       }
 
@@ -238,7 +238,7 @@ export class GetToolsTool implements ITool<GetToolsParams, GetToolsResult> {
             properties: {
               agent: {
                 type: 'string',
-                description: 'Agent name (e.g., "vaultManager", "contentManager", "agentManager")'
+                description: 'Agent name (e.g., "storageManager", "contentManager", "promptManager")'
               },
               tools: {
                 type: 'array',
@@ -250,7 +250,7 @@ export class GetToolsTool implements ITool<GetToolsParams, GetToolsResult> {
             required: ['agent', 'tools']
           },
           minItems: 1,
-          description: 'REQUIRED: Array of agent/tools requests. Example: [{ "agent": "vaultManager", "tools": ["listDirectory"] }]'
+          description: 'REQUIRED: Array of agent/tools requests. Example: [{ "agent": "storageManager", "tools": ["list"] }]'
         }
       },
       required: ['context', 'request']

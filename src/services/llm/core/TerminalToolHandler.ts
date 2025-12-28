@@ -17,7 +17,7 @@ export interface TerminalToolResult {
  * List of tools that should terminate the pingpong loop
  * These tools spawn background processes and the parent should not continue
  */
-const TERMINAL_TOOLS = ['subagent', 'agentManager_subagent', 'agentManager.subagent'];
+const TERMINAL_TOOLS = ['subagent', 'promptManager_subagent', 'promptManager.subagent'];
 
 /**
  * Check if any executed tool is a "terminal" tool that should stop the pingpong loop

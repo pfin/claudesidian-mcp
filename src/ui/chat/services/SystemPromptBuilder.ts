@@ -475,7 +475,7 @@ IMPORTANT:
       }
     }
 
-    prompt += '\nUse vaultManager or vaultLibrarian tools to explore subfolders or search for specific content.\n';
+    prompt += '\nUse storageManager or searchManager tools to explore subfolders or search for specific content.\n';
     prompt += '</vault_structure>';
 
     return prompt;

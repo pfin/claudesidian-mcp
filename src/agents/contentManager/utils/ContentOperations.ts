@@ -28,11 +28,11 @@ export class ContentOperations {
       const file = app.vault.getAbstractFileByPath(normalizedPath);
       
       if (!file) {
-        throw new Error(`File not found: "${filePath}". Use searchContent to find files by name, or listDirectory to explore folders.`);
+        throw new Error(`File not found: "${filePath}". Use searchContent to find files by name, or storageManager.list to explore folders.`);
       }
       
       if (!(file instanceof TFile)) {
-        throw new Error(`Path is a folder, not a file: "${filePath}". Use listDirectory to see its contents.`);
+        throw new Error(`Path is a folder, not a file: "${filePath}". Use storageManager.list to see its contents.`);
       }
       
       return await app.vault.read(file);
@@ -153,11 +153,11 @@ export class ContentOperations {
       const file = app.vault.getAbstractFileByPath(normalizedPath);
       
       if (!file) {
-        throw new Error(`File not found: "${filePath}". Use searchContent to find files by name, or listDirectory to explore folders.`);
+        throw new Error(`File not found: "${filePath}". Use searchContent to find files by name, or storageManager.list to explore folders.`);
       }
       
       if (!(file instanceof TFile)) {
-        throw new Error(`Path is a folder, not a file: "${filePath}". Use listDirectory to see its contents.`);
+        throw new Error(`Path is a folder, not a file: "${filePath}". Use storageManager.list to see its contents.`);
       }
       
       const existingContent = await app.vault.read(file);
@@ -192,11 +192,11 @@ export class ContentOperations {
       const file = app.vault.getAbstractFileByPath(normalizedPath);
       
       if (!file) {
-        throw new Error(`File not found: "${filePath}". Use searchContent to find files by name, or listDirectory to explore folders.`);
+        throw new Error(`File not found: "${filePath}". Use searchContent to find files by name, or storageManager.list to explore folders.`);
       }
       
       if (!(file instanceof TFile)) {
-        throw new Error(`Path is a folder, not a file: "${filePath}". Use listDirectory to see its contents.`);
+        throw new Error(`Path is a folder, not a file: "${filePath}". Use storageManager.list to see its contents.`);
       }
       
       const existingContent = await app.vault.read(file);
@@ -236,11 +236,11 @@ export class ContentOperations {
       const file = app.vault.getAbstractFileByPath(normalizedPath);
       
       if (!file) {
-        throw new Error(`File not found: "${filePath}". Use searchContent to find files by name, or listDirectory to explore folders.`);
+        throw new Error(`File not found: "${filePath}". Use searchContent to find files by name, or storageManager.list to explore folders.`);
       }
       
       if (!(file instanceof TFile)) {
-        throw new Error(`Path is a folder, not a file: "${filePath}". Use listDirectory to see its contents.`);
+        throw new Error(`Path is a folder, not a file: "${filePath}". Use storageManager.list to see its contents.`);
       }
       
       const existingContent = await app.vault.read(file);
@@ -313,11 +313,11 @@ export class ContentOperations {
       const file = app.vault.getAbstractFileByPath(normalizedPath);
       
       if (!file) {
-        throw new Error(`File not found: "${filePath}". Use searchContent to find files by name, or listDirectory to explore folders.`);
+        throw new Error(`File not found: "${filePath}". Use searchContent to find files by name, or storageManager.list to explore folders.`);
       }
       
       if (!(file instanceof TFile)) {
-        throw new Error(`Path is a folder, not a file: "${filePath}". Use listDirectory to see its contents.`);
+        throw new Error(`Path is a folder, not a file: "${filePath}". Use storageManager.list to see its contents.`);
       }
       
       const existingContent = await app.vault.read(file);
@@ -374,11 +374,11 @@ export class ContentOperations {
       const file = app.vault.getAbstractFileByPath(normalizedPath);
       
       if (!file) {
-        throw new Error(`File not found: "${filePath}". Use searchContent to find files by name, or listDirectory to explore folders.`);
+        throw new Error(`File not found: "${filePath}". Use searchContent to find files by name, or storageManager.list to explore folders.`);
       }
       
       if (!(file instanceof TFile)) {
-        throw new Error(`Path is a folder, not a file: "${filePath}". Use listDirectory to see its contents.`);
+        throw new Error(`Path is a folder, not a file: "${filePath}". Use storageManager.list to see its contents.`);
       }
       
       const existingContent = await app.vault.read(file);
@@ -455,11 +455,11 @@ export class ContentOperations {
       const file = app.vault.getAbstractFileByPath(normalizedPath);
       
       if (!file) {
-        throw new Error(`File not found: "${filePath}". Use searchContent to find files by name, or listDirectory to explore folders.`);
+        throw new Error(`File not found: "${filePath}". Use searchContent to find files by name, or storageManager.list to explore folders.`);
       }
       
       if (!(file instanceof TFile)) {
-        throw new Error(`Path is a folder, not a file: "${filePath}". Use listDirectory to see its contents.`);
+        throw new Error(`Path is a folder, not a file: "${filePath}". Use storageManager.list to see its contents.`);
       }
       
       const existingContent = await app.vault.read(file);

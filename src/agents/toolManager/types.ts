@@ -16,7 +16,7 @@ export type { ToolContext } from '../../types/mcp/AgentTypes';
  * Explicit structure with named fields for LLM clarity
  */
 export interface ToolRequestItem {
-  /** Agent name (e.g., "vaultManager", "contentManager") */
+  /** Agent name (e.g., "storageManager", "contentManager") */
   agent: string;
 
   /** Array of tool names to get schemas for */
@@ -32,7 +32,7 @@ export interface GetToolsParams {
 
   /**
    * Array of agent/tools requests
-   * Example: [{ agent: "vaultManager", tools: ["listDirectory"] }]
+   * Example: [{ agent: "storageManager", tools: ["list"] }]
    */
   request: ToolRequestItem[];
 }
@@ -97,10 +97,10 @@ export interface GetToolsResult extends CommonResult {
  * Individual tool call within useTool
  */
 export interface ToolCallParams {
-  /** Agent name (e.g., "vaultManager") */
+  /** Agent name (e.g., "storageManager") */
   agent: string;
 
-  /** Tool name (e.g., "listDirectory") */
+  /** Tool name (e.g., "list") */
   tool: string;
 
   /** Tool-specific parameters (context injected automatically) */

@@ -59,13 +59,13 @@ export class UpdateTool extends BaseTool<UpdateParams, UpdateResult> {
 
       if (!file) {
         return this.prepareResult(false, undefined,
-          `File not found: "${path}". Use searchContent to find files by name, or listDirectory to explore folders.`
+          `File not found: "${path}". Use searchContent to find files by name, or storageManager.list to explore folders.`
         );
       }
 
       if (!(file instanceof TFile)) {
         return this.prepareResult(false, undefined,
-          `Path is a folder, not a file: "${path}". Use listDirectory to see its contents.`
+          `Path is a folder, not a file: "${path}". Use storageManager.list to see its contents.`
         );
       }
 

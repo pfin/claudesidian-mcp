@@ -159,7 +159,7 @@ export class NudgeHelpers {
     if (fileCount > 20) {
       return {
         type: "exploration",
-        message: "Large workspace loaded. Consider using VaultManager listDirectory to explore the structure, or VaultLibrarian search to find specific content."
+        message: "Large workspace loaded. Consider using storageManager.list to explore the structure, or searchManager to find specific content."
       };
     }
     return null;
@@ -171,7 +171,7 @@ export class NudgeHelpers {
   static suggestNextSteps(): Recommendation {
     return {
       type: "next_steps",
-      message: "Progress saved. Consider what you'd like to work on next, or use AgentManager if you want to automate similar future workflows."
+      message: "Progress saved. Consider what you'd like to work on next, or use promptManager if you want to automate similar future workflows."
     };
   }
 
