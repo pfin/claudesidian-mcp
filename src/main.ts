@@ -1,9 +1,10 @@
-import { Plugin, Notice } from 'obsidian';
+import { Plugin, Notice, Platform } from 'obsidian';
 import { Settings } from './settings';
 import { ServiceManager } from './core/ServiceManager';
 import { PluginLifecycleManager, type PluginLifecycleConfig } from './core/PluginLifecycleManager';
 import { BRAND_NAME } from './constants/branding';
 import { supportsMCPBridge } from './utils/platform';
+import { WasmEnsurer } from './utils/WasmEnsurer';
 
 // MCPConnector type for desktop-only dynamic import
 type MCPConnectorType = import('./connector').MCPConnector;
@@ -57,6 +58,15 @@ export default class NexusPlugin extends Plugin {
 
     async onload() {
         try {
+            // Ensure sqlite3.wasm exists (desktop only - SQLite not used on mobile)
+            if (Platform.isDesktop) {
+                const wasmEnsurer = new WasmEnsurer(this);
+                const wasmReady = await wasmEnsurer.ensureWasmExists();
+                if (!wasmReady) {
+                    console.warn(`[${BRAND_NAME}] SQLite WASM not available - some features may be limited`);
+                }
+            }
+
             // Create service manager and settings
             this.settings = new Settings(this);
             this.serviceManager = new ServiceManager(this.app, this);
