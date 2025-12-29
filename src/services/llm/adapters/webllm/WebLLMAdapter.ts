@@ -94,7 +94,6 @@ export class WebLLMAdapter extends BaseAdapter {
   mcpConnector?: any; // For tool execution support
 
   constructor(vault: Vault, mcpConnector?: any, sessionId?: string, workspaceId?: string) {
-    console.log('[WebLLMAdapter] CONSTRUCTOR CALLED');
     // WebLLM doesn't need an API key
     super('', '', '', false);
 

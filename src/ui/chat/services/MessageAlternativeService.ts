@@ -67,7 +67,6 @@ export class MessageAlternativeService {
     const originalState = aiMessage.state;
 
     try {
-      console.log('[SUBAGENT-DEBUG] Retry: Starting alternative response', { aiMessageId });
       this.events.onLoadingStateChanged(true);
 
       // Clear the AI message and show loading state

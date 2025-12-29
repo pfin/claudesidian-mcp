@@ -157,7 +157,6 @@ export class ChatView extends ItemView {
     // Notify Nexus lifecycle manager that ChatView is open
     // Pass current provider so it can pre-load if Nexus is selected
     const currentProvider = (await this.modelAgentManager.getMessageOptions()).provider;
-    console.log('[ChatView] Notifying lifecycle manager with provider:', currentProvider);
     lifecycleManager.handleChatViewOpened(currentProvider).catch((error) => {
       console.error('[ChatView] handleChatViewOpened failed:', error);
     });
@@ -383,7 +382,6 @@ export class ChatView extends ItemView {
           // Reload conversation if viewing the one that was updated
           const current = this.conversationManager?.getCurrentConversation();
           if (current?.id === conversationId) {
-            console.log('[SUBAGENT-DEBUG] Refreshing conversation display');
             // Re-select current conversation to trigger full reload
             await this.conversationManager?.selectConversation(current);
           }
@@ -869,10 +867,8 @@ export class ChatView extends ItemView {
    * the branch conversation via ChatService - no special routing needed.
    */
   async navigateToBranch(branchId: string): Promise<void> {
-    console.log('[SUBAGENT-DEBUG] navigateToBranch START', { branchId });
     const currentConversation = this.conversationManager.getCurrentConversation();
     if (!currentConversation) {
-      console.log('[SUBAGENT-DEBUG] navigateToBranch: no current conversation');
       return;
     }
 
@@ -880,12 +876,8 @@ export class ChatView extends ItemView {
       // In the new architecture, branchId IS the conversation ID
       // Load the branch conversation directly from storage
       const branchConversation = await this.chatService.getConversation(branchId);
-      console.log('[SUBAGENT-DEBUG] navigateToBranch: loaded branch', {
-        found: !!branchConversation,
-        messageCount: branchConversation?.messages?.length,
-      });
       if (!branchConversation) {
-        console.error('[SUBAGENT-DEBUG] Branch conversation not found:', branchId);
+        console.error('[ChatView] Branch conversation not found:', branchId);
         return;
       }
 

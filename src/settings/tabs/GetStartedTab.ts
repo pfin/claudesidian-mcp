@@ -63,7 +63,43 @@ export class GetStartedTab {
      * Render the initial two-path view
      */
     private renderPathsView(): void {
-        this.container.createEl('h3', { text: 'How would you like to use Nexus?' });
+        // Plugin introduction
+        const intro = this.container.createDiv('nexus-intro');
+        intro.createEl('h3', { text: 'Welcome to Nexus' });
+        intro.createEl('p', {
+            text: 'Nexus is an AI-powered assistant that lives inside your Obsidian vault. It can read and write your notes, search through your content, and maintain long-term memory of your conversations—all while keeping your data local and private.',
+            cls: 'nexus-intro-desc'
+        });
+
+        // Key capabilities
+        const capabilities = intro.createDiv('nexus-capabilities');
+        capabilities.createEl('h4', { text: 'What Nexus can do' });
+
+        const capList = capabilities.createEl('ul', { cls: 'nexus-capability-list' });
+        const capItems = [
+            { icon: '📝', text: 'Read, create, and edit notes in your vault' },
+            { icon: '🔍', text: 'Search content by keywords or semantic meaning' },
+            { icon: '🧠', text: 'Remember context across conversations with workspaces' },
+            { icon: '📁', text: 'Organize files and folders' },
+            { icon: '🤖', text: 'Run custom prompts and spawn sub-agents' },
+            { icon: '🔒', text: 'Work fully offline with local LLMs (Ollama, LM Studio)' }
+        ];
+
+        for (const cap of capItems) {
+            const li = capList.createEl('li');
+            li.createSpan({ text: cap.icon, cls: 'nexus-cap-icon' });
+            li.createSpan({ text: cap.text });
+        }
+
+        // Divider
+        this.container.createEl('hr', { cls: 'nexus-divider' });
+
+        // Setup paths header
+        this.container.createEl('h3', { text: 'Choose your setup' });
+        this.container.createEl('p', {
+            text: 'Nexus works in two ways—pick one or use both:',
+            cls: 'setting-item-description'
+        });
 
         const paths = this.container.createDiv('nexus-setup-paths');
 

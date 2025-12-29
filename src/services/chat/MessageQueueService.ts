@@ -119,9 +119,7 @@ export class MessageQueueService extends EventEmitter {
    * Process a single message
    */
   private async processMessage(message: QueuedMessage): Promise<void> {
-    console.log('[SUBAGENT-DEBUG] MessageQueue.processMessage start:', { type: message.type, hasProcessor: !!this.processMessageFn });
     if (!this.processMessageFn) {
-      console.error('[SUBAGENT-DEBUG] No message processor set!');
       return;
     }
 
@@ -129,9 +127,8 @@ export class MessageQueueService extends EventEmitter {
 
     try {
       await this.processMessageFn(message);
-      console.log('[SUBAGENT-DEBUG] MessageQueue.processMessage complete');
     } catch (error) {
-      console.error('[SUBAGENT-DEBUG] MessageQueue error processing:', error);
+      console.error('[MessageQueueService] Error processing message:', error);
     }
   }
 

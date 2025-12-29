@@ -167,28 +167,18 @@ export class WebLLMLifecycleManager {
   async handleChatViewOpened(currentProvider?: string): Promise<void> {
     this.isChatViewOpen = true;
 
-    console.log('[WebLLMLifecycleManager] handleChatViewOpened called with provider:', currentProvider);
-    console.log('[WebLLMLifecycleManager] adapter exists:', !!this.adapter);
-
     // Pre-load model if Nexus is the current provider
     // This gives a better UX - model is ready when user sends first message
     if (currentProvider === 'webllm' && this.adapter) {
       const isInstalled = await this.isModelInstalled();
       const isLoaded = this.adapter.isModelLoaded();
 
-      console.log('[WebLLMLifecycleManager] isInstalled:', isInstalled, 'isLoaded:', isLoaded, 'isLoading:', this.isLoading);
-
       if (isInstalled && !isLoaded && !this.isLoading) {
-        console.log('[WebLLMLifecycleManager] Starting pre-load...');
         // Pre-load in background - callbacks will show loading overlay
         this.loadModel().catch((error) => {
           console.error('[WebLLMLifecycleManager] Pre-load failed:', error);
         });
-      } else {
-        console.log('[WebLLMLifecycleManager] Skipping pre-load - conditions not met');
       }
-    } else {
-      console.log('[WebLLMLifecycleManager] Not loading - provider is not webllm or no adapter');
     }
   }
 

@@ -4414,6 +4414,58 @@ a:hover {
     padding: 0 4px;
 }
 
+/* Get Started intro section */
+.nexus-intro {
+    margin-bottom: 16px;
+}
+
+.nexus-intro-desc {
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+.nexus-capabilities h4 {
+    margin: 0 0 12px 0;
+    font-size: 0.95em;
+}
+
+.nexus-capability-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 16px;
+}
+
+@media (max-width: 500px) {
+    .nexus-capability-list {
+        grid-template-columns: 1fr;
+    }
+}
+
+.nexus-capability-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9em;
+    color: var(--text-normal);
+}
+
+.nexus-cap-icon {
+    font-size: 1.1em;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.nexus-divider {
+    border: none;
+    border-top: 1px solid var(--background-modifier-border);
+    margin: 24px 0;
+}
+
 /* Get Started setup paths */
 .nexus-setup-paths {
     display: grid;

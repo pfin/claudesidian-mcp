@@ -84,7 +84,6 @@ export class BranchService {
     subagentId: string,
     maxIterations: number = 10
   ): Promise<string> {
-    console.log('[SUBAGENT-DEBUG] createSubagentBranch START', { conversationId, messageId, task, subagentId });
     const now = Date.now();
     const title = `Subagent: ${task.slice(0, 50)}${task.length > 50 ? '...' : ''}`;
 
@@ -107,8 +106,6 @@ export class BranchService {
       task,
       subagentMeta  // Pass full subagent state
     );
-    console.log('[SUBAGENT-DEBUG] Branch created with metadata', { branchId: branch.id, subagentMeta });
-
     return branch.id;
   }
 
