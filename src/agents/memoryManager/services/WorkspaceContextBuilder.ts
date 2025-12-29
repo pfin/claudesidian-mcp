@@ -17,21 +17,24 @@
 
 import { ProjectWorkspace } from '../../../database/types/workspace/WorkspaceTypes';
 
+/** Trace item shape for context building */
+interface TraceItem {
+  timestamp?: number;
+  content?: string;
+  metadata?: {
+    request?: {
+      normalizedParams?: { context?: { memory?: string; sessionMemory?: string } };
+      originalParams?: { context?: { memory?: string; sessionMemory?: string } };
+    };
+  };
+}
+
 /**
  * Interface for memory service methods used by this builder
- * Supports both new format (memory) and legacy format (sessionMemory) for backward compatibility
+ * Returns PaginatedResult with items array
  */
 interface IMemoryServiceForContext {
-  getMemoryTraces(workspaceId: string): Promise<Array<{
-    timestamp?: number;
-    content?: string;
-    metadata?: {
-      request?: {
-        normalizedParams?: { context?: { memory?: string; sessionMemory?: string } };
-        originalParams?: { context?: { memory?: string; sessionMemory?: string } };
-      };
-    };
-  }>>;
+  getMemoryTraces(workspaceId: string): Promise<{ items: TraceItem[]; total: number }>;
 }
 
 /**
@@ -168,9 +171,10 @@ export class WorkspaceContextBuilder {
   ): Promise<string[]> {
     try {
       // Get all traces from workspace (across all sessions)
-      const traces = await memoryService.getMemoryTraces(workspaceId);
+      const tracesResult = await memoryService.getMemoryTraces(workspaceId);
+      const traces = tracesResult.items || [];
 
-      if (!traces || traces.length === 0) {
+      if (traces.length === 0) {
         return ['No recent activity'];
       }
 

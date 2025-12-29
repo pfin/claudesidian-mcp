@@ -227,14 +227,12 @@ export class SearchMemoryTool extends BaseTool<SearchMemoryParams, SearchMemoryR
       properties: {
         query: {
           type: 'string',
-          description: 'REQUIRED: Search query to find in memory content',
-          minLength: 1,
-          examples: ['project discussion', 'error handling', 'user feedback', 'deployment process']
+          description: 'Search query to find in memory content',
+          minLength: 1
         },
         workspaceId: {
           type: 'string',
-          description: 'REQUIRED: Workspace context for memory search. States and traces are workspace-scoped. Use listWorkspaces to see available workspaces.',
-          examples: ['project-alpha', 'research-workspace', 'global-workspace']
+          description: 'Workspace context for memory search. Use listWorkspaces to see available workspaces.'
         },
         memoryTypes: {
           type: 'array',
@@ -273,11 +271,11 @@ export class SearchMemoryTool extends BaseTool<SearchMemoryParams, SearchMemoryR
           properties: {
             agent: {
               type: 'string',
-              description: 'Filter by agent name (e.g., contentManager, searchManager)'
+              description: 'Filter by agent name'
             },
             tool: {
               type: 'string',
-              description: 'Filter by tool name (e.g., createContent, searchContent)'
+              description: 'Filter by tool name'
             },
             success: {
               type: 'boolean',

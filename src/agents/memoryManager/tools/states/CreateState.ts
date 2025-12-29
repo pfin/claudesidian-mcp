@@ -319,7 +319,6 @@ export class CreateStateTool extends BaseTool<CreateStateParams, StateResult> {
                 // Additional WorkspaceState fields
                 sessionId: '_workspace',  // All states are workspace-scoped
                 timestamp: now,
-                description: params.description || params.activeTask,
                 state: {
                     workspace,
                     recentTraces: [], // Could be populated from current session
@@ -408,63 +407,35 @@ export class CreateStateTool extends BaseTool<CreateStateParams, StateResult> {
     getParameterSchema(): any {
         const toolSchema = {
             type: 'object',
-            title: 'Create State - Save Work Context for Resumption',
-            description: '⚠️ CRITICAL: "name" is the FIRST required parameter - provide a short descriptive title. Create a state to save your current work context for later resumption.',
+            title: 'Create State',
+            description: 'Save current work context for later resumption. States are immutable snapshots.',
             properties: {
                 name: {
                     type: 'string',
-                    description: '📝 ⚠️ REQUIRED (FIRST PARAMETER): State name - a short descriptive title for this save point. This is DIFFERENT from "reason". Example: "Google Cover Letter Draft"',
-                    examples: ['Google Cover Letter Draft', 'Pre-Submission Checkpoint', 'Research Phase Complete', 'Story Outline v1']
+                    description: 'Short descriptive title for this save point'
                 },
                 conversationContext: {
                     type: 'string',
-                    description: '💬 REQUIRED: What was happening when you decided to save this state? Provide a summary of the conversation and what you were working on.\n\nExample: "We were customizing the cover letter for Google\'s Marketing Manager position. We researched their team and identified key requirements."',
-                    examples: [
-                        'We were customizing the cover letter for Google\'s Marketing Manager position. We researched their team and identified key requirements.',
-                        'Working on the story outline, just completed act 2 structure with key plot points',
-                        'Analyzed research papers on AI safety, identified three main themes'
-                    ]
+                    description: 'Detailed markdown summary enabling seamless resumption. Structure with headings:\n\n## Original Request\nWhat the user asked for and their goal\n\n## Key Decisions Made\n- Decision and reasoning\n- Decision and reasoning\n\n## Important Context\nBackground info, constraints, or discoveries from the conversation\n\n## Current Status\nWhat is complete, what is in progress, any blockers'
                 },
                 activeTask: {
                     type: 'string',
-                    description: '🎯 REQUIRED: What task were you actively working on? Be specific about the current task.\n\nExample: "Finishing the cover letter paragraph about data-driven campaign optimization results"',
-                    examples: [
-                        'Finishing the cover letter paragraph about data-driven campaign optimization results',
-                        'Writing the climax sequence for Act 3',
-                        'Summarizing findings from latest AI safety papers'
-                    ]
+                    description: 'The specific task in progress when saving'
                 },
                 activeFiles: {
                     type: 'array',
                     items: { type: 'string' },
-                    description: '📄 REQUIRED: Which files were you working with? Provide an ARRAY of file paths that were being edited or referenced.\n\nExample: ["cover-letter-google.md", "application-tracker.md"]',
-                    examples: [
-                        ['cover-letter-google.md', 'application-tracker.md'],
-                        ['story-outline.md', 'character-profiles.md'],
-                        ['research-notes.md', 'literature-review.md']
-                    ]
+                    description: 'File paths being edited or referenced'
                 },
                 nextSteps: {
                     type: 'array',
                     items: { type: 'string' },
-                    description: '✅ REQUIRED: What are the immediate next steps when you resume? Provide an ARRAY of specific actionable next steps.\n\nExample: ["Complete cover letter customization", "Review resume for Google-specific keywords", "Submit application"]',
-                    examples: [
-                        ['Complete cover letter customization', 'Review resume for Google-specific keywords', 'Submit application'],
-                        ['Revise Act 3 climax', 'Add character development notes', 'Draft beat sheet'],
-                        ['Complete literature review', 'Organize findings by theme', 'Start writing methodology section']
-                    ]
-                },
-
-                // Optional fields
-                description: {
-                    type: 'string',
-                    description: 'Optional: Additional description for the state'
+                    description: 'Specific action items to resume work, in priority order'
                 },
                 tags: {
                     type: 'array',
                     items: { type: 'string' },
-                    description: 'Optional: Tags to associate with the state',
-                    examples: [['work', 'cover-letter'], ['screenplay', 'outline'], ['research', 'ai-safety']]
+                    description: 'Optional tags for categorization'
                 }
             },
             required: ['name', 'conversationContext', 'activeTask', 'activeFiles', 'nextSteps'],

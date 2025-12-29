@@ -229,13 +229,8 @@ export class GenerateImageTool extends BaseTool<GenerateImageParams, GenerateIma
         },
         savePath: {
           type: 'string',
-          description: 'Vault-relative path where the image should be saved (e.g., "images/my-image.png")',
+          description: 'Vault-relative path for the image. Extension may change based on API response format.',
           pattern: '^[^/].*\\.(png|jpg|jpeg|webp)$'
-        },
-        format: {
-          type: 'string',
-          enum: ['png', 'jpeg', 'webp'],
-          description: 'Image format (optional, inferred from savePath extension or provider default)'
         }
       },
       required: ['prompt', 'savePath']

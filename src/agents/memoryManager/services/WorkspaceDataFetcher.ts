@@ -67,9 +67,9 @@ export class WorkspaceDataFetcher {
         return createEmptyPaginatedResult<SessionSummary>(0, options?.pageSize ?? 10);
       }
 
-      // Note: getSessions currently returns an array, not PaginatedResult
-      // This is a limitation we'll work with for now
-      const sessions = await memoryService.getSessions(workspaceId);
+      // getSessions returns PaginatedResult<WorkspaceSession>
+      const sessionsResult = await memoryService.getSessions(workspaceId);
+      const sessions = sessionsResult.items || [];
 
       // Defensive validation: ensure all sessions belong to workspace
       const validSessions = sessions.filter((session: any) =>

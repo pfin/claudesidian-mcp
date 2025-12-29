@@ -202,50 +202,40 @@ export class SearchDirectoryTool extends BaseTool<SearchDirectoryParams, SearchD
   getParameterSchema() {
     const toolSchema = {
       type: 'object',
-      title: 'Search Directory Tool - Find Files and Folders',
-      description: 'Search for files and/or folders within specific directory paths. CRITICAL: Use "query" parameter (NOT "filter") for the search term, and "paths" array is REQUIRED.',
+      title: 'Search Directory',
+      description: 'Search for files and folders within directory paths.',
       properties: {
         query: {
           type: 'string',
-          description: '🔍 REQUIRED: The search term to find in file/folder names and paths. Use simple text without wildcards (fuzzy matching is automatic). Examples: "summary", "project", "meeting notes"',
-          minLength: 1,
-          examples: ['summary', 'project', 'meeting notes', 'config', 'README']
+          description: 'Search term to find in file/folder names and paths. Fuzzy matching is automatic.',
+          minLength: 1
         },
         paths: {
           type: 'array',
           items: { type: 'string' },
           minItems: 1,
-          description: '📁 REQUIRED: Array of directory paths to search within. Supports glob patterns (e.g., "folder/*.md", "**/*.ts"). Cannot be empty. Use ["/"] to search the entire vault root. Examples: ["/"] for whole vault, ["Projects/WebApp"] for specific folder, ["Notes", "Archive"] for multiple folders.',
-          examples: [
-            ['/'],
-            ['Projects/WebApp'],
-            ['Notes', 'Archive'],
-            ['Work/Current Projects', 'Personal/Ideas'],
-            ['**/*.md']
-          ]
+          description: 'Directory paths to search within. Supports glob patterns. Use ["/"] for entire vault.'
         },
         searchType: {
           type: 'string',
           enum: ['files', 'folders', 'both'],
-          description: '🎯 What to search for: "files" (only files), "folders" (only folders), or "both" (files and folders). Default: "both"',
+          description: 'What to search for: "files", "folders", or "both"',
           default: 'both'
         },
         fileTypes: {
           type: 'array',
           items: { type: 'string' },
-          description: '📄 Optional: Filter by file extensions without dots. Examples: ["md"], ["md", "txt"], ["pdf", "docx"]',
-          examples: [['md'], ['md', 'txt'], ['pdf', 'docx']]
+          description: 'Filter by file extensions without dots'
         },
         depth: {
           type: 'number',
-          description: '🔢 Optional: Maximum directory depth to search (1-10). Limits how deep into subdirectories to look.',
+          description: 'Maximum directory depth to search (1-10)',
           minimum: 1,
           maximum: 10
         },
         pattern: {
           type: 'string',
-          description: '🔎 Optional: Regular expression pattern to filter paths. Advanced users only. Examples: "^Archive/", ".*Projects.*", "[0-9]{4}"',
-          examples: ['^Archive/', '.*Projects.*', '[0-9]{4}']
+          description: 'Regular expression pattern to filter paths'
         },
         dateRange: {
           type: 'object',
@@ -253,26 +243,26 @@ export class SearchDirectoryTool extends BaseTool<SearchDirectoryParams, SearchD
             start: {
               type: 'string',
               format: 'date',
-              description: '📅 Start date in ISO format (YYYY-MM-DD)'
+              description: 'Start date (YYYY-MM-DD)'
             },
             end: {
               type: 'string',
               format: 'date',
-              description: '📅 End date in ISO format (YYYY-MM-DD)'
+              description: 'End date (YYYY-MM-DD)'
             }
           },
-          description: '🗓️ Optional: Filter results by modification date range (ISO format dates)'
+          description: 'Filter results by modification date range'
         },
         limit: {
           type: 'number',
-          description: '🔢 Optional: Maximum number of results to return (1-100). Default: 20',
+          description: 'Maximum number of results (1-100)',
           default: 20,
           minimum: 1,
           maximum: 100
         },
         includeContent: {
           type: 'boolean',
-          description: '📝 Optional: Include content snippets from files in results. Default: true',
+          description: 'Include content snippets from files',
           default: true
         }
       },

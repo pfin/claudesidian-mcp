@@ -54,9 +54,6 @@ export class GetToolsTool implements ITool<GetToolsParams, GetToolsResult> {
   private buildDescription(schemaData: SchemaData): string {
     const lines = [
       'Get parameter schemas for specific tools.',
-      '',
-      'REQUIRED: Specify at least one agent and tool in the request array.',
-      'Example: { "request": [{ "agent": "storageManager", "tools": ["list"] }] }',
       ''
     ];
 
@@ -234,7 +231,7 @@ export class GetToolsTool implements ITool<GetToolsParams, GetToolsResult> {
             properties: {
               agent: {
                 type: 'string',
-                description: 'Agent name (e.g., "storageManager", "contentManager", "promptManager")'
+                description: 'Agent name'
               },
               tools: {
                 type: 'array',
@@ -246,7 +243,7 @@ export class GetToolsTool implements ITool<GetToolsParams, GetToolsResult> {
             required: ['agent', 'tools']
           },
           minItems: 1,
-          description: 'REQUIRED: Array of agent/tools requests. Example: [{ "agent": "storageManager", "tools": ["list"] }]'
+          description: 'Array of agent/tools requests'
         }
       },
       required: ['context', 'request']

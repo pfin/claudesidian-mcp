@@ -69,11 +69,6 @@ export interface CreateStateParams extends MemoryParams {
   nextSteps: string[];
 
   /**
-   * State description (optional)
-   */
-  description?: string;
-
-  /**
    * Tags to associate with this state (optional)
    */
   tags?: string[];

@@ -358,25 +358,25 @@ export class UseToolTool implements ITool<UseToolParams, UseToolResult> {
             properties: {
               agent: {
                 type: 'string',
-                description: 'Agent name (e.g., "storageManager", "promptManager")'
+                description: 'Agent name'
               },
               tool: {
                 type: 'string',
-                description: 'Tool name (e.g., "list", "subagent")'
+                description: 'Tool name'
               },
               params: {
                 type: 'object',
-                description: 'Tool-specific parameters ONLY (NOT sessionId/workspaceId - those go in context). Example for subagent: { "task": "research topic X" }'
+                description: 'Tool-specific parameters'
               },
               continueOnFailure: {
                 type: 'boolean',
-                description: 'Continue despite errors for this call (serial only)'
+                description: 'Continue despite errors (serial only)'
               }
             },
             required: ['agent', 'tool', 'params']
           },
           minItems: 1,
-          description: 'Tool calls to execute. Use "params" (not "parameters") for tool-specific args.'
+          description: 'Tool calls to execute'
         }
       },
       required: ['context', 'calls']
